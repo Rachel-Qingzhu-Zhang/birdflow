@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 0771ebdbaf5bfb74a9b3bf7f6bfe45b7
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Opt_TallJungle.prefab
+  uploadId: 485106

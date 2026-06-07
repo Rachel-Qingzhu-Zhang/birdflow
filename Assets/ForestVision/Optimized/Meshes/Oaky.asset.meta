@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f8b7a8600ca3b6e4f957c9a50474e27e
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Meshes/Oaky.asset
+  uploadId: 485106

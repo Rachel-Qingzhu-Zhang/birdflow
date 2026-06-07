@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: c3803e36e501b1c48b08058f67a9fee7
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Resources/SpruceBranch_1_v1.prefab
+  uploadId: 485106

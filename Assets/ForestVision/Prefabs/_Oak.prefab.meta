@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: dcfa9bb32d7eeb2418ca8f05e8856590
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/_Oak.prefab
+  uploadId: 485106

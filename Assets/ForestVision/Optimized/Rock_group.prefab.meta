@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f5a3244ad68e82f4baff5756beee9462
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Rock_group.prefab
+  uploadId: 485106

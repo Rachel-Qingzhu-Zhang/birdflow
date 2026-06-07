@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 2dfa2d8351e69ff4e9cd4d3ac31f7cbd
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Resources/Flowers_01.prefab
+  uploadId: 485106

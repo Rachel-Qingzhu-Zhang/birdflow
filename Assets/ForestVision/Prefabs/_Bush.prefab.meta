@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9cec5ecda9f6aac42ba73d662f3dc580
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/_Bush.prefab
+  uploadId: 485106

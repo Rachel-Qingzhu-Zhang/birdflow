@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: cc6d4fe1d7532cd4f8631cde1b5da705
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Meshes/SmallBranching.asset
+  uploadId: 485106

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c0c6f3eed0a9af04995fcc19e790d0f6
+timeCreated: 1459771343
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Materials/Vegetation/veg_ThickWoodsBackground.mat
+  uploadId: 485106

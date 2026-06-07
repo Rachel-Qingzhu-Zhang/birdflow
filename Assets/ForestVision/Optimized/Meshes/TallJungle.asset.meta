@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c99aeffc7f58ac54d95a8e45148450f7
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Meshes/TallJungle.asset
+  uploadId: 485106

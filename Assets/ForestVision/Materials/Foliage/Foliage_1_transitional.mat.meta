@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ea8cbe8eabdfe9649aa01dff1c67c964
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Materials/Foliage/Foliage_1_transitional.mat
+  uploadId: 485106

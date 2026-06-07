@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f762859424caec449928b78db2f04e28
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scenes/Sample2.unity
+  uploadId: 485106

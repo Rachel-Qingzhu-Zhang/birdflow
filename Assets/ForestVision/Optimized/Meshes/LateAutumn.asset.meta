@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4fdb3f13702fa00469c44a585ab346e2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Meshes/LateAutumn.asset
+  uploadId: 485106

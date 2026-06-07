@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 0f123e3f0fc0c3d4682bc9157f54d696
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Tools/TreeCreator/FV_SwitchMesh.cs
+  uploadId: 485106

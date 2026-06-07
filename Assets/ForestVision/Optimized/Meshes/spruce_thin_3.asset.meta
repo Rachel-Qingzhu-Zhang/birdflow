@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 173d7331f5b1f23469a7894df2076aae
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Meshes/spruce_thin_3.asset
+  uploadId: 485106

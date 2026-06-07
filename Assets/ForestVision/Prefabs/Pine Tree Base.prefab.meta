@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 8f74f2d1f961d2048a373c56b9722cea
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/Pine Tree Base.prefab
+  uploadId: 485106

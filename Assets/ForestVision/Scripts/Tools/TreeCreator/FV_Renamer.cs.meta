@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a672b5c185513a4449778b0e509cd67d
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Tools/TreeCreator/FV_Renamer.cs
+  uploadId: 485106

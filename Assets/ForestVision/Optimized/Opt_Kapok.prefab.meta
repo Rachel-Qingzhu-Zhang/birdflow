@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f50394926b450094ca5e87c0cff3d050
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Opt_Kapok.prefab
+  uploadId: 485106

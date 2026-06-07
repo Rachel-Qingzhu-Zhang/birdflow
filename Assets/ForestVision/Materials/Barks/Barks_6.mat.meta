@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 11c4416812328ac488fe29a438dd4d75
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Materials/Barks/Barks_6.mat
+  uploadId: 485106

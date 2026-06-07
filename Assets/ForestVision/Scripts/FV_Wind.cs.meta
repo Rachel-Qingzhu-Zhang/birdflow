@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: a8d89e7ff1f85e1429c473114818e6af
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/FV_Wind.cs
+  uploadId: 485106

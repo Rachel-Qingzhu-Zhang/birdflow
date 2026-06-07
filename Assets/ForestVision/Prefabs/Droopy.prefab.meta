@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 2262e0df482140248a92cb13a2046fe9
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/Droopy.prefab
+  uploadId: 485106

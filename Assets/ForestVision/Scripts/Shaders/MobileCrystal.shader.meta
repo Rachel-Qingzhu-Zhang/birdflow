@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 650a321ea34bf0c4fafb56b14f3adb7b
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Shaders/MobileCrystal.shader
+  uploadId: 485106

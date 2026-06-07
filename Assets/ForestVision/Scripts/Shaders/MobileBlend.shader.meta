@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 06c806fbe870d1c42a95e9de52805d0f
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Shaders/MobileBlend.shader
+  uploadId: 485106

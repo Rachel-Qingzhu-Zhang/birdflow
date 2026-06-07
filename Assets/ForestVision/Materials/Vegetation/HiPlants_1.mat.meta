@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 92b5a486e3753eb499c5e799368a3475
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Materials/Vegetation/HiPlants_1.mat
+  uploadId: 485106

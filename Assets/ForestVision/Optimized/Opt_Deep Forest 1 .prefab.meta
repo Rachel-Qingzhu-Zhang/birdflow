@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: c4a4f30587874e74583733529c3698cb
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Opt_Deep Forest 1 .prefab
+  uploadId: 485106

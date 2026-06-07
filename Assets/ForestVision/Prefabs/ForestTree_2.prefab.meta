@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: fa69c863dce8afb458d1255e00b06b8f
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/ForestTree_2.prefab
+  uploadId: 485106

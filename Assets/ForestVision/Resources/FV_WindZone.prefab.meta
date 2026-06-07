@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 97d13e72e370db348857a0edf970a6f4
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Resources/FV_WindZone.prefab
+  uploadId: 485106

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: c606ca6bd69e1aa4da215c599883f2bb
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Resources/_trunk_01_v1.prefab
+  uploadId: 485106

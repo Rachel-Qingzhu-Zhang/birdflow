@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5b383106465811f41ab0fcf40d489fa9
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Meshes/Opt_Youngling.asset
+  uploadId: 485106

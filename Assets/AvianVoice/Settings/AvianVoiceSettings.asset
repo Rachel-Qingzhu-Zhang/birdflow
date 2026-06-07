@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0286149924b68394ea55987f4f067d65, type: 3}
+  m_Name: AvianVoiceSettings
+  m_EditorClassIdentifier: Assembly-CSharp::AvianVoice.Core.AvianVoiceSettings
+  sampleRate: 48000
+  frameSize: 1024
+  analysisHopSize: 256
+  ringBufferSeconds: 1
+  minPitchHz: 80
+  maxPitchHz: 800
+  loudnessSmooth: 8
+  dspBufferSizeOverride: 256
+  voicedThreshold: 0.02
+  loudnessGain: 8
+  referencePitchHz: 220
+  transformCooldown: 0.14
+  minTransformCooldown: 0.05
+  maxTransformCooldown: 10
+  assistivePitchRangeSemitones: 12
+  transformCooldownUsesClipLength: 1
+  transformClipGapSeconds: 0
+  transformSustainedRetrigger: 1
+  transformSustainLoudnessMin: 0.05
+  onsetLoudnessDelta: 0.02
+  transformPitchFromReference: 1
+  pitchSmooth: 20
+  transformPitchStabilityHz: 40
+  transformMinPitch: 0.4
+  transformMaxPitch: 2.5
+  transformVolumeMin: 0.15
+  transformVolumeMax: 1
+  transformBlockOverlap: 1
+  paramSmooth: 10
+  wingRotationScale: 1
+  chestScaleMax: 0.62
+  bodyRootBreathScale: 0
+  spineLowerChestScaleMax: 0.38
+  breathNeckPitchMax: 16
+  breathDrivesWings: 1
+  wingBreathSpreadMax: 52
+  wingExhaleTremorMax: 14
+  wingBreathPitchOffset: -26
+  secondaryChestScaleMax: 0.42
+  inhaleSpeed: 0.85
+  exhaleSpeed: 0.65
+  mirrorEnabled: 1
+  wingMappingEnabled: 1
+  recorderSampleHz: 30

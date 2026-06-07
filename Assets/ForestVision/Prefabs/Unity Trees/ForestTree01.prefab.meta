@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 89c576f8041a438408f4573ea963e915
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/Unity Trees/ForestTree01.prefab
+  uploadId: 485106

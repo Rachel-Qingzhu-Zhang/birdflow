@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7fc4fc74320032c428932abf50c0b826
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/_Spruce_3.prefab
+  uploadId: 485106

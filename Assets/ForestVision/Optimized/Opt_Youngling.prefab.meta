@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 89d3c608d5ac4424382cc3061782f3b5
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Opt_Youngling.prefab
+  uploadId: 485106

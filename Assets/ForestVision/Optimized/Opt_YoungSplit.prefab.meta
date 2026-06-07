@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d4b309a78e0d1f24c9a205fb379e3201
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Opt_YoungSplit.prefab
+  uploadId: 485106

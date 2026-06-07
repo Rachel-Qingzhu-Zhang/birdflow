@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: e397ff98709f2f3408999c411a26934c
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Shaders/MobileBumpSpec.shader
+  uploadId: 485106

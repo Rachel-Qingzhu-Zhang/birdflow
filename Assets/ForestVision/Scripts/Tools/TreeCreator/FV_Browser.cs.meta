@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 789a56019b4ff2d499fdd02cc0a31da0
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Tools/TreeCreator/FV_Browser.cs
+  uploadId: 485106

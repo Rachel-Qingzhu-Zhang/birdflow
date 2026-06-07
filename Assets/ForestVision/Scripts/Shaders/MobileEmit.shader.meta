@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 48bbe3d38219ff3458cb614240f02189
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Shaders/MobileEmit.shader
+  uploadId: 485106

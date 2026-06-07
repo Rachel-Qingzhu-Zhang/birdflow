@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 8ffa118fe3ba8174e8d41e351a97e7dd
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Tools/FV_Tweaker.cs
+  uploadId: 485106

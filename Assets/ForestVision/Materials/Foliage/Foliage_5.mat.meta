@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: d76f13c3295492b4790aa6b5d5d7ff58
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Materials/Foliage/Foliage_5.mat
+  uploadId: 485106

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4683da878a4e6d14a9d14a77a2221a2f
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Meshes/SimpleYouth.asset
+  uploadId: 485106

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: b195184c954e9054da459550ba7337b5
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Scripts/Shaders/MobileWorldNormal.shader
+  uploadId: 485106

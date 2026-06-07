@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 9043a23e47eb38f43826dfc732f2f6cc
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Materials/Vegetation/TreeBranches/Frond3.mat
+  uploadId: 485106

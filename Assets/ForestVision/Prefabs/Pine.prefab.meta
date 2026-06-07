@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9819a1bcc85cace45aa1762a3298937d
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Prefabs/Pine.prefab
+  uploadId: 485106

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 654ca991011648f43a8e12d61baec5d8
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Optimized/Opt_ForestTree_3.prefab
+  uploadId: 485106

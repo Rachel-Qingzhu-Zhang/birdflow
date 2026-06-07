@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d54af05c48b5d8f42a8e1299462642d1
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 59910
+  packageName: ForestVision
+  packageVersion: 3.0
+  assetPath: Assets/ForestVision/Resources/ThickWoods.prefab
+  uploadId: 485106
