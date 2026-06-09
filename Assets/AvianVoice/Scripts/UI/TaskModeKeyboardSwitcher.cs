@@ -6,6 +6,16 @@ namespace AvianVoice.UI
 {
     public class TaskModeKeyboardSwitcher : MonoBehaviour
     {
+        static readonly string[] TaskIds =
+        {
+            "meet",
+            "breath_sync",
+            "flying",
+            "singing",
+            "call_friends",
+            "reflection"
+        };
+
         TaskManager taskManager;
 
         void Start()
@@ -18,15 +28,16 @@ namespace AvianVoice.UI
             if (taskManager == null)
                 return;
 
-            if (AvianInput.WasDigitPressedThisFrame(1))
-                taskManager.LoadTaskById("lab");
-            else if (AvianInput.WasDigitPressedThisFrame(2))
-                taskManager.LoadTaskById("pitch");
-            else if (AvianInput.WasDigitPressedThisFrame(3))
-                taskManager.LoadTaskById("flight");
-            else if (AvianInput.WasDigitPressedThisFrame(4))
-                taskManager.LoadTaskById("song");
-            else if (AvianInput.WasNextTaskPressedThisFrame())
+            for (var i = 0; i < TaskIds.Length; i++)
+            {
+                if (AvianInput.WasDigitPressedThisFrame(i + 1))
+                {
+                    taskManager.LoadTaskById(TaskIds[i]);
+                    return;
+                }
+            }
+
+            if (AvianInput.WasNextTaskPressedThisFrame())
                 taskManager.AdvanceTask();
         }
     }

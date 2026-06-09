@@ -1,0 +1,21 @@
+using UnityEngine;
+
+namespace AvianVoice.Embodiment
+{
+    /// <summary>
+    /// Inverts face culling while the mirror render camera draws so reflected meshes appear correctly.
+    /// </summary>
+    [RequireComponent(typeof(Camera))]
+    public class MirrorReflectionCamera : MonoBehaviour
+    {
+        void OnPreRender()
+        {
+            GL.invertCulling = true;
+        }
+
+        void OnPostRender()
+        {
+            GL.invertCulling = false;
+        }
+    }
+}

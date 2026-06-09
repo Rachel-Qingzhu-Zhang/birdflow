@@ -58,6 +58,247 @@ namespace AvianVoice.Editor
             Debug.Log("[AvianVoice] Avian Lab setup applied. Save scene (Ctrl+S), then Play and hold Space.");
         }
 
+        const string ParrotPrefabPath = "Assets/Parrot/Prefabs/Parrot.prefab";
+
+        [MenuItem("Avian Voice/Clean Up Stale Lab Scene")]
+        public static void CleanUpStaleLabScene()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.name.StartsWith("Avian"))
+            {
+                Debug.LogWarning("[AvianVoice] Open Avian_Lab first.");
+                return;
+            }
+
+            var friend = FindSceneBird(scene, BirdSceneRoles.FriendName);
+            var player = FindSceneBird(scene, BirdSceneRoles.PlayerName);
+            if (friend == null || player == null)
+            {
+                Debug.LogWarning("[AvianVoice] Need FriendParrot and PlayerParrot in the scene.");
+                return;
+            }
+
+            SetupSceneParrot(friend, isFriend: true);
+            SetupSceneParrot(player, isFriend: false);
+
+            var perch = GameObject.Find(BirdSceneRoles.PerchName)?.transform;
+            if (perch != null)
+                PositionPerchParrotsAndMirror(scene, perch, friend, player);
+            else
+                PlaceMirrorAtPerchInternal(scene, log: false);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            Debug.Log("[AvianVoice] Lab scene cleanup done. Save scene (Ctrl+S).");
+        }
+
+        static Transform FindSceneBird(Scene scene, string objectName)
+        {
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == objectName)
+                        return t;
+                }
+            }
+
+            return null;
+        }
+
+        [MenuItem("Avian Voice/Place Two Parrots On Perch")]
+        public static void PlaceTwoParrotsOnPerch()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.name.StartsWith("Avian"))
+            {
+                Debug.LogWarning("[AvianVoice] Open Avian_Lab (or another Avian_* scene) first.");
+                return;
+            }
+
+            var perch = GameObject.Find(BirdSceneRoles.PerchName);
+            if (perch == null)
+            {
+                Debug.LogWarning("[AvianVoice] No '" + BirdSceneRoles.PerchName + "' perch found in scene.");
+                return;
+            }
+
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(ParrotPrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogWarning("[AvianVoice] Parrot prefab not found at " + ParrotPrefabPath);
+                return;
+            }
+
+            var friend = FindOrCreateSceneParrot(prefab, BirdSceneRoles.FriendName, BirdSceneRole.RoleKind.Friend);
+            var player = FindOrCreateSceneParrot(prefab, BirdSceneRoles.PlayerName, BirdSceneRole.RoleKind.Player);
+            PositionPerchParrotsAndMirror(scene, perch.transform, friend, player);
+            SetupSceneParrot(friend, isFriend: true);
+            SetupSceneParrot(player, isFriend: false);
+            RemoveExtraParrotCopies(friend, player);
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            Debug.Log(
+                "[AvianVoice] Layout ready: mirror in front of XR Origin, parrots on perch behind headset. Save (Ctrl+S), then Play.");
+        }
+
+        [MenuItem("Avian Voice/Place Mirror At Perch")]
+        public static void PlaceMirrorAtPerch()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.name.StartsWith("Avian"))
+            {
+                Debug.LogWarning("[AvianVoice] Open Avian_Lab (or another Avian_* scene) first.");
+                return;
+            }
+
+            PlaceMirrorAtPerchInternal(scene, log: true);
+            EditorSceneManager.MarkSceneDirty(scene);
+        }
+
+        static void PlaceMirrorAtPerchInternal(Scene scene, bool log)
+        {
+            var xr = FindHandsXrOrigin(scene);
+            if (xr == null)
+            {
+                Debug.LogWarning("[AvianVoice] No XR Origin found in scene.");
+                return;
+            }
+
+            var viewForward = xr.transform.forward;
+            viewForward.y = 0f;
+            if (viewForward.sqrMagnitude < 0.01f)
+                viewForward = Vector3.forward;
+            viewForward.Normalize();
+
+            var viewerEye = AvianLabSceneLayout.ViewerEyePoint(xr.transform);
+            var mirrorSize = new Vector2(1.5f, 2.2f);
+            var mirrorPos = AvianLabSceneLayout.ResolveMirrorPositionNearBirds(
+                xr.transform,
+                viewForward,
+                AvianLabSceneLayout.MirrorAheadMeters,
+                AvianLabSceneLayout.MirrorPanelHeightMeters);
+            var mirrorRot = AvianLabSceneLayout.ResolveMirrorRotation(mirrorPos, viewerEye);
+
+            var root = GameObject.Find(MirrorBodySetup.WorldMirrorObjectName);
+            if (root == null)
+            {
+                root = new GameObject(MirrorBodySetup.WorldMirrorObjectName);
+                Undo.RegisterCreatedObjectUndo(root, "Place mirror");
+            }
+
+            root.transform.SetPositionAndRotation(mirrorPos, mirrorRot);
+            root.transform.localScale = Vector3.one;
+            SetLayerRecursive(root, BirdSceneRoles.MirrorDisplayLayer);
+
+            if (root.GetComponent<WorldMirrorScenePlacement>() == null)
+                Undo.AddComponent<WorldMirrorScenePlacement>(root);
+
+            var quad = root.transform.Find("MirrorQuad");
+            if (quad == null)
+            {
+                var quadGo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                Undo.RegisterCreatedObjectUndo(quadGo, "Place mirror quad");
+                quadGo.name = "MirrorQuad";
+                quadGo.transform.SetParent(root.transform, false);
+                Object.DestroyImmediate(quadGo.GetComponent<Collider>());
+                quad = quadGo.transform;
+            }
+
+            quad.localPosition = Vector3.zero;
+            quad.localRotation = Quaternion.identity;
+            quad.localScale = new Vector3(mirrorSize.x, mirrorSize.y, 1f);
+            var quadRenderer = quad.GetComponent<MeshRenderer>();
+            if (quadRenderer != null)
+            {
+                var quadShader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+                if (quadShader != null)
+                {
+                    var quadMat = new Material(quadShader);
+                    quadMat.color = new Color(0.08f, 0.12f, 0.18f, 1f);
+                    quadRenderer.sharedMaterial = quadMat;
+                }
+            }
+
+            var frame = root.transform.Find("MirrorFrame");
+            if (frame == null)
+            {
+                var frameGo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                Undo.RegisterCreatedObjectUndo(frameGo, "Place mirror frame");
+                frameGo.name = "MirrorFrame";
+                frameGo.transform.SetParent(root.transform, false);
+                Object.DestroyImmediate(frameGo.GetComponent<Collider>());
+                frame = frameGo.transform;
+            }
+
+            frame.localPosition = new Vector3(0f, 0f, -0.04f);
+            frame.localRotation = Quaternion.identity;
+            frame.localScale = new Vector3(mirrorSize.x + 0.18f, mirrorSize.y + 0.18f, 1f);
+            var frameRenderer = frame.GetComponent<MeshRenderer>();
+            if (frameRenderer != null)
+            {
+                var frameShader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+                if (frameShader != null)
+                {
+                    var frameMat = new Material(frameShader);
+                    frameMat.color = new Color(0.15f, 0.72f, 0.95f, 1f);
+                    frameRenderer.sharedMaterial = frameMat;
+                }
+            }
+
+            if (log)
+            {
+                Debug.Log(
+                    "[AvianVoice] Mirror placed at " + mirrorPos +
+                    " in front of XR Origin. Save scene (Ctrl+S).");
+            }
+        }
+
+        static void PositionPerchParrotsAndMirror(
+            Scene scene,
+            Transform perch,
+            Transform friend,
+            Transform player)
+        {
+            var xr = FindHandsXrOrigin(scene);
+            if (xr == null)
+            {
+                Debug.LogWarning("[AvianVoice] No XR Origin found; cannot apply lab layout.");
+                return;
+            }
+
+            var viewForward = xr.transform.forward;
+            viewForward.y = 0f;
+            if (viewForward.sqrMagnitude < 0.01f)
+                viewForward = Vector3.forward;
+            viewForward.Normalize();
+
+            var perchPos = AvianLabSceneLayout.ResolvePerchPosition(xr.transform, viewForward);
+            Undo.RecordObject(perch, "Position Perch");
+            perch.position = perchPos;
+
+            var standCenter = AvianLabSceneLayout.ResolveParrotStandCenter(perchPos);
+            AvianLabSceneLayout.ResolveParrotPositions(
+                standCenter,
+                viewForward,
+                out var friendPos,
+                out var playerPos);
+            var faceMirror = AvianLabSceneLayout.ResolveParrotFacingMirror(viewForward);
+
+            Undo.RecordObject(friend, "Position FriendParrot");
+            Undo.RecordObject(player, "Position PlayerParrot");
+            friend.SetPositionAndRotation(friendPos, faceMirror);
+            player.SetPositionAndRotation(playerPos, faceMirror);
+
+            PlaceMirrorAtPerchInternal(scene, log: false);
+        }
+
+        static void SetLayerRecursive(GameObject root, int layer)
+        {
+            root.layer = layer;
+            foreach (Transform child in root.transform)
+                SetLayerRecursive(child.gameObject, layer);
+        }
+
         [MenuItem("Avian Voice/Wire Bootstrap On XR Rig")]
         public static void WireBootstrapOnXrRig()
         {
@@ -391,6 +632,8 @@ namespace AvianVoice.Editor
             var layers = tagManager.FindProperty("layers");
             SetLayerName(layers, 8, "BirdFPV");
             SetLayerName(layers, 9, "BirdMirror");
+            SetLayerName(layers, 10, "MirrorDisplay");
+            SetLayerName(layers, 11, "AvianUI");
             tagManager.ApplyModifiedProperties();
         }
 
@@ -804,7 +1047,7 @@ namespace AvianVoice.Editor
 
             foreach (var parrot in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (parrot.name != "Parrot")
+                if (parrot.name is not ("Parrot" or BirdSceneRoles.FriendName or BirdSceneRoles.PlayerName))
                     continue;
 
                 ParrotEmbodimentWiring.ApplyAnimatorMeditationDefaults(parrot.GetComponent<Animator>());
@@ -822,6 +1065,113 @@ namespace AvianVoice.Editor
                     if (behaviour != null && behaviour.GetType().Name == "Parrot")
                         Object.DestroyImmediate(behaviour, true);
                 }
+            }
+        }
+
+        static Transform FindOrCreateSceneParrot(GameObject prefab, string objectName, BirdSceneRole.RoleKind role)
+        {
+            var existing = GameObject.Find(objectName);
+            if (existing != null)
+            {
+                EnsureBirdSceneRole(existing.transform, role);
+                return existing.transform;
+            }
+
+            if (role == BirdSceneRole.RoleKind.Friend)
+            {
+                var legacy = GameObject.Find("Parrot");
+                if (legacy != null)
+                {
+                    Undo.RecordObject(legacy, "Rename Parrot");
+                    legacy.name = objectName;
+                    EnsureBirdSceneRole(legacy.transform, role);
+                    return legacy.transform;
+                }
+            }
+
+            var instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+            Undo.RegisterCreatedObjectUndo(instance, "Place " + objectName);
+            instance.name = objectName;
+            EnsureBirdSceneRole(instance.transform, role);
+            return instance.transform;
+        }
+
+        static void EnsureBirdSceneRole(Transform bird, BirdSceneRole.RoleKind role)
+        {
+            var marker = bird.GetComponent<BirdSceneRole>();
+            if (marker == null)
+                marker = Undo.AddComponent<BirdSceneRole>(bird.gameObject);
+            marker.SetRole(role);
+        }
+
+        static void PositionParrotsOnPerch(Transform friend, Transform player, Transform perch)
+        {
+            if (!AvianLabSceneLayout.TryResolveXrOrigin(out var xrOrigin, out var viewForward))
+                return;
+
+            PositionPerchParrotsAndMirror(
+                SceneManager.GetActiveScene(),
+                perch,
+                friend,
+                player);
+        }
+
+        static void PersistFixedWorldPlacement(WorldPlacedBird guard)
+        {
+            guard.ConfigureForFixedWorldPlacement();
+            var so = new SerializedObject(guard);
+            so.FindProperty("repositionInFrontOfXrOnPlay").boolValue = false;
+            so.FindProperty("alignToGroundOnPlay").boolValue = false;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(guard);
+        }
+
+        static void SetupSceneParrot(Transform parrot, bool isFriend)
+        {
+            ParrotEmbodimentWiring.ApplyAnimatorMeditationDefaults(parrot.GetComponent<Animator>());
+            ParrotEmbodimentWiring.DisableConflictingParrotDemoScript(parrot);
+
+            var guard = parrot.GetComponent<WorldPlacedBird>();
+            if (guard == null)
+                guard = Undo.AddComponent<WorldPlacedBird>(parrot.gameObject);
+            PersistFixedWorldPlacement(guard);
+
+            if (isFriend)
+            {
+                var playerBreath = parrot.GetComponent<ParrotBreathEmbodiment>();
+                if (playerBreath != null)
+                    Undo.DestroyObjectImmediate(playerBreath);
+                if (parrot.GetComponent<FriendBreathVisual>() == null)
+                    Undo.AddComponent<FriendBreathVisual>(parrot.gameObject);
+                if (parrot.GetComponent<FriendTeachingCue>() == null)
+                    Undo.AddComponent<FriendTeachingCue>(parrot.gameObject);
+            }
+            else
+            {
+                var friendVisual = parrot.GetComponent<FriendBreathVisual>();
+                if (friendVisual != null)
+                    Undo.DestroyObjectImmediate(friendVisual);
+                if (parrot.GetComponent<ParrotBreathEmbodiment>() == null)
+                    Undo.AddComponent<ParrotBreathEmbodiment>(parrot.gameObject);
+            }
+
+            if (parrot.GetComponent<ParrotMainCtrlPin>() == null)
+                Undo.AddComponent<ParrotMainCtrlPin>(parrot.gameObject);
+
+            var rb = parrot.GetComponent<Rigidbody>();
+            if (rb != null)
+                Undo.DestroyObjectImmediate(rb);
+        }
+
+        static void RemoveExtraParrotCopies(Transform friend, Transform player)
+        {
+            foreach (var parrot in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (parrot == friend || parrot == player)
+                    continue;
+                if (parrot.name is not ("Parrot" or BirdSceneRoles.FriendName or BirdSceneRoles.PlayerName))
+                    continue;
+                Undo.DestroyObjectImmediate(parrot.gameObject);
             }
         }
 

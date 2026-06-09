@@ -75,12 +75,16 @@ namespace AvianVoice.Embodiment
             wingTremor = Mathf.Lerp(wingTremor, targetTremor, smooth);
             vocalLevel = Mathf.Lerp(vocalLevel, targetVocal, smooth);
 
-            if (animator != null && animator.isActiveAndEnabled)
+            if (animator != null && animator.isActiveAndEnabled && animator.runtimeAnimatorController != null)
             {
-                animator.SetFloat(BreathDepthId, breathDepth);
-                animator.SetFloat(VocalId, vocalLevel);
-                animator.SetFloat(WingTremorId, wingTremor);
-                animator.SetBool(ExhaleId, !breath.isInhaling && breath.depth > 0.2f);
+                if (HasParameter(BreathDepthId))
+                    animator.SetFloat(BreathDepthId, breathDepth);
+                if (HasParameter(VocalId))
+                    animator.SetFloat(VocalId, vocalLevel);
+                if (HasParameter(WingTremorId))
+                    animator.SetFloat(WingTremorId, wingTremor);
+                if (HasParameter(ExhaleId))
+                    animator.SetBool(ExhaleId, !breath.isInhaling && breath.depth > 0.2f);
             }
 
             if (beakMesh != null && beakBlendIndex >= 0)
@@ -108,5 +112,17 @@ namespace AvianVoice.Embodiment
         }
 
         static bool CanScaleTransformForBreath(Transform t) => false;
+
+        bool HasParameter(int id)
+        {
+            if (animator == null)
+                return false;
+            foreach (var p in animator.parameters)
+            {
+                if (p.nameHash == id)
+                    return true;
+            }
+            return false;
+        }
     }
 }

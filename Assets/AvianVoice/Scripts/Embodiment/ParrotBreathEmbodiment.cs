@@ -5,20 +5,15 @@ using UnityEngine;
 namespace AvianVoice.Embodiment
 {
     /// <summary>
-    /// Parrot breath chest: scale Spine2/Spine3 only after idle animator.
-    /// Neck scale is counter-adjusted so the head stays stable while the rib cage expands.
+    /// Parrot breath chest: scale Spine2/Spine3. Neck scale is counter-adjusted so the head stays stable.
     /// </summary>
     [DefaultExecutionOrder(32000)]
     public class ParrotBreathEmbodiment : MonoBehaviour
     {
+        const float ChestBreathAmplitudeMultiplier = 2.25f;
+
         [SerializeField]
         AvianVoiceSettings settings;
-
-        [SerializeField]
-        bool modulateIdleAnimatorSpeed;
-
-        [SerializeField]
-        float idleSpeedBoostMax = 0.22f;
 
         [Header("Parrot chest (Spine2/Spine3 only)")]
         [SerializeField]
@@ -31,7 +26,6 @@ namespace AvianVoice.Embodiment
         bool compensateNeckFromUpperChestScale = true;
 
         BreathSimulator breath;
-        Animator animator;
         Transform chest;
         Transform chestMid;
         Transform neck;
@@ -39,7 +33,6 @@ namespace AvianVoice.Embodiment
         Vector3 chestMidRestScale = Vector3.one;
         Vector3 neckRestScale = Vector3.one;
         float smoothedDepth;
-        float baseAnimatorSpeed = 1f;
 
         void Awake()
         {
@@ -47,6 +40,7 @@ namespace AvianVoice.Embodiment
                 settings = FindAvianSettings();
             breath = FindAnyObjectByType<BreathSimulator>();
             CacheBones();
+            ParrotEmbodimentWiring.DisablePackIdleAnimation(GetComponent<Animator>());
         }
 
         void Start()
@@ -62,8 +56,6 @@ namespace AvianVoice.Embodiment
 
         void OnDisable()
         {
-            if (animator != null)
-                animator.speed = baseAnimatorSpeed;
             RestoreChestScales();
         }
 
@@ -84,7 +76,6 @@ namespace AvianVoice.Embodiment
         void ApplyBreathPose(float depth)
         {
             var emphasis = BreathEmphasis(depth);
-            ModulateIdleAnimator(emphasis);
 
             if (emphasis < 0.001f)
             {
@@ -98,14 +89,6 @@ namespace AvianVoice.Embodiment
             CompensateNeckScale(midChestFactor * upperChestFactor);
         }
 
-        void ModulateIdleAnimator(float emphasis)
-        {
-            if (!modulateIdleAnimatorSpeed || animator == null || !animator.isActiveAndEnabled)
-                return;
-
-            animator.speed = baseAnimatorSpeed + emphasis * idleSpeedBoostMax;
-        }
-
         void ApplyChestBone(
             Transform bone,
             Vector3 restScale,
@@ -117,7 +100,7 @@ namespace AvianVoice.Embodiment
             if (bone == null || amount <= 0f)
                 return;
 
-            factor = 1f + emphasis * amount;
+            factor = 1f + emphasis * amount * ChestBreathAmplitudeMultiplier;
             bone.localScale = restScale * factor;
         }
 
@@ -143,7 +126,6 @@ namespace AvianVoice.Embodiment
         void CacheBones()
         {
             ParrotEmbodimentWiring.TryResolve(transform, out var refs);
-            animator = refs.animator;
             chest = refs.chest;
             chestMid = refs.secondaryChest;
             neck = refs.neck;
@@ -154,9 +136,6 @@ namespace AvianVoice.Embodiment
                 chestMidRestScale = chestMid.localScale;
             if (neck != null)
                 neckRestScale = neck.localScale;
-
-            if (animator != null)
-                baseAnimatorSpeed = animator.speed;
         }
 
         static float BreathEmphasis(float depth) => Mathf.Pow(Mathf.Clamp01(depth), 0.55f);

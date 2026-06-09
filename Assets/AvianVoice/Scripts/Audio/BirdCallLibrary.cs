@@ -88,6 +88,22 @@ namespace AvianVoice.Audio
             PlayInternal(source, targetHz, loudness, cooldown, null);
         }
 
+        /// <summary>Friend teaching cue: short chirp, always audible, no transform cooldown sharing.</summary>
+        public void PlayTeachingCue(AudioSource source, float targetHz, float volume = 0.95f)
+        {
+            if (source == null || clips == null || clips.Length == 0 || targetHz <= 0f)
+                return;
+
+            var entry = FindNearestEntry(targetHz);
+            if (entry == null || entry.clip == null)
+                return;
+
+            source.spatialBlend = 0f;
+            source.volume = Mathf.Clamp01(volume);
+            source.pitch = Mathf.Clamp(targetHz / Mathf.Max(entry.basePitchHz, 1f), 0.5f, 2f);
+            source.PlayOneShot(entry.clip);
+        }
+
         public void PlayNearest(AudioSource source, float targetHz, float loudness, AvianVoiceSettings settings)
         {
             if (settings == null)

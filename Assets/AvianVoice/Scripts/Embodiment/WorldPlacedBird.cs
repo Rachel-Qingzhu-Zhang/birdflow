@@ -5,7 +5,7 @@ namespace AvianVoice.Embodiment
     /// <summary>
     /// Keeps a world-space parrot visible: ground align, default layer, no CharacterController sink.
     /// </summary>
-    [DefaultExecutionOrder(-400)]
+    [DefaultExecutionOrder(-500)]
     public class WorldPlacedBird : MonoBehaviour
     {
         [SerializeField]
@@ -36,14 +36,27 @@ namespace AvianVoice.Embodiment
         float viewHeightOffsetMeters = -0.15f;
 
         bool keepAnimatorDisabled;
+        bool fixedWorldPlacement;
 
         Vector3 savedWorldPosition;
         Quaternion savedWorldRotation;
         Vector3 savedWorldScale;
         bool poseSaved;
 
+        void Awake()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (!scene.StartsWith("Avian") && !scene.StartsWith("Task_"))
+                return;
+
+            if (name is "Parrot" or BirdSceneRoles.FriendName or BirdSceneRoles.PlayerName)
+                ConfigureForFixedWorldPlacement();
+        }
+
         void Start()
         {
+            if (fixedWorldPlacement)
+                return;
             EnsureVisibleAndGrounded();
         }
 
@@ -92,6 +105,7 @@ namespace AvianVoice.Embodiment
 
         public void ConfigureForFixedWorldPlacement()
         {
+            fixedWorldPlacement = true;
             repositionInFrontOfXrOnPlay = false;
             alignToGroundOnPlay = false;
             blockReparentUnderXrRig = true;
@@ -99,8 +113,16 @@ namespace AvianVoice.Embodiment
             keepAnimatorDisabled = true;
         }
 
+        public void CommitWorldPose()
+        {
+            SaveWorldPose();
+        }
+
         public void EnsureVisibleAndGrounded()
         {
+            if (fixedWorldPlacement || IsLabSceneParrot())
+                return;
+
             gameObject.SetActive(true);
             if (repositionInFrontOfXrOnPlay || alignToGroundOnPlay)
                 SetLayerRecursive(gameObject, 0);
@@ -116,8 +138,20 @@ namespace AvianVoice.Embodiment
             LogVisibilityDiagnostic();
         }
 
+        bool IsLabSceneParrot()
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (!scene.StartsWith("Avian") && !scene.StartsWith("Task_"))
+                return false;
+
+            return name is BirdSceneRoles.FriendName or BirdSceneRoles.PlayerName or "Parrot";
+        }
+
         void PlaceInFrontOfXrView()
         {
+            if (IsLabSceneParrot())
+                return;
+
             var view = FindMainCameraTransform();
             if (view == null)
                 return;
@@ -211,6 +245,9 @@ namespace AvianVoice.Embodiment
 
         void AutoScaleIfMeshIsTiny()
         {
+            if (fixedWorldPlacement)
+                return;
+
             var extent = GetMaxWorldExtent();
             if (extent >= minVisibleExtentMeters)
                 return;
@@ -256,9 +293,15 @@ namespace AvianVoice.Embodiment
 
             animator.applyRootMotion = false;
 
-            if (keepAnimatorDisabled || GetComponent<PigeonFpvSetup>() != null)
+            if (GetComponent<PigeonFpvSetup>() != null)
             {
                 PigeonEmbodimentWiring.DisablePackAnimations(animator);
+                return;
+            }
+
+            if (keepAnimatorDisabled)
+            {
+                ParrotEmbodimentWiring.DisablePackIdleAnimation(animator);
                 return;
             }
 
@@ -281,7 +324,7 @@ namespace AvianVoice.Embodiment
         {
             foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (t.name == "Parrot")
+                if (t.name == BirdSceneRoles.FriendName || t.name == "Parrot")
                     return t;
             }
             return null;

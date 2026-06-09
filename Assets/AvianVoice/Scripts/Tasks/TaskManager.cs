@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using AvianVoice.Core;
+using AvianVoice.Data;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -33,31 +34,45 @@ namespace AvianVoice.Tasks
         {
             new()
             {
-                taskId = "lab",
-                displayName = "Avian Lab",
-                instruction = "Space=breath, T=voice. Parrot in world: wings/chest follow breath.",
+                taskId = "meet",
+                displayName = "Meet Your Bird",
+                instruction = "Space=inhale, release=exhale. Follow the bird friend (4s in / 4s out).",
                 sceneName = ""
             },
             new()
             {
-                taskId = "pitch",
-                displayName = "Pitch Matching",
-                instruction = "Reference chirp every 3s — hum to match; parrot glows cyan.",
-                sceneName = "Task_PitchMatching"
+                taskId = "breath_sync",
+                displayName = "Breath Sync",
+                instruction = "Match Pattern A (4/4) then Pattern B (6/6) with the bird friend.",
+                sceneName = ""
             },
             new()
             {
-                taskId = "flight",
-                displayName = "Flight Control",
-                instruction = "You fly: pitch=height, steady breath=glide. Parrot flies beside you (built-in anim).",
-                sceneName = "Task_FlightControl"
+                taskId = "flying",
+                displayName = "Flying",
+                instruction = "Deep inhale to rise; exhale to glide down. Wings follow breath energy.",
+                sceneName = ""
             },
             new()
             {
-                taskId = "song",
-                displayName = "Song Performance",
-                instruction = "Listen → hold pitch → flock joins & echoes. Finale chorus at end.",
-                sceneName = "Task_SongPerformance"
+                taskId = "singing",
+                displayName = "Singing Branch",
+                instruction = "Hold pitch while breathing. Deep inhale = richer bird song.",
+                sceneName = ""
+            },
+            new()
+            {
+                taskId = "call_friends",
+                displayName = "Call Friends",
+                instruction = "Sing the melody with steady breath to summon nearby birds.",
+                sceneName = ""
+            },
+            new()
+            {
+                taskId = "reflection",
+                displayName = "Reflection",
+                instruction = "Review scores. How did it feel to become a bird?",
+                sceneName = ""
             }
         };
 
@@ -74,6 +89,7 @@ namespace AvianVoice.Tasks
         public string CurrentTaskName => tasks.Length > 0 ? tasks[currentIndex].displayName : "None";
         public string CurrentInstruction => tasks.Length > 0 ? tasks[currentIndex].instruction : "";
         public string CurrentTaskId => tasks.Length > 0 ? tasks[currentIndex].taskId : "";
+        public int TaskCount => tasks.Length;
 
         void Start()
         {
@@ -82,18 +98,23 @@ namespace AvianVoice.Tasks
 
         public void SetSwitchMode(TaskSwitchMode mode) => switchMode = mode;
 
-        public void ConfigureInSceneTasks(
+        public void ConfigureBirdyTasks(
             TaskSwitchMode mode,
-            MonoBehaviour pitchTask,
-            MonoBehaviour flightTask,
-            MonoBehaviour songTask)
+            MonoBehaviour meetTask,
+            MonoBehaviour breathSyncTask,
+            MonoBehaviour flyingTask,
+            MonoBehaviour singingTask,
+            MonoBehaviour callFriendsTask,
+            MonoBehaviour reflectionTask)
         {
             switchMode = mode;
-            EnsureLabEntry();
             currentIndex = 0;
-            BindBehaviour("pitch", pitchTask);
-            BindBehaviour("flight", flightTask);
-            BindBehaviour("song", songTask);
+            BindBehaviour("meet", meetTask);
+            BindBehaviour("breath_sync", breathSyncTask);
+            BindBehaviour("flying", flyingTask);
+            BindBehaviour("singing", singingTask);
+            BindBehaviour("call_friends", callFriendsTask);
+            BindBehaviour("reflection", reflectionTask);
             ApplyCurrentTask();
         }
 
@@ -139,6 +160,9 @@ namespace AvianVoice.Tasks
                 return;
 
             var entry = tasks[currentIndex];
+            UpdateMirrorForTask(entry.taskId);
+            UpdateRecorderScene(entry.taskId);
+
             if (switchMode == TaskSwitchMode.InScene)
             {
                 ApplyInSceneTask(entry);
@@ -158,7 +182,7 @@ namespace AvianVoice.Tasks
             {
                 if (entry.taskBehaviour == null)
                     continue;
-                entry.taskBehaviour.enabled = entry == active && entry.taskId != "lab";
+                entry.taskBehaviour.enabled = entry == active;
             }
         }
 
@@ -175,22 +199,20 @@ namespace AvianVoice.Tasks
             }
         }
 
-        void EnsureLabEntry()
+        static void UpdateMirrorForTask(string taskId)
         {
-            if (tasks.Length > 0 && tasks[0].taskId == "lab")
+            var mirror = UnityEngine.Object.FindAnyObjectByType<Embodiment.MirrorBodySetup>();
+            if (mirror == null)
                 return;
 
-            var list = new TaskEntry[tasks.Length + 1];
-            list[0] = new TaskEntry
-            {
-                taskId = "lab",
-                displayName = "Avian Lab",
-                instruction = "Free exploration: breath, voice, bird body.",
-                sceneName = ""
-            };
-            Array.Copy(tasks, 0, list, 1, tasks.Length);
-            tasks = list;
-            currentIndex = 0;
+            var showMirror = taskId is "meet" or "breath_sync" or "reflection";
+            mirror.SetMirrorActive(showMirror);
+        }
+
+        static void UpdateRecorderScene(string taskId)
+        {
+            var recorder = UnityEngine.Object.FindAnyObjectByType<SessionRecorder>();
+            recorder?.SetActiveSceneId(taskId);
         }
 
         IEnumerator LoadTaskScene(string sceneName)

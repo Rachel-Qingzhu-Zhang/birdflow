@@ -76,12 +76,38 @@ namespace AvianVoice.Embodiment
             return refs.leftWing != null && refs.rightWing != null && refs.chest != null;
         }
 
+        public static ParrotPackAnimatorGate EnsureAnimatorGate(Transform birdRoot)
+        {
+            if (birdRoot == null)
+                return null;
+
+            return birdRoot.GetComponent<ParrotPackAnimatorGate>()
+                   ?? birdRoot.gameObject.AddComponent<ParrotPackAnimatorGate>();
+        }
+
         public static void ApplyAnimatorMeditationDefaults(Animator animator)
         {
             if (animator == null)
                 return;
 
             animator.applyRootMotion = false;
+            EnsureAnimatorGate(animator.transform).DisableIdleAnimation();
+        }
+
+        public static void RestorePackAnimatorForFlight(Animator animator)
+        {
+            if (animator == null)
+                return;
+
+            EnsureAnimatorGate(animator.transform).RestoreForFlight();
+        }
+
+        public static void DisablePackIdleAnimation(Animator animator)
+        {
+            if (animator == null)
+                return;
+
+            EnsureAnimatorGate(animator.transform).DisableIdleAnimation();
         }
 
         public static void DisableConflictingParrotDemoScript(Transform birdRoot)

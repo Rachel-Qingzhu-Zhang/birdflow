@@ -52,6 +52,7 @@ namespace AvianVoice.Embodiment
 
             if (animator != null)
             {
+                ParrotEmbodimentWiring.RestorePackAnimatorForFlight(animator);
                 savedAnimatorSpeed = animator.speed;
                 animator.applyRootMotion = false;
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -158,7 +159,7 @@ namespace AvianVoice.Embodiment
             yield return new WaitForSeconds(landingDuration);
 
             SetBool("landing", false);
-            SetBool("idle", true);
+            ParrotEmbodimentWiring.DisablePackIdleAnimation(animator);
             worldGuard?.SaveWorldPose();
             flightRoutine = null;
         }

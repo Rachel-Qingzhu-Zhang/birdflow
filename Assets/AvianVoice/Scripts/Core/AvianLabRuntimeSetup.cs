@@ -36,6 +36,7 @@ namespace AvianVoice.Core
 
             var head = ResolveHeadAnchor(xrOrigin.transform);
             EnsureRuntimeUiIfMissing(xrOrigin, head);
+            AvianHudLayerSetup.ApplyToXrRig();
             EnsureRuntimeAudioIfMissing(xrOrigin);
             DesktopFlyCamera.Ensure(xrOrigin, head, platformProfile);
 
@@ -316,7 +317,15 @@ namespace AvianVoice.Core
             bgImg.color = new Color(0.05f, 0.08f, 0.12f, 0.85f);
             bg.transform.SetAsFirstSibling();
             canvasGo.AddComponent<AvianWorldCanvasCameraBinder>();
+            SetLayerRecursive(canvasGo, Embodiment.BirdSceneRoles.UiLayer);
             return canvasGo;
+        }
+
+        static void SetLayerRecursive(GameObject root, int layer)
+        {
+            root.layer = layer;
+            foreach (Transform child in root.transform)
+                SetLayerRecursive(child.gameObject, layer);
         }
 
         static Text CreateText(

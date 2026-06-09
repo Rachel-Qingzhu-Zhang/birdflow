@@ -372,11 +372,37 @@ namespace AvianVoice.Core
                 return;
 
             var guard = parrotRoot.GetComponent<WorldPlacedBird>() ?? parrotRoot.gameObject.AddComponent<WorldPlacedBird>();
+            var avianLabScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name.StartsWith("Avian");
+
+            if (avianLabScene || parrotRoot.name is BirdSceneRoles.FriendName or BirdSceneRoles.PlayerName)
+            {
+                guard.ConfigureForFixedWorldPlacement();
+                WireSceneRoleParrotComponents(parrotRoot);
+                return;
+            }
+
             if (parrotRoot.GetComponent<ParrotBreathEmbodiment>() == null)
                 parrotRoot.gameObject.AddComponent<ParrotBreathEmbodiment>();
             if (parrotRoot.GetComponent<ParrotMainCtrlPin>() == null)
                 parrotRoot.gameObject.AddComponent<ParrotMainCtrlPin>();
             guard.EnsureVisibleAndGrounded();
+        }
+
+        static void WireSceneRoleParrotComponents(Transform parrotRoot)
+        {
+            if (parrotRoot.name == BirdSceneRoles.FriendName || parrotRoot.name == "Parrot")
+            {
+                var playerBreath = parrotRoot.GetComponent<ParrotBreathEmbodiment>();
+                if (playerBreath != null)
+                    UnityEngine.Object.Destroy(playerBreath);
+                if (parrotRoot.GetComponent<FriendBreathVisual>() == null)
+                    parrotRoot.gameObject.AddComponent<FriendBreathVisual>();
+            }
+            else if (parrotRoot.GetComponent<ParrotBreathEmbodiment>() == null)
+                parrotRoot.gameObject.AddComponent<ParrotBreathEmbodiment>();
+
+            var pin = parrotRoot.GetComponent<ParrotMainCtrlPin>() ?? parrotRoot.gameObject.AddComponent<ParrotMainCtrlPin>();
+            pin.SetPinEnabled(true);
         }
 
         bool NeedsParrotEmbodimentRewire()
@@ -400,12 +426,19 @@ namespace AvianVoice.Core
 
         static Transform FindActiveParrotInScene()
         {
+            Transform friend = null;
+            Transform legacy = null;
             foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
-                if (t.name == "Parrot" && t.gameObject.activeInHierarchy)
-                    return t;
+                if (!t.gameObject.activeInHierarchy)
+                    continue;
+                if (t.name == BirdSceneRoles.FriendName)
+                    friend = t;
+                else if (t.name == "Parrot")
+                    legacy = t;
             }
-            return null;
+
+            return friend != null ? friend : legacy;
         }
 
         static Transform FindCameraOffsetInHierarchy(Transform root)

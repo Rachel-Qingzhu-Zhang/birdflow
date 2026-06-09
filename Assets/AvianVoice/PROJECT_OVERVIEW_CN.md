@@ -9,9 +9,10 @@
 - **呼吸与身体联动**：用键盘或 VR 交互模拟吸气/呼气，驱动胸腔与翅膀动画；
 - **结构化训练任务**：音高匹配、飞行控制、鸣叫序列等，用于评估「发声 + 呼吸」在鸟身体验中的学习与表现。
 
-**推荐开发入口**：打开 `Assets/AvianVoice/Scenes/Avian_Lab.unity`，按 Play 后在同一场景内用数字键 `1`–`4` 切换任务（无需反复加载独立场景）。
+**推荐开发入口**：打开 `Assets/AvianVoice/Scenes/Avian_Lab.unity`，按 Play 后在同一场景内用数字键 `1`–`6` 切换 Birdy 六场景任务（无需反复加载独立场景）。
 
-更细的操作说明、排错与调参见：[SCENES_GUIDE.md](SCENES_GUIDE.md) · 英文快速上手：[README.md](README.md)
+**场景 / 任务 / 交互 / 设置（中文详述）**：[SCENES_AND_TASKS_CN.md](SCENES_AND_TASKS_CN.md)  
+更细排错与调参：[SCENES_GUIDE.md](SCENES_GUIDE.md) · 英文快速上手：[README.md](README.md)
 
 ---
 
@@ -49,16 +50,20 @@
 
 ## 四、场景与任务一览
 
-### 4.1 场景总表
+### 4.1 场景总表（Birdy 六任务 — `Avian_Lab` 内按键切换）
 
-| 场景文件 | 场景 ID | 研究阶段（规划） | 核心目标 |
-|----------|---------|------------------|----------|
-| `Avian_Lab.unity` | `lab` | 阶段 1 + 2 | 集成验证鸟身幻觉、语音映射、呼吸与 HUD，无任务计分 |
-| `Task_PitchMatching.unity` | `pitch` | 阶段 3 | 听参考鸟叫并模仿音高，视觉正反馈（发光） |
-| `Task_FlightControl.unity` | `flight` | 阶段 3 | 音高控高度、呼吸稳飞行，联合控制体验 |
-| `Task_SongPerformance.unity` | `song` | 阶段 3 | 按序模仿旋律鸟鸣，累积分数与鸟群占位视觉 |
+| 按键 | 任务 ID | 显示名 | 核心目标 |
+|------|---------|--------|----------|
+| `1` | `meet` | Meet Your Bird | 与鸟友 4/4 呼吸同步（>80%×10s），镜子 + 并排双鹦鹉 |
+| `2` | `breath_sync` | Breath Sync | Pattern A（4/4）与 B（6/6）呼吸同步 |
+| `3` | `flying` | Flying | 呼吸能量驱动升/滑翔/降（非音高控高） |
+| `4` | `singing` | Singing Branch | 四音旋律 + 呼吸联合模仿 |
+| `5` | `call_friends` | Call Friends | 旋律 + 呼吸呼唤，1→3→鸟群 |
+| `6` | `reflection` | Reflection | 三分 placeholder + 问卷占位 + 告别 |
 
-Build Settings 中已注册上述四个 Avian 场景；另有模板场景 `Assets/Scenes/SampleScene.unity` 非主流程。
+角色区分：场景中预置两只 Parrot（`FriendParrot` / `PlayerParrot`），头顶色球（鸟友 **橙** / 玩家 **浅蓝**）。鸟友在任务 1/2 中演示呼吸并带教学提示。镜子任务（1、2、6）使用 `AvianVoice/MirrorRT` Shader + RenderTexture。详见 [SCENES_AND_TASKS_CN.md](SCENES_AND_TASKS_CN.md)。
+
+独立场景 `Task_PitchMatching` / `Task_FlightControl` / `Task_SongPerformance` 仍保留，加载后分别映射到任务 4 / 3 / 5。
 
 ---
 
@@ -215,12 +220,14 @@ Build Settings 中已注册上述四个 Avian 场景；另有模板场景 `Asset
 
 | 按键 | 模式 | 说明 |
 |------|------|------|
-| `1` | Avian Lab | 自由探索：呼吸、语音、鸟身，无任务计分 |
-| `2` | Pitch Matching | 参考鸟叫 + 音高匹配 + 发光反馈 |
-| `3` | Flight Control | 音高控高度、呼吸稳飞行；移动 XR Rig |
-| `4` | Song Performance | 四音序列模仿 + 鸟群小球 |
-| `N` / `]` | 下一任务 | 循环切换 |
-| **`C`** | **调试作弊**（仅任务 2 / 4） | 音高匹配：瞬间满分 + 胸部发光；鸣叫序列：推进下一音 + 召唤鸟群小球 |
+| `1` | Meet Your Bird | 4/4 呼吸跟随鸟友，镜子开 |
+| `2` | Breath Sync | Pattern A/B 呼吸同步 |
+| `3` | Flying | 吸气上升、呼气下降；镜子关 |
+| `4` | Singing Branch | 四音旋律 + 呼吸 |
+| `5` | Call Friends | 呼唤鸟群递进 |
+| `6` | Reflection | 分数与问卷 placeholder |
+| `N` / `]` | 下一任务 | 在 6 个任务间循环 |
+| **`C`** | **调试作弊** | 当前任务瞬间成功 / 推进（Pilot 用，正式实验前关闭） |
 
 `TaskManager` 默认 **InScene** 模式：只启用/禁用对应任务脚本，**不** `LoadScene`。头显前有 **TaskModeHUD** 显示任务名、说明与分数。正式实验前可在 `PitchMatchingTask` / `SongPerformanceTask` 的 Inspector 关闭 **Enable Debug Cheat**。
 
@@ -305,6 +312,7 @@ Play（Avian_* / Task_* 场景）
 | 文档 | 路径 | 用途 |
 |------|------|------|
 | 本文 | `Assets/AvianVoice/PROJECT_OVERVIEW_CN.md` | 项目与场景/任务目标总览（中文） |
+| **场景与任务详述** | `Assets/AvianVoice/SCENES_AND_TASKS_CN.md` | **每场景内容、六任务、交互、设置（中文）** |
 | 场景操作指南 | `Assets/AvianVoice/SCENES_GUIDE.md` | 详细步骤、排错、调参、HUD 字段 |
 | 英文 README | `Assets/AvianVoice/README.md` | 快速开始与平台说明 |
 | 实验参数资源 | `Assets/AvianVoice/Settings/AvianVoiceSettings.asset` | 语音/鸟鸣/分析阈值 |

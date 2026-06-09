@@ -64,11 +64,11 @@ namespace AvianVoice.Core
                 root.AddComponent<SongPerformanceTask>();
 
             if (sceneName.Contains("PitchMatching"))
-                taskManager.LoadTaskById("pitch");
+                taskManager.LoadTaskById("singing");
             else if (sceneName.Contains("FlightControl"))
-                taskManager.LoadTaskById("flight");
+                taskManager.LoadTaskById("flying");
             else if (sceneName.Contains("SongPerformance"))
-                taskManager.LoadTaskById("song");
+                taskManager.LoadTaskById("call_friends");
         }
     }
 }

@@ -54,6 +54,18 @@ namespace AvianVoice.Data
             WriteSample(0f);
         }
 
+        string activeSceneId = "ambient";
+        float lastBreathSyncScore;
+        string lastBreathPatternId = "";
+
+        public void SetActiveSceneId(string sceneId) => activeSceneId = sceneId ?? "ambient";
+
+        public void SetBreathSyncContext(float syncScore, string patternId)
+        {
+            lastBreathSyncScore = syncScore;
+            lastBreathPatternId = patternId ?? "";
+        }
+
         void OnTaskScore(string taskId, float score)
         {
             WriteSample(score, taskId);
@@ -75,7 +87,10 @@ namespace AvianVoice.Data
                 loudness = v.loudness,
                 breathDepth = b.depth,
                 score = score,
-                latencyMs = v.latencyMs
+                latencyMs = v.latencyMs,
+                sceneId = activeSceneId,
+                breathSyncScore = lastBreathSyncScore,
+                breathPatternId = lastBreathPatternId
             };
 
             var json = JsonUtility.ToJson(entry);

@@ -13,5 +13,8 @@ namespace AvianVoice.Data
         public float breathDepth;
         public float score;
         public float latencyMs;
+        public string sceneId;
+        public float breathSyncScore;
+        public string breathPatternId;
     }
 }

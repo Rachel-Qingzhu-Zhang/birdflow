@@ -1,11 +1,14 @@
+using AvianVoice.Audio;
+using AvianVoice.Data;
 using AvianVoice.Embodiment;
 using AvianVoice.Tasks;
+using AvianVoice.UI;
 using UnityEngine;
 
 namespace AvianVoice.Core
 {
     /// <summary>
-    /// Wires pitch/song tasks on TaskRoot and flight on XR Origin for in-scene task switching in Avian_Lab.
+    /// Wires six Birdy tasks in Avian_Lab for in-scene switching (keys 1-6).
     /// </summary>
     public static class AvianInSceneTaskBootstrap
     {
@@ -22,34 +25,41 @@ namespace AvianVoice.Core
                 return;
             }
 
+            SessionScoreCache.Reset();
+            BirdSceneRoles.ResetSession();
+            AvianLabSceneLayout.ApplyRuntimeLayout();
+            AvianHudLayerSetup.ApplyToXrRig();
+            BirdSceneRoles.EnsureSetup();
+
             var taskRoot = GameObject.Find("TaskRoot") ?? new GameObject("TaskRoot");
-            var parrot = WorldPlacedBird.FindParrotInScene();
-            if (parrot != null)
+            if (taskRoot.GetComponent<BirdSceneRolesLayout>() == null)
+                taskRoot.AddComponent<BirdSceneRolesLayout>();
+            if (BirdSceneRoles.Friend != null)
             {
-                var guard = parrot.GetComponent<WorldPlacedBird>() ?? parrot.gameObject.AddComponent<WorldPlacedBird>();
-                if (parrot.GetComponent<ParrotFlightPresentation>() == null)
-                    parrot.gameObject.AddComponent<ParrotFlightPresentation>();
-                if (parrot.GetComponent<ParrotBreathEmbodiment>() == null)
-                    parrot.gameObject.AddComponent<ParrotBreathEmbodiment>();
-                if (parrot.GetComponent<ParrotMainCtrlPin>() == null)
-                    parrot.gameObject.AddComponent<ParrotMainCtrlPin>();
-                guard.EnsureVisibleAndGrounded();
-                taskRoot.transform.position = parrot.position;
-                taskRoot.transform.rotation = parrot.rotation;
-            }
-            else
-            {
-                Debug.LogWarning("[AvianVoice] No 'Parrot' object in scene — add Parrot prefab to Avian_Lab.");
+                taskRoot.transform.position = BirdSceneRoles.Friend.position;
+                taskRoot.transform.rotation = BirdSceneRoles.Friend.rotation;
             }
 
-            var pitch = taskRoot.GetComponent<PitchMatchingTask>() ?? taskRoot.AddComponent<PitchMatchingTask>();
-            var song = taskRoot.GetComponent<SongPerformanceTask>() ?? taskRoot.AddComponent<SongPerformanceTask>();
-            pitch.enabled = false;
-            song.enabled = false;
+            var demonstrator = taskRoot.GetComponent<BirdFriendDemonstrator>() ?? taskRoot.AddComponent<BirdFriendDemonstrator>();
+            var successChirp = taskRoot.GetComponent<SuccessChirpBurst>() ?? taskRoot.AddComponent<SuccessChirpBurst>();
+
+            var meet = taskRoot.GetComponent<MeetBirdTask>() ?? taskRoot.AddComponent<MeetBirdTask>();
+            var breathSync = taskRoot.GetComponent<BreathSyncTask>() ?? taskRoot.AddComponent<BreathSyncTask>();
+            var singing = taskRoot.GetComponent<SingingBranchTask>() ?? taskRoot.AddComponent<SingingBranchTask>();
+            var callFriends = taskRoot.GetComponent<CallFriendsTask>() ?? taskRoot.AddComponent<CallFriendsTask>();
+            var reflection = taskRoot.GetComponent<ReflectionTask>() ?? taskRoot.AddComponent<ReflectionTask>();
+
+            meet.enabled = false;
+            breathSync.enabled = false;
+            singing.enabled = false;
+            callFriends.enabled = false;
+            reflection.enabled = false;
 
             var flight = xrOrigin.GetComponent<FlightControlTask>() ?? xrOrigin.AddComponent<FlightControlTask>();
             EnsureCharacterController(xrOrigin);
             flight.enabled = false;
+
+            EnsureMirror(xrOrigin);
 
             var manager = Object.FindAnyObjectByType<TaskManager>();
             if (manager == null)
@@ -58,11 +68,16 @@ namespace AvianVoice.Core
                 manager = go.AddComponent<TaskManager>();
             }
 
-            manager.ConfigureInSceneTasks(
+            manager.ConfigureBirdyTasks(
                 TaskManager.TaskSwitchMode.InScene,
-                pitch,
+                meet,
+                breathSync,
                 flight,
-                song);
+                singing,
+                callFriends,
+                reflection);
+
+            Debug.Log("[AvianVoice] Birdy 6-task mode ready. Keys 1-6 switch tasks, Space=breath, C=cheat.");
         }
 
         static GameObject FindXrOrigin()
@@ -80,6 +95,30 @@ namespace AvianVoice.Core
             }
 
             return null;
+        }
+
+        static void EnsureMirror(GameObject xrOrigin)
+        {
+            AvianVoiceSettings settings = null;
+            foreach (var asset in Resources.FindObjectsOfTypeAll<AvianVoiceSettings>())
+            {
+                if (asset != null && asset.name.Contains("AvianVoiceSettings"))
+                {
+                    settings = asset;
+                    break;
+                }
+            }
+
+            if (settings == null)
+                settings = ScriptableObject.CreateInstance<AvianVoiceSettings>();
+
+            var mirror = xrOrigin.GetComponent<MirrorBodySetup>() ?? xrOrigin.AddComponent<MirrorBodySetup>();
+            mirror.Initialize(settings);
+
+            if (BirdSceneRoles.Player != null)
+                mirror.SetBirdBodyRoot(BirdSceneRoles.Player);
+
+            mirror.SetMirrorActive(true);
         }
 
         static void EnsureCharacterController(GameObject xrOrigin)

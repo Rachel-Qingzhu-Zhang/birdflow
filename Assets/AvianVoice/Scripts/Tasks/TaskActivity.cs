@@ -15,6 +15,8 @@ namespace AvianVoice.Tasks
                 return true;
             if (taskId == "flight" && scene.Contains("FlightControl"))
                 return true;
+            if (taskId == "flying" && scene.Contains("FlightControl"))
+                return true;
             if (taskId == "song" && scene.Contains("SongPerformance"))
                 return true;
 

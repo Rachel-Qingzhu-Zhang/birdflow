@@ -1,4 +1,4 @@
-using AvianVoice.Audio;
+using AvianVoice.Data;
 using AvianVoice.Embodiment;
 using AvianVoice.Physiology;
 using UnityEngine;
@@ -12,19 +12,19 @@ namespace AvianVoice.Tasks
         TaskManager taskManager;
 
         [SerializeField]
-        VoiceAnalyzer analyzer;
-
-        [SerializeField]
         BreathSimulator breath;
 
         [SerializeField]
-        float pitchHeightScale = 8f;
+        float forwardSpeed = 2.5f;
 
         [SerializeField]
-        float forwardSpeed = 3f;
+        float verticalSpeedMid = 1f;
 
         [SerializeField]
-        float glideStabilityThreshold = 0.75f;
+        float verticalSpeedHigh = 3f;
+
+        [SerializeField]
+        float glideDescentSpeed = 1.5f;
 
         CharacterController controller;
         ParrotFlightPresentation parrotFlight;
@@ -42,8 +42,6 @@ namespace AvianVoice.Tasks
         {
             if (taskManager == null)
                 taskManager = FindAnyObjectByType<TaskManager>();
-            if (analyzer == null)
-                analyzer = FindAnyObjectByType<VoiceAnalyzer>();
             if (breath == null)
                 breath = FindAnyObjectByType<BreathSimulator>();
             ResolveParrotFlightPresentation();
@@ -65,7 +63,7 @@ namespace AvianVoice.Tasks
                 SnapToGroundIfNeeded();
             score = 0f;
             glideActive = false;
-            Debug.Log("[AvianVoice] Flight Control: hum pitch to rise/fall, hold Space (~half breath) to fly steady. Parrot flies beside you.");
+            Debug.Log("[AvianVoice] Flying: deep inhale to rise, exhale to glide down.");
         }
 
         void OnDisable()
@@ -75,15 +73,11 @@ namespace AvianVoice.Tasks
             glideActive = false;
         }
 
-        bool IsActiveTask()
-        {
-            var tm = FindAnyObjectByType<TaskManager>();
-            return TaskActivity.IsActive("flight");
-        }
+        bool IsActiveTask() => TaskActivity.IsActive("flying") || TaskActivity.IsActive("flight");
 
         void ResolveParrotFlightPresentation()
         {
-            var parrot = WorldPlacedBird.FindParrotInScene();
+            var parrot = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend : WorldPlacedBird.FindParrotInScene();
             if (parrot == null)
                 return;
 
@@ -94,7 +88,7 @@ namespace AvianVoice.Tasks
 
         bool ShouldSnapRigToGround()
         {
-            var parrot = WorldPlacedBird.FindParrotInScene();
+            var parrot = BirdSceneRoles.Friend ?? WorldPlacedBird.FindParrotInScene();
             if (parrot == null)
                 return true;
             return Vector3.Distance(parrot.position, transform.position) < 12f;
@@ -128,22 +122,32 @@ namespace AvianVoice.Tasks
             if (!enabled || !IsActiveTask())
                 return;
 
-            if (analyzer == null || breath == null)
+            if (breath == null)
                 return;
 
-            var v = analyzer.Current;
             var b = breath.Current;
-
-            var pitchNorm = v.pitchHz > 0f ? Mathf.InverseLerp(80f, 800f, v.pitchHz) : 0.5f;
-            var targetY = pitchNorm * pitchHeightScale;
-            var stability = 1f - Mathf.Abs(b.depth - 0.5f);
-            var move = Vector3.forward * forwardSpeed + Vector3.up * (targetY - transform.position.y) * stability;
-
+            var verticalSpeed = ComputeVerticalSpeed(b.depth, b.isInhaling);
+            var move = Vector3.forward * forwardSpeed + Vector3.up * verticalSpeed;
             controller.Move(move * Time.deltaTime);
-            score = Mathf.Lerp(score, stability * v.loudness, Time.deltaTime);
+
+            var stability = b.isInhaling ? b.depth : 1f - b.depth;
+            score = Mathf.Lerp(score, stability, Time.deltaTime);
             taskManager?.ReportScore(score);
+            SessionScoreCache.RecordBreathing(stability);
 
             UpdateParrotGlide(stability, b.depth);
+        }
+
+        static float ComputeVerticalSpeed(float depth, bool inhaling)
+        {
+            if (inhaling)
+            {
+                if (depth < 0.5f)
+                    return Mathf.Lerp(0f, 1f, depth / 0.5f);
+                return Mathf.Lerp(1f, 3f, (depth - 0.5f) / 0.5f);
+            }
+
+            return -Mathf.Lerp(0.3f, 1.5f, 1f - depth);
         }
 
         void UpdateParrotGlide(float stability, float breathDepth)
@@ -151,7 +155,7 @@ namespace AvianVoice.Tasks
             if (parrotFlight == null)
                 return;
 
-            var wantGlide = stability >= glideStabilityThreshold && breathDepth > 0.25f;
+            var wantGlide = stability >= 0.5f && breathDepth > 0.2f;
             if (wantGlide == glideActive)
                 return;
 
