@@ -9,16 +9,8 @@ namespace AvianVoice.Embodiment
     [DefaultExecutionOrder(32000)]
     public class FriendBreathVisual : MonoBehaviour
     {
-        const float ChestBreathAmplitudeMultiplier = 2.25f;
-
         [SerializeField]
         AvianVoiceSettings settings;
-
-        [SerializeField]
-        float chestInhaleScale = 0.22f;
-
-        [SerializeField]
-        float secondaryChestInhaleScale = 0.15f;
 
         BirdFriendDemonstrator demonstrator;
         Transform chest;
@@ -52,15 +44,17 @@ namespace AvianVoice.Embodiment
 
         void ApplyBreathPose(float depth)
         {
-            var emphasis = Mathf.Pow(Mathf.Clamp01(depth), 0.55f);
+            var emphasis = ParrotChestBreathTuning.DepthToEmphasis(depth);
             if (emphasis < 0.001f)
             {
                 RestoreChestScales();
                 return;
             }
 
-            ApplyChestBone(chestMid, chestMidRestScale, secondaryChestInhaleScale, emphasis, out var midFactor);
-            ApplyChestBone(chest, chestRestScale, chestInhaleScale, emphasis, out var upperFactor);
+            ApplyChestBone(chestMid, chestMidRestScale, ParrotChestBreathTuning.SecondaryChestInhaleScale, emphasis,
+                out var midFactor);
+            ApplyChestBone(chest, chestRestScale, ParrotChestBreathTuning.ChestInhaleScale, emphasis,
+                out var upperFactor);
             CompensateNeck(midFactor * upperFactor);
         }
 
@@ -69,7 +63,7 @@ namespace AvianVoice.Embodiment
             factor = 1f;
             if (bone == null || amount <= 0f)
                 return;
-            factor = 1f + emphasis * amount * ChestBreathAmplitudeMultiplier;
+            factor = ParrotChestBreathTuning.ComputeChestFactor(amount, emphasis);
             bone.localScale = rest * factor;
         }
 

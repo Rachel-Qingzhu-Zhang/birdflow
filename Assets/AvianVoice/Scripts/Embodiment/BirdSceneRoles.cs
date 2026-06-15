@@ -18,6 +18,30 @@ namespace AvianVoice.Embodiment
         public static Transform Friend { get; private set; }
         public static Transform Player { get; private set; }
 
+        public static bool TryGetFlockOrbitCenter(out Vector3 center)
+        {
+            if (Friend != null && Player != null)
+            {
+                center = Vector3.Lerp(Friend.position, Player.position, 0.5f);
+                return true;
+            }
+
+            if (Friend != null)
+            {
+                center = Friend.position;
+                return true;
+            }
+
+            if (Player != null)
+            {
+                center = Player.position;
+                return true;
+            }
+
+            center = default;
+            return false;
+        }
+
         static bool birdsConfigured;
 
         public static void ResetSession()

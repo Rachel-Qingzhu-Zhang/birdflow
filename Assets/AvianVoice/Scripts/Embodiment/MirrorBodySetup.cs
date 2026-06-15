@@ -131,7 +131,7 @@ namespace AvianVoice.Embodiment
                 return;
 
             AvianHudLayerSetup.ApplyToXrRig();
-            mirrorReflectionMask = BuildMirrorReflectionMask();
+            mirrorReflectionMask = PlanarReflectionUtility.BuildDefaultReflectionMask();
             EnsureSceneBirdMirrorLayers();
 
             renderTexture = new RenderTexture(textureSize, textureSize, 16);
@@ -297,15 +297,7 @@ namespace AvianVoice.Embodiment
 
         static void SyncMirrorCameraFromViewer(Camera mirrorCam)
         {
-            var viewerCam = WorldPlacedBird.FindMainCameraTransform()?.GetComponent<Camera>();
-            if (viewerCam == null)
-            {
-                mirrorCam.fieldOfView = 60f;
-                return;
-            }
-
-            mirrorCam.fieldOfView = viewerCam.fieldOfView;
-            mirrorCam.aspect = viewerCam.aspect;
+            PlanarReflectionUtility.SyncReflectionCameraFromViewer(mirrorCam);
         }
 
         void ApplyMirrorMaterial(MeshRenderer renderer)
@@ -401,7 +393,7 @@ namespace AvianVoice.Embodiment
                 if (!birdLayersEnsured)
                 {
                     EnsureSceneBirdMirrorLayers();
-                    EnsureBirdRenderersVisible();
+                    PlanarReflectionUtility.EnsureBirdRenderersVisible();
                     birdLayersEnsured = true;
                 }
 
@@ -452,40 +444,14 @@ namespace AvianVoice.Embodiment
             if (!TryResolveMirrorPlane(out var planePos, out var planeNormal))
                 return;
 
-            var reflectedPos = ReflectPointAcrossPlane(viewerTransform.position, planePos, planeNormal);
-            var reflectedForward = ReflectDirection(viewerTransform.forward, planeNormal);
-            var reflectedUp = ReflectDirection(viewerTransform.up, planeNormal);
+            var reflectedPos = PlanarReflectionUtility.ReflectPointAcrossPlane(viewerTransform.position, planePos, planeNormal);
+            var reflectedForward = PlanarReflectionUtility.ReflectDirection(viewerTransform.forward, planeNormal);
+            var reflectedUp = PlanarReflectionUtility.ReflectDirection(viewerTransform.up, planeNormal);
 
             mirrorCamera.transform.SetPositionAndRotation(
                 reflectedPos,
                 Quaternion.LookRotation(reflectedForward, reflectedUp));
-            SyncMirrorCameraFromViewer(mirrorCamera);
-        }
-
-        static Vector3 ReflectPointAcrossPlane(Vector3 point, Vector3 planePos, Vector3 planeNormal)
-        {
-            var delta = point - planePos;
-            return point - 2f * Vector3.Dot(delta, planeNormal) * planeNormal;
-        }
-
-        static Vector3 ReflectDirection(Vector3 direction, Vector3 planeNormal)
-        {
-            return direction - 2f * Vector3.Dot(direction, planeNormal) * planeNormal;
-        }
-
-        static void EnsureBirdRenderersVisible()
-        {
-            foreach (var bird in new[] { BirdSceneRoles.Friend, BirdSceneRoles.Player })
-            {
-                if (bird == null)
-                    continue;
-
-                foreach (var renderer in bird.GetComponentsInChildren<Renderer>(true))
-                {
-                    if (renderer is SkinnedMeshRenderer skinned)
-                        skinned.updateWhenOffscreen = true;
-                }
-            }
+            PlanarReflectionUtility.SyncReflectionCameraFromViewer(mirrorCamera);
         }
 
         void UpdateHeadMirrorCamera()
@@ -497,12 +463,6 @@ namespace AvianVoice.Embodiment
             var pos = focus.Value;
             mirrorCamera.transform.position = pos + Vector3.up * 0.2f - mirrorAnchor.forward * 1.2f;
             mirrorCamera.transform.LookAt(pos + Vector3.up * 0.5f);
-        }
-
-        static LayerMask BuildMirrorReflectionMask()
-        {
-            var excluded = (1 << BirdSceneRoles.MirrorDisplayLayer) | (1 << BirdSceneRoles.UiLayer);
-            return ~(excluded);
         }
 
         Vector3? ResolveFocusPoint()

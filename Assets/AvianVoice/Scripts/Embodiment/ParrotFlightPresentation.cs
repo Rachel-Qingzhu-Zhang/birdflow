@@ -4,17 +4,30 @@ using UnityEngine;
 namespace AvianVoice.Embodiment
 {
     /// <summary>
-    /// Flight: parrot on Camera Offset, glide pose (no fly root drift), pin Main_ctrl + COM_ctrl.
+    /// Flight FPV: player parrot follows behind/below the headset in world space (not parented to camera).
+    /// Glide pose is frozen; rig pins stop fly-root drift.
     /// </summary>
     [DefaultExecutionOrder(10050)]
     public class ParrotFlightPresentation : MonoBehaviour
     {
         [SerializeField]
-        Vector3 anchorLocalOffset = new(0f, -0.12f, 1.4f);
+        bool worldSpaceFollow = true;
 
         [SerializeField]
-        // Y=0: back toward player in flight; lab/world uses ~180° to face the player.
-        Vector3 anchorLocalEuler = new(0f, 0f, 0f);
+        float followDistanceBehind = 1.45f;
+
+        [SerializeField]
+        float followDropBelowEye = 0.62f;
+
+        [SerializeField]
+        float followUniformScale = 0.72f;
+
+        [Header("Legacy camera-parent mode (off by default)")]
+        [SerializeField]
+        Vector3 anchorLocalOffset = new(0f, -0.35f, -1.4f);
+
+        [SerializeField]
+        Vector3 anchorLocalEuler = Vector3.zero;
 
         [SerializeField]
         float takeoffDuration = 0.5f;
@@ -29,6 +42,7 @@ namespace AvianVoice.Embodiment
         Coroutine flightRoutine;
         bool flightActive;
         float savedAnimatorSpeed = 1f;
+        Vector3 savedWorldScale = Vector3.one;
 
         void Awake()
         {
@@ -43,12 +57,16 @@ namespace AvianVoice.Embodiment
                 return;
 
             flightActive = true;
+            savedWorldScale = transform.localScale;
             rigPin.CaptureRestPose();
             rigPin.SetPinEnabled(true);
 
             worldGuard?.SaveWorldPose();
-            worldGuard?.SetFlightCameraParenting(true);
-            TryAttachToFlightAnchor();
+            if (!worldSpaceFollow)
+                worldGuard?.SetFlightCameraParenting(true);
+
+            TryResolveFlightAnchor();
+            DetachFromCameraIfNeeded();
 
             if (animator != null)
             {
@@ -81,6 +99,7 @@ namespace AvianVoice.Embodiment
             if (transform.parent != null)
                 transform.SetParent(null, true);
 
+            transform.localScale = savedWorldScale;
             worldGuard?.RestoreWorldPose();
             flightRoutine = StartCoroutine(FlightExitRoutine());
         }
@@ -91,10 +110,17 @@ namespace AvianVoice.Embodiment
                 return;
 
             if (flightAnchor == null)
-                TryAttachToFlightAnchor();
+                TryResolveFlightAnchor();
 
             if (flightAnchor == null)
                 return;
+
+            if (worldSpaceFollow)
+            {
+                DetachFromCameraIfNeeded();
+                ApplyWorldFollowPose();
+                return;
+            }
 
             if (transform.parent != flightAnchor)
             {
@@ -105,14 +131,38 @@ namespace AvianVoice.Embodiment
             ApplyAnchorLocalPose();
         }
 
-        void TryAttachToFlightAnchor()
+        void TryResolveFlightAnchor()
         {
-            if (!WorldPlacedBird.TryFindFlightAnchor(out flightAnchor, out _))
+            if (WorldPlacedBird.TryFindFlightAnchor(out flightAnchor, out _))
                 return;
 
-            transform.SetParent(flightAnchor, false);
-            ApplyAnchorLocalPose();
-            Debug.Log("[AvianVoice] Flight parrot attached to '" + flightAnchor.name + "'.");
+            flightAnchor = null;
+        }
+
+        void DetachFromCameraIfNeeded()
+        {
+            if (!worldSpaceFollow || transform.parent == null)
+                return;
+
+            if (transform.parent.name == "Camera Offset" || IsUnderXrRig(transform.parent))
+                transform.SetParent(null, true);
+        }
+
+        void ApplyWorldFollowPose()
+        {
+            var view = flightAnchor;
+            var forward = view.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = view.forward;
+            forward.Normalize();
+
+            var eye = view.position;
+            var bodyPos = eye - forward * followDistanceBehind + Vector3.down * followDropBelowEye;
+            transform.SetPositionAndRotation(bodyPos, Quaternion.LookRotation(forward, Vector3.up));
+
+            if (followUniformScale > 0f)
+                transform.localScale = savedWorldScale * followUniformScale;
         }
 
         void ApplyAnchorLocalPose()
@@ -192,6 +242,18 @@ namespace AvianVoice.Embodiment
         {
             if (animator != null)
                 animator.SetBool(param, value);
+        }
+
+        static bool IsUnderXrRig(Transform t)
+        {
+            while (t != null)
+            {
+                if (t.name.Contains("XR Origin"))
+                    return true;
+                t = t.parent;
+            }
+
+            return false;
         }
     }
 }

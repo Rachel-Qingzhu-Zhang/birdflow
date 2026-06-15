@@ -62,6 +62,12 @@ namespace AvianVoice.Embodiment
                 chestIndicator.SetActive(false);
         }
 
+        void OnDestroy()
+        {
+            if (chestIndicator != null)
+                Destroy(chestIndicator);
+        }
+
         void LateUpdate()
         {
             if (demonstrator == null)

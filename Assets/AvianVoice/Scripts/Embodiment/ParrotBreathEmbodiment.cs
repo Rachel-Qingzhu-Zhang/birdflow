@@ -10,17 +10,8 @@ namespace AvianVoice.Embodiment
     [DefaultExecutionOrder(32000)]
     public class ParrotBreathEmbodiment : MonoBehaviour
     {
-        const float ChestBreathAmplitudeMultiplier = 2.25f;
-
         [SerializeField]
         AvianVoiceSettings settings;
-
-        [Header("Parrot chest (Spine2/Spine3 only)")]
-        [SerializeField]
-        float chestInhaleScale = 0.12f;
-
-        [SerializeField]
-        float secondaryChestInhaleScale = 0.0825f;
 
         [SerializeField]
         bool compensateNeckFromUpperChestScale = true;
@@ -83,9 +74,10 @@ namespace AvianVoice.Embodiment
                 return;
             }
 
-            ApplyChestBone(chestMid, chestMidRestScale, secondaryChestInhaleScale, emphasis,
+            ApplyChestBone(chestMid, chestMidRestScale, ParrotChestBreathTuning.SecondaryChestInhaleScale, emphasis,
                 out var midChestFactor);
-            ApplyChestBone(chest, chestRestScale, chestInhaleScale, emphasis, out var upperChestFactor);
+            ApplyChestBone(chest, chestRestScale, ParrotChestBreathTuning.ChestInhaleScale, emphasis,
+                out var upperChestFactor);
             CompensateNeckScale(midChestFactor * upperChestFactor);
         }
 
@@ -100,7 +92,7 @@ namespace AvianVoice.Embodiment
             if (bone == null || amount <= 0f)
                 return;
 
-            factor = 1f + emphasis * amount * ChestBreathAmplitudeMultiplier;
+            factor = ParrotChestBreathTuning.ComputeChestFactor(amount, emphasis);
             bone.localScale = restScale * factor;
         }
 
@@ -138,7 +130,7 @@ namespace AvianVoice.Embodiment
                 neckRestScale = neck.localScale;
         }
 
-        static float BreathEmphasis(float depth) => Mathf.Pow(Mathf.Clamp01(depth), 0.55f);
+        static float BreathEmphasis(float depth) => ParrotChestBreathTuning.DepthToEmphasis(depth);
 
         static AvianVoiceSettings FindAvianSettings()
         {

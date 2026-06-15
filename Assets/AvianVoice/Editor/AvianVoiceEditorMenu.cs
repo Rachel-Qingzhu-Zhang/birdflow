@@ -350,6 +350,31 @@ namespace AvianVoice.Editor
                       "'. Save scene (Ctrl+S). Play: speak into mic (Transform mode) for bird calls.");
         }
 
+        [MenuItem("Avian Voice/Scene Setup/Add Per-Task Start Poses (Open Scene)")]
+        public static void AddTaskStartPosesInOpenScene()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (!scene.name.StartsWith("Avian"))
+            {
+                Debug.LogWarning("[AvianVoice] Open Avian_Lab first — per-task poses are for the six in-scene tasks.");
+                return;
+            }
+
+            var xr = FindPreferredXrOrigin(scene);
+            if (xr == null)
+            {
+                Debug.LogWarning("[AvianVoice] No XR Origin found in open scene.");
+                return;
+            }
+
+            EnsureTaskStartPoses(xr);
+            EditorSceneManager.MarkSceneDirty(scene);
+            Selection.activeGameObject = xr;
+            Debug.Log(
+                "[AvianVoice] Per-task start poses added on '" + xr.name +
+                "'. Move XR Origin, pick task 1-6 in Inspector, Capture, then Save scene.");
+        }
+
         [MenuItem("Avian Voice/Setup Pigeon FPV Body In Open Scene")]
         public static void SetupPigeonFpvBodyInOpenScene()
         {
@@ -834,14 +859,29 @@ namespace AvianVoice.Editor
             return changed;
         }
 
-        static GameObject FindHandsXrOrigin(Scene scene)
+        static GameObject FindHandsXrOrigin(Scene scene) => FindPreferredXrOrigin(scene);
+
+        static GameObject FindPreferredXrOrigin(Scene scene)
         {
+            GameObject hands = null;
+            GameObject fallback = null;
             foreach (var root in scene.GetRootGameObjects())
             {
-                if (root.name.Contains("XR Origin") && root.name.Contains("Hands"))
-                    return root;
+                if (!root.name.Contains("XR Origin"))
+                    continue;
+                if (root.name.Contains("Hands"))
+                    hands = root;
+                else if (fallback == null)
+                    fallback = root;
             }
-            return null;
+
+            return hands != null ? hands : fallback;
+        }
+
+        static void EnsureTaskStartPoses(GameObject xrOrigin)
+        {
+            if (xrOrigin.GetComponent<XrRigTaskStartPoses>() == null)
+                Undo.AddComponent<XrRigTaskStartPoses>(xrOrigin);
         }
 
         static AudioSource FindOrCreateEditorAudioSource(Transform parent, string childName)

@@ -273,9 +273,7 @@ Shader "ForestVision/Foliage URP"
 			#pragma shader_feature_local _RECEIVE_SHADOWS_OFF
 			#pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
 			#pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
-			#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
 			#pragma multi_compile_vertex LOD_FADE_PERCENTAGE
-			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE 
 
 
 			struct VertexInput
@@ -1271,7 +1269,7 @@ Shader "ForestVision/Foliage URP"
 			#pragma multi_compile _ LIGHTMAP_ON
 			#pragma multi_compile_vertex LOD_FADE_PERCENTAGE
 			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE 
+			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
 
 
 			struct VertexInput
@@ -1846,7 +1844,7 @@ Shader "ForestVision/Foliage URP"
 			#pragma multi_compile _ LIGHTMAP_ON
 			#pragma multi_compile_vertex LOD_FADE_PERCENTAGE
 			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE 
+			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
 
 
 			struct VertexInput
@@ -3042,7 +3040,7 @@ Shader "ForestVision/Foliage URP"
 			#pragma multi_compile _ LIGHTMAP_ON
 			#pragma multi_compile_vertex LOD_FADE_PERCENTAGE
 			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE 
+			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
 
 
 			#pragma shader_feature _ _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
@@ -3684,7 +3682,7 @@ Shader "ForestVision/Foliage URP"
 			#pragma multi_compile _ LIGHTMAP_ON
 			#pragma multi_compile_vertex LOD_FADE_PERCENTAGE
 			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE 
+			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
 
 
 			struct VertexInput
@@ -4259,7 +4257,6 @@ Shader "ForestVision/Foliage URP"
 			#pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
 			#pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
 			#pragma multi_compile_vertex LOD_FADE_PERCENTAGE
-			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE 
 
 
 			struct VertexInput

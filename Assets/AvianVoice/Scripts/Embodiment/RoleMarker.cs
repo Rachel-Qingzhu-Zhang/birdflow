@@ -17,10 +17,10 @@ namespace AvianVoice.Embodiment
         Role role = Role.Player;
 
         [SerializeField]
-        float sphereWorldDiameter = 0.28f;
+        float sphereWorldDiameter = 0.196f;
 
         [SerializeField]
-        float heightAboveHead = 0.14f;
+        float heightAboveHead = 0.168f;
 
         [SerializeField]
         Color playerColor = new(0.35f, 0.55f, 1f);
@@ -106,6 +106,12 @@ namespace AvianVoice.Embodiment
             }
 
             return birdRoot;
+        }
+
+        void OnDestroy()
+        {
+            if (sphere != null)
+                Destroy(sphere);
         }
 
         void ApplyColor()

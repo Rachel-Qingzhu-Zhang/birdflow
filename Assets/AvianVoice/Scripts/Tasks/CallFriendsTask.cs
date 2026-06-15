@@ -41,6 +41,9 @@ namespace AvianVoice.Tasks
         GameObject flockBirdPrefab;
 
         [SerializeField]
+        float flockScale = FlockParrotBehaviour.DefaultFlockScale;
+
+        [SerializeField]
         float[] melodyHz = { 330f, 392f };
 
         [SerializeField]
@@ -185,15 +188,14 @@ namespace AvianVoice.Tasks
 
         void SpawnBird(float lateralOffset)
         {
-            var anchor = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend.position : transform.position;
-            var pos = anchor + Vector3.right * lateralOffset + Vector3.up * 0.5f;
-            GameObject bird;
-            if (flockBirdPrefab != null)
+            var template = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend : transform;
+            var bird = CreateFlockParrotInstance();
+            if (bird == null)
             {
-                bird = Instantiate(flockBirdPrefab, pos, Quaternion.identity);
-            }
-            else
-            {
+                BirdSceneRoles.TryGetFlockOrbitCenter(out var center);
+                if (center == default && template != null)
+                    center = template.position;
+                var pos = center + Vector3.right * lateralOffset + Vector3.up * 0.5f;
                 bird = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 bird.transform.position = pos;
                 bird.transform.localScale = Vector3.one * 0.15f;
@@ -210,7 +212,30 @@ namespace AvianVoice.Tasks
                 }
                 Destroy(bird.GetComponent<Collider>());
             }
+            else
+            {
+                bird.name = $"FlockParrot_{summoned.Count + 1}";
+                var behaviour = bird.GetComponent<FlockParrotBehaviour>() ?? bird.AddComponent<FlockParrotBehaviour>();
+                behaviour.ConfigureScale(flockScale);
+                behaviour.Initialize(template, summoned.Count, lateralOffset);
+            }
+
             summoned.Add(bird);
+        }
+
+        GameObject CreateFlockParrotInstance()
+        {
+            if (flockBirdPrefab != null)
+                return Instantiate(flockBirdPrefab);
+
+            var template = BirdSceneRoles.Friend;
+            if (template == null)
+                return null;
+
+            var clone = Instantiate(template.gameObject);
+            clone.SetActive(false);
+            clone.name = "FlockParrot";
+            return clone;
         }
 
         void ClearSummoned()

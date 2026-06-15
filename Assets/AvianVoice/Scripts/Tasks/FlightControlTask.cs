@@ -15,22 +15,27 @@ namespace AvianVoice.Tasks
         BreathSimulator breath;
 
         [SerializeField]
-        float forwardSpeed = 2.5f;
+        float forwardSpeed = 1.75f;
 
         [SerializeField]
-        float verticalSpeedMid = 1f;
+        float verticalSpeedMid = 0.7f;
 
         [SerializeField]
-        float verticalSpeedHigh = 3f;
+        float verticalSpeedHigh = 2.1f;
 
         [SerializeField]
-        float glideDescentSpeed = 1.5f;
+        float glideDescentMin = 0.21f;
+
+        [SerializeField]
+        float glideDescentSpeed = 1.05f;
 
         CharacterController controller;
         ParrotFlightPresentation parrotFlight;
         XrRigPoseSnapshot rigSnapshot;
+        Transform flightHeading;
         float score;
         bool glideActive;
+        ParrotBreathEmbodiment playerBreathEmbodiment;
 
         void Awake()
         {
@@ -56,7 +61,10 @@ namespace AvianVoice.Tasks
                 controller = GetComponent<CharacterController>();
 
             rigSnapshot?.SavePose();
+            ResolveFlightHeading();
             ResolveParrotFlightPresentation();
+            SetFriendCompanionVisible(false);
+            SetPlayerBreathEmbodimentEnabled(false);
             parrotFlight?.BeginFlightPresentation();
 
             if (ShouldSnapRigToGround())
@@ -69,15 +77,29 @@ namespace AvianVoice.Tasks
         void OnDisable()
         {
             parrotFlight?.EndFlightPresentation();
+            SetFriendCompanionVisible(true);
+            SetPlayerBreathEmbodimentEnabled(true);
             rigSnapshot?.RestorePose();
             glideActive = false;
         }
 
         bool IsActiveTask() => TaskActivity.IsActive("flying") || TaskActivity.IsActive("flight");
 
+        void ResolveFlightHeading()
+        {
+            if (WorldPlacedBird.TryFindFlightAnchor(out var anchor, out _) && anchor != null)
+                flightHeading = anchor;
+            else
+                flightHeading = transform;
+        }
+
         void ResolveParrotFlightPresentation()
         {
-            var parrot = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend : WorldPlacedBird.FindParrotInScene();
+            var parrot = BirdSceneRoles.Player != null
+                ? BirdSceneRoles.Player
+                : BirdSceneRoles.Friend != null
+                    ? BirdSceneRoles.Friend
+                    : WorldPlacedBird.FindParrotInScene();
             if (parrot == null)
                 return;
 
@@ -86,8 +108,41 @@ namespace AvianVoice.Tasks
                 parrotFlight = parrot.gameObject.AddComponent<ParrotFlightPresentation>();
         }
 
+        void SetFriendCompanionVisible(bool visible)
+        {
+            if (BirdSceneRoles.Friend == null)
+                return;
+
+            if (BirdSceneRoles.Player != null && BirdSceneRoles.Friend == BirdSceneRoles.Player)
+                return;
+
+            foreach (var renderer in BirdSceneRoles.Friend.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == null)
+                    continue;
+                renderer.enabled = visible;
+            }
+
+        }
+
+        void SetPlayerBreathEmbodimentEnabled(bool enabled)
+        {
+            if (BirdSceneRoles.Player == null)
+                return;
+
+            if (playerBreathEmbodiment == null)
+                playerBreathEmbodiment = BirdSceneRoles.Player.GetComponent<ParrotBreathEmbodiment>();
+
+            if (playerBreathEmbodiment != null)
+                playerBreathEmbodiment.enabled = enabled;
+        }
+
         bool ShouldSnapRigToGround()
         {
+            var taskPoses = GetComponent<XrRigTaskStartPoses>();
+            if (taskPoses != null && taskPoses.HasConfiguredPose("flying"))
+                return false;
+
             var parrot = BirdSceneRoles.Friend ?? WorldPlacedBird.FindParrotInScene();
             if (parrot == null)
                 return true;
@@ -97,7 +152,8 @@ namespace AvianVoice.Tasks
         void SnapToGroundIfNeeded()
         {
             var origin = transform.position;
-            if (!Physics.Raycast(origin + Vector3.up * 2f, Vector3.down, out var hit, 50f))
+            var mask = Physics.DefaultRaycastLayers;
+            if (!Physics.Raycast(origin + Vector3.up * 2f, Vector3.down, out var hit, 50f, mask, QueryTriggerInteraction.Ignore))
                 return;
 
             var groundedY = hit.point.y;
@@ -127,7 +183,14 @@ namespace AvianVoice.Tasks
 
             var b = breath.Current;
             var verticalSpeed = ComputeVerticalSpeed(b.depth, b.isInhaling);
-            var move = Vector3.forward * forwardSpeed + Vector3.up * verticalSpeed;
+            var heading = flightHeading != null ? flightHeading : transform;
+            var forward = heading.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = heading.forward;
+            forward.Normalize();
+
+            var move = forward * forwardSpeed + Vector3.up * verticalSpeed;
             controller.Move(move * Time.deltaTime);
 
             var stability = b.isInhaling ? b.depth : 1f - b.depth;
@@ -138,16 +201,16 @@ namespace AvianVoice.Tasks
             UpdateParrotGlide(stability, b.depth);
         }
 
-        static float ComputeVerticalSpeed(float depth, bool inhaling)
+        float ComputeVerticalSpeed(float depth, bool inhaling)
         {
             if (inhaling)
             {
                 if (depth < 0.5f)
-                    return Mathf.Lerp(0f, 1f, depth / 0.5f);
-                return Mathf.Lerp(1f, 3f, (depth - 0.5f) / 0.5f);
+                    return Mathf.Lerp(0f, verticalSpeedMid, depth / 0.5f);
+                return Mathf.Lerp(verticalSpeedMid, verticalSpeedHigh, (depth - 0.5f) / 0.5f);
             }
 
-            return -Mathf.Lerp(0.3f, 1.5f, 1f - depth);
+            return -Mathf.Lerp(glideDescentMin, glideDescentSpeed, 1f - depth);
         }
 
         void UpdateParrotGlide(float stability, float breathDepth)

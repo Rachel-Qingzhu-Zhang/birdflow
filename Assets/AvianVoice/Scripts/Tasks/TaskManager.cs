@@ -161,11 +161,13 @@ namespace AvianVoice.Tasks
 
             var entry = tasks[currentIndex];
             UpdateMirrorForTask(entry.taskId);
+            UpdatePondWaterForTask(entry.taskId);
             UpdateRecorderScene(entry.taskId);
 
             if (switchMode == TaskSwitchMode.InScene)
             {
                 ApplyInSceneTask(entry);
+                ApplyTaskStartPose(entry.taskId);
                 NotifyTaskChanged();
                 return;
             }
@@ -209,10 +211,28 @@ namespace AvianVoice.Tasks
             mirror.SetMirrorActive(showMirror);
         }
 
+        static void UpdatePondWaterForTask(string taskId)
+        {
+            var showPondReflection = taskId is "flying" or "singing" or "call_friends";
+            Embodiment.PondWaterReflection.SetAllReflectionActive(showPondReflection);
+        }
+
         static void UpdateRecorderScene(string taskId)
         {
             var recorder = UnityEngine.Object.FindAnyObjectByType<SessionRecorder>();
             recorder?.SetActiveSceneId(taskId);
+        }
+
+        static void ApplyTaskStartPose(string taskId)
+        {
+            foreach (var poses in UnityEngine.Object.FindObjectsByType<Embodiment.XrRigTaskStartPoses>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (poses == null)
+                    continue;
+                poses.ApplyForTask(taskId);
+                return;
+            }
         }
 
         IEnumerator LoadTaskScene(string sceneName)

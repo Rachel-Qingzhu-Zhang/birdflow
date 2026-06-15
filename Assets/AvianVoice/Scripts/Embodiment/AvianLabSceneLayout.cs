@@ -126,7 +126,7 @@ namespace AvianVoice.Embodiment
         /// </summary>
         public static void ApplyRuntimeLayout()
         {
-            if (WorldMirrorScenePlacement.HasManualLayoutInScene())
+            if (XrRigTaskStartPoses.ShouldSkipAutoSceneLayout())
             {
                 Debug.Log("[AvianVoice] Manual scene layout detected — keeping mirror, perch, and parrot transforms from the scene.");
                 return;

@@ -102,10 +102,7 @@ namespace AvianVoice.Tasks
             if (sync >= syncThreshold)
                 syncHold += Time.deltaTime;
             else
-            {
                 syncHold = 0f;
-                demonstrator?.RestartPattern();
-            }
 
             if (syncHold >= patternHoldSeconds)
                 AdvancePhase(score);

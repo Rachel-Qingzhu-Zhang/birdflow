@@ -28,6 +28,11 @@
 ### 2.1 环境与布景
 
 - **森林环境**：来自 ForestVision 等资产，针叶林氛围。
+- **池塘环境（AvianPond）**：来自 Fine3D `Environment_Pond`，通过菜单 **Avian Voice → Scene Setup → Merge Fine3D Pond into Lab** 合并到场景中，默认偏移至 `(80, 0, 60)`，与鸟架区分离。
+  - 含地形、睡莲、木桥、水面涟漪粒子、水下锦鲤（`koi_fish.fbx`，由 `PondFishSpawner` 生成）。
+  - **平面反射水面**（`PondWaterReflection` + `AvianVoice/PondWater` Shader）：任务 3/4/5 开启，可看到飞行中玩家鸟的实时倒影。水面为有机池塘形状（非矩形），带波纹法线与岸边渐隐。
+  - 若水面仍是矩形：菜单 **Avian Voice → Scene Setup → Upgrade Pond Water Surface** 一键升级网格与材质参数。
+  - 任务 1/2/6 池塘反射关闭，避免与镜子双重平面反射影响 VR 性能。
 - **栖木**：场景根物体 `Cylinder`（灰色圆柱），两只鹦鹉站在其两侧。
 - **XR Rig**：`XR Origin Hands (XR Rig)`（XRI Hands Demo 预制体），提供头显相机与手部追踪。
 - **运行时自动创建**（若缺失）：
@@ -63,6 +68,9 @@
 - **自动开关**（按任务）：
   - **开启**：任务 1 Meet、任务 2 Breath Sync、任务 6 Reflection
   - **关闭**：任务 3 Flying、任务 4 Singing、任务 5 Call Friends
+- **池塘水面反射**（与镜子互斥，按任务自动切换）：
+  - **开启**：任务 3 Flying、任务 4 Singing、任务 5 Call Friends
+  - **关闭**：任务 1 Meet、任务 2 Breath Sync、任务 6 Reflection
 - 总开关：`AvianVoiceSettings.mirrorEnabled`（默认 true）。
 
 ### 2.4 语音与身体系统（全场景共用）
@@ -150,7 +158,8 @@ PatternA — Friend: EXHALE ↓ (2.1s)  |  You: release Space  |  sync 85% — h
 
 **场景内容**：
 
-- 镜子 **关闭**。
+- 镜子 **关闭**；**池塘水面反射开启**（若已合并 AvianPond）。
+- 默认起点在池塘上空（`XrRigTaskStartPoses` 的 `flying` 位姿）；低头可见玩家鸟在水面的倒影。
 - `FlightControlTask` 挂在 **XR Origin** 上，带 `CharacterController`。
 - 鸟友鹦鹉可进入伴飞展示（`ParrotFlightPresentation`）。
 
@@ -163,7 +172,7 @@ PatternA — Friend: EXHALE ↓ (2.1s)  |  You: release Space  |  sync 85% — h
 | **松开 Space** / 呼气 | 下降、滑翔 |
 | 稳定呼吸（深度适中） | 分数升高，伴飞鸟进入滑翔姿态 |
 
-**移动**：XR Origin 持续 **向前**（约 2.5 m/s）+ 垂直分量由呼吸决定。
+**移动**：XR Origin 持续 **向前**（约 1.75 m/s）+ 垂直分量由呼吸决定。
 
 **桌面预览**：WASD 移动视角锚点；Space 仍控制呼吸。
 
