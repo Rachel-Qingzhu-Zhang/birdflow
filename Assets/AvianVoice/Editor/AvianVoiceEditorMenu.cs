@@ -209,17 +209,18 @@ namespace AvianVoice.Editor
             quad.localScale = new Vector3(mirrorSize.x, mirrorSize.y, 1f);
             var quadRenderer = quad.GetComponent<MeshRenderer>();
             if (quadRenderer != null)
-            {
-                var quadShader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
-                if (quadShader != null)
-                {
-                    var quadMat = new Material(quadShader);
-                    quadMat.color = new Color(0.08f, 0.12f, 0.18f, 1f);
-                    quadRenderer.sharedMaterial = quadMat;
-                }
-
                 MirrorBodySetup.ConfigureMirrorPanelRenderer(quadRenderer);
-            }
+
+            Fragilem17MirrorBridge.ConfigureMirrorQuad(
+                quad.gameObject,
+                new Fragilem17MirrorBridge.Settings
+                {
+                    TextureSize = 1536,
+                    MirrorPanelSize = new Vector2(1.5f, 2.2f),
+                    MaxRenderingDistance = 80f,
+                    ReflectionLayers = PlanarReflectionUtility.BuildDefaultReflectionMask(),
+                    MirrorMaterial = Fragilem17MirrorBridge.ResolveDefaultMaterial()
+                });
 
             var frame = root.transform.Find("MirrorFrame");
             if (frame == null)

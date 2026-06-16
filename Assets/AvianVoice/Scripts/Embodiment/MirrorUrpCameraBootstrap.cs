@@ -23,7 +23,7 @@ namespace AvianVoice.Embodiment
             if (data == null)
                 data = camera.gameObject.AddComponent(urpCameraDataType);
 
-            renderShadowsProperty?.SetValue(data, true);
+            renderShadowsProperty?.SetValue(data, false);
 
             if (requiresDepthOptionProperty != null && depthOffValue != null)
                 requiresDepthOptionProperty.SetValue(data, depthOffValue);

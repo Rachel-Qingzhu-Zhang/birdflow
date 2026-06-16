@@ -55,14 +55,13 @@ namespace AvianVoice.Embodiment
 
         void ApplyMarker()
         {
-            var head = ResolveHeadAnchor(transform) ?? transform;
-            CleanupOrphanMarkers(head);
+            StripMisplacedMarkers();
+            sphere = null;
 
-            if (sphere == null)
-            {
-                sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                Destroy(sphere.GetComponent<Collider>());
-            }
+            var head = ResolveHeadAnchor(transform) ?? transform;
+
+            sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            Destroy(sphere.GetComponent<Collider>());
 
             sphere.name = role == Role.Player ? "PlayerMarker" : "FriendMarker";
             sphere.transform.SetParent(head, false);
@@ -75,16 +74,11 @@ namespace AvianVoice.Embodiment
             sphere.transform.localScale = Vector3.one * (sphereWorldDiameter / lossy);
         }
 
-        void CleanupOrphanMarkers(Transform head)
+        void StripMisplacedMarkers()
         {
-            for (var i = head.childCount - 1; i >= 0; i--)
+            foreach (var child in transform.GetComponentsInChildren<Transform>(true))
             {
-                var child = head.GetChild(i);
-                if (child.name is not ("PlayerMarker" or "FriendMarker"))
-                    continue;
-                if (sphere == null && child.gameObject.name == (role == Role.Player ? "PlayerMarker" : "FriendMarker"))
-                    sphere = child.gameObject;
-                else if (sphere == null || child.gameObject != sphere)
+                if (child.name is "PlayerMarker" or "FriendMarker" or "FriendBreathCue")
                     Destroy(child.gameObject);
             }
         }

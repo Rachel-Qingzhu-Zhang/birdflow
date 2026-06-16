@@ -29,6 +29,9 @@ namespace AvianVoice.Tasks
         [SerializeField]
         float glideDescentSpeed = 1.05f;
 
+        [SerializeField]
+        float flightReflectionScaleMultiplier = 1.4f;
+
         CharacterController controller;
         ParrotFlightPresentation parrotFlight;
         XrRigPoseSnapshot rigSnapshot;
@@ -66,6 +69,7 @@ namespace AvianVoice.Tasks
             SetFriendCompanionVisible(false);
             SetPlayerBreathEmbodimentEnabled(false);
             parrotFlight?.BeginFlightPresentation();
+            PondWaterReflection.SetAllReflectionScaleMultiplier(flightReflectionScaleMultiplier);
 
             if (ShouldSnapRigToGround())
                 SnapToGroundIfNeeded();
@@ -76,6 +80,7 @@ namespace AvianVoice.Tasks
 
         void OnDisable()
         {
+            PondWaterReflection.RestoreAllReflectionScales();
             parrotFlight?.EndFlightPresentation();
             SetFriendCompanionVisible(true);
             SetPlayerBreathEmbodimentEnabled(true);

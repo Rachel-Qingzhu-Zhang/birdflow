@@ -4,17 +4,11 @@ using UnityEngine;
 namespace AvianVoice.Embodiment
 {
     /// <summary>
-    /// Makes the friend bird visibly and audibly teach the breathing rhythm.
+    /// Makes the friend bird audibly teach the breathing rhythm.
     /// </summary>
     [DefaultExecutionOrder(31999)]
     public class FriendTeachingCue : MonoBehaviour
     {
-        [SerializeField]
-        float chestIndicatorMinDiameter = 0.18f;
-
-        [SerializeField]
-        float chestIndicatorMaxDiameter = 0.55f;
-
         [SerializeField]
         float inhaleChirpHz = 520f;
 
@@ -24,19 +18,17 @@ namespace AvianVoice.Embodiment
         BirdFriendDemonstrator demonstrator;
         AudioSource source;
         BirdCallLibrary library;
-        GameObject chestIndicator;
-        Transform chestAnchor;
         bool subscribed;
 
         void Awake()
         {
             demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            source = GetComponent<AudioSource>() ?? gameObject.AddComponent<AudioSource>();
+            if (!TryGetComponent(out source))
+                source = gameObject.AddComponent<AudioSource>();
             source.playOnAwake = false;
             source.spatialBlend = 0f;
-            CacheChestAnchor();
-            EnsureChestIndicator();
             ResolveLibrary();
+            StripLegacyChestIndicator(transform);
         }
 
         void ResolveLibrary()
@@ -57,15 +49,6 @@ namespace AvianVoice.Embodiment
                 demonstrator.OnPhaseChanged -= HandlePhaseChanged;
                 subscribed = false;
             }
-
-            if (chestIndicator != null)
-                chestIndicator.SetActive(false);
-        }
-
-        void OnDestroy()
-        {
-            if (chestIndicator != null)
-                Destroy(chestIndicator);
         }
 
         void LateUpdate()
@@ -74,7 +57,6 @@ namespace AvianVoice.Embodiment
                 demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
             ResolveLibrary();
             TrySubscribe();
-            UpdateChestIndicator();
         }
 
         void TrySubscribe()
@@ -96,58 +78,16 @@ namespace AvianVoice.Embodiment
             library.PlayTeachingCue(source, hz);
         }
 
-        void UpdateChestIndicator()
+        static void StripLegacyChestIndicator(Transform birdRoot)
         {
-            if (chestIndicator == null || demonstrator == null || chestAnchor == null)
+            if (birdRoot == null)
                 return;
 
-            chestIndicator.SetActive(true);
-            chestIndicator.transform.position = chestAnchor.position + chestAnchor.up * 0.05f;
-            var depth = Mathf.Pow(Mathf.Clamp01(demonstrator.CurrentDepth), 0.65f);
-            var diameter = Mathf.Lerp(chestIndicatorMinDiameter, chestIndicatorMaxDiameter, depth);
-            chestIndicator.transform.localScale = Vector3.one * diameter;
-        }
-
-        void CacheChestAnchor()
-        {
-            if (ParrotEmbodimentWiring.TryResolve(transform, out var refs) && refs.chest != null)
-                chestAnchor = refs.chest;
-            else
-                chestAnchor = transform;
-        }
-
-        void EnsureChestIndicator()
-        {
-            if (chestIndicator != null)
-                return;
-
-            chestIndicator = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            chestIndicator.name = "FriendBreathCue";
-            Destroy(chestIndicator.GetComponent<Collider>());
-            chestIndicator.transform.SetParent(null, true);
-
-            var renderer = chestIndicator.GetComponent<MeshRenderer>();
-            if (renderer == null)
-                return;
-
-            var shader = Shader.Find("Universal Render Pipeline/Lit")
-                         ?? Shader.Find("Universal Render Pipeline/Unlit")
-                         ?? Shader.Find("Sprites/Default");
-            if (shader == null)
-                return;
-
-            var mat = new Material(shader);
-            mat.color = new Color(1f, 0.55f, 0.12f, 0.55f);
-            if (mat.HasProperty("_Surface"))
+            foreach (var child in birdRoot.GetComponentsInChildren<Transform>(true))
             {
-                mat.SetFloat("_Surface", 1f);
-                mat.SetFloat("_Blend", 0f);
-                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                mat.renderQueue = 3000;
+                if (child.name == "FriendBreathCue")
+                    Destroy(child.gameObject);
             }
-
-            renderer.material = mat;
-            chestIndicator.SetActive(false);
         }
     }
 }

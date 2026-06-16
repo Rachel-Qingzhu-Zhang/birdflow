@@ -59,6 +59,7 @@ namespace AvianVoice.Embodiment
             if (!birdsConfigured)
                 ConfigureBirdComponents();
 
+            StripBodyCueSpheres();
             EnsureRoleMarkers();
             FinalizeScenePlacement();
 
@@ -177,6 +178,24 @@ namespace AvianVoice.Embodiment
             pin.SetPinEnabled(true);
         }
 
+        static void StripBodyCueSpheres()
+        {
+            StripBodyCueSpheres(Friend);
+            StripBodyCueSpheres(Player);
+        }
+
+        static void StripBodyCueSpheres(Transform bird)
+        {
+            if (bird == null)
+                return;
+
+            foreach (var child in bird.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == "FriendBreathCue")
+                    Object.Destroy(child.gameObject);
+            }
+        }
+
         static void EnsureRoleMarkers()
         {
             AttachMarker(Friend, RoleMarker.Role.Friend);
@@ -198,6 +217,40 @@ namespace AvianVoice.Embodiment
             RefreshPinPoses(Player);
             SetLayerRecursive(Friend.gameObject, MirrorLayer);
             SetLayerRecursive(Player.gameObject, MirrorLayer);
+            EnsurePlayerBirdVisible();
+        }
+
+        public static void EnsurePlayerBirdVisible()
+        {
+            if (Player == null)
+                return;
+
+            Player.gameObject.SetActive(true);
+            foreach (var renderer in Player.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == null)
+                    continue;
+
+                renderer.enabled = true;
+                foreach (var mat in renderer.materials)
+                {
+                    if (mat == null)
+                        continue;
+
+                    if (mat.HasProperty("_BaseColor"))
+                    {
+                        var color = mat.GetColor("_BaseColor");
+                        color.a = 1f;
+                        mat.SetColor("_BaseColor", color);
+                    }
+                    else
+                    {
+                        var color = mat.color;
+                        color.a = 1f;
+                        mat.color = color;
+                    }
+                }
+            }
         }
 
         static void RefreshPinPoses(Transform bird)

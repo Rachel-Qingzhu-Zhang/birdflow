@@ -1,3 +1,4 @@
+using AvianVoice.Embodiment;
 using AvianVoice.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -28,6 +29,21 @@ namespace AvianVoice.Core
                 AvianInSceneTaskBootstrap.EnsureForLabScene();
             else
                 EnsureTaskComponents(scene);
+
+            EnsureXrThumbstickLocomotion();
+        }
+
+        static void EnsureXrThumbstickLocomotion()
+        {
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                if (!root.name.Contains("XR Origin"))
+                    continue;
+
+                if (root.GetComponent<AvianXrThumbstickLocomotion>() == null)
+                    root.AddComponent<AvianXrThumbstickLocomotion>();
+                return;
+            }
         }
 
         static void EnsureTaskComponents(string sceneName)
@@ -50,11 +66,13 @@ namespace AvianVoice.Core
                 root.AddComponent<PitchMatchingTask>();
             if (sceneName.Contains("FlightControl"))
             {
-                if (root.GetComponent<FlightControlTask>() == null)
-                    root.AddComponent<FlightControlTask>();
-                if (root.GetComponent<CharacterController>() == null)
+                var xrOrigin = FindXrOriginForTaskScene();
+                var flightHost = xrOrigin != null ? xrOrigin : root;
+                if (flightHost.GetComponent<FlightControlTask>() == null)
+                    flightHost.AddComponent<FlightControlTask>();
+                if (flightHost.GetComponent<CharacterController>() == null)
                 {
-                    var cc = root.AddComponent<CharacterController>();
+                    var cc = flightHost.AddComponent<CharacterController>();
                     cc.center = new Vector3(0f, 1f, 0f);
                     cc.height = 2f;
                     cc.radius = 0.3f;
@@ -69,6 +87,17 @@ namespace AvianVoice.Core
                 taskManager.LoadTaskById("flying");
             else if (sceneName.Contains("SongPerformance"))
                 taskManager.LoadTaskById("call_friends");
+        }
+
+        static GameObject FindXrOriginForTaskScene()
+        {
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                if (root.name.Contains("XR Origin"))
+                    return root;
+            }
+
+            return null;
         }
     }
 }

@@ -53,7 +53,7 @@ namespace AvianVoice.Tasks
             timer = 0f;
             farewellPlayed = false;
             liveSync = 0f;
-            FadePlayerBird(1f);
+            BirdSceneRoles.EnsurePlayerBirdVisible();
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.Intro4x4);
             demonstrator?.RestartPattern();
             ShowScores();
@@ -63,7 +63,7 @@ namespace AvianVoice.Tasks
         void OnDisable()
         {
             friendVisuals?.ApplyMatch(0f);
-            FadePlayerBird(1f);
+            BirdSceneRoles.EnsurePlayerBirdVisible();
         }
 
         void Update()
@@ -73,9 +73,6 @@ namespace AvianVoice.Tasks
 
             timer += Time.deltaTime;
             UpdateBreathSync();
-
-            var t = Mathf.Clamp01(timer / fadeDuration);
-            FadePlayerBird(1f - t * 0.85f);
 
             if (!farewellPlayed && timer > 0.5f)
             {
@@ -138,22 +135,6 @@ namespace AvianVoice.Tasks
             var host = friend != null ? friend.gameObject : gameObject;
             friendVisuals = host.GetComponent<ParrotMatchVisuals>() ?? host.AddComponent<ParrotMatchVisuals>();
             friendVisuals.BindFromScene();
-        }
-
-        void FadePlayerBird(float alpha)
-        {
-            var player = BirdSceneRoles.Player;
-            if (player == null)
-                return;
-
-            foreach (var r in player.GetComponentsInChildren<Renderer>(true))
-            {
-                if (r == null)
-                    continue;
-                var c = r.material.color;
-                c.a = alpha;
-                r.material.color = c;
-            }
         }
 
         void SetHud(string message)

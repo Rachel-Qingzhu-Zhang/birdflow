@@ -34,17 +34,60 @@ namespace AvianVoice.Embodiment
             SyncReflectionCameraFromViewer(cam);
         }
 
-        public static void SyncReflectionCameraFromViewer(Camera reflectionCam)
+        public static void SyncReflectionCameraFromViewer(Camera reflectionCam, Camera viewerCam = null)
         {
-            var viewerCam = WorldPlacedBird.FindMainCameraTransform()?.GetComponent<Camera>();
+            viewerCam ??= WorldPlacedBird.FindMainCameraTransform()?.GetComponent<Camera>();
             if (viewerCam == null)
             {
                 reflectionCam.fieldOfView = 60f;
+                reflectionCam.aspect = 1.777f;
                 return;
             }
 
             reflectionCam.fieldOfView = viewerCam.fieldOfView;
             reflectionCam.aspect = viewerCam.aspect;
+        }
+
+        /// <summary>
+        /// Fits reflection-camera FOV and aspect so the mirror quad corners lie inside the frustum
+        /// (in the already-configured reflected view matrix).
+        /// </summary>
+        public static void FitReflectionCameraToMirrorSurface(Camera reflectionCam, Transform mirrorQuad, float margin = 1.03f)
+        {
+            if (reflectionCam == null || mirrorQuad == null)
+                return;
+
+            var maxX = 0f;
+            var maxY = 0f;
+            var viewMatrix = reflectionCam.worldToCameraMatrix;
+
+            foreach (var corner in EnumerateMirrorQuadCorners(mirrorQuad))
+            {
+                var viewSpace = viewMatrix.MultiplyPoint(corner);
+                var depth = -viewSpace.z;
+                if (depth <= 0.01f)
+                    continue;
+
+                maxX = Mathf.Max(maxX, Mathf.Abs(viewSpace.x / depth));
+                maxY = Mathf.Max(maxY, Mathf.Abs(viewSpace.y / depth));
+            }
+
+            if (maxY < 0.0001f)
+                return;
+
+            reflectionCam.fieldOfView = Mathf.Clamp(Mathf.Atan(maxY) * 2f * Mathf.Rad2Deg * margin, 1f, 170f);
+            reflectionCam.aspect = Mathf.Clamp(maxX / maxY, 0.05f, 10f);
+        }
+
+        static System.Collections.Generic.IEnumerable<Vector3> EnumerateMirrorQuadCorners(Transform quad)
+        {
+            var center = quad.position;
+            var right = quad.right * (quad.lossyScale.x * 0.5f);
+            var up = quad.up * (quad.lossyScale.y * 0.5f);
+            yield return center - right - up;
+            yield return center + right - up;
+            yield return center + right + up;
+            yield return center - right + up;
         }
 
         public static Matrix4x4 BuildReflectionMatrix(Vector3 planeNormal, Vector3 planePos, float planeOffset = 0f)
@@ -93,10 +136,7 @@ namespace AvianVoice.Embodiment
             return m;
         }
 
-        /// <summary>
-        /// Clips geometry on the wrong side of the mirror plane and returns GPU view-projection for shader sampling.
-        /// </summary>
-        public static Matrix4x4 PrepareReflectionCameraMatrices(
+        public static Matrix4x4 FinalizeReflectionProjection(
             Camera reflectionCam,
             Vector3 planePos,
             Vector3 planeNormal,
@@ -105,7 +145,6 @@ namespace AvianVoice.Embodiment
             float obliqueSideSign = 1f)
         {
             reflectionCam.ResetProjectionMatrix();
-            SyncReflectionCameraFromViewer(reflectionCam);
 
             if (useObliqueClip)
             {
@@ -114,6 +153,57 @@ namespace AvianVoice.Embodiment
             }
 
             return GetGpuViewProjectionMatrix(reflectionCam);
+        }
+
+        public static Matrix4x4 PrepareReflectionCameraMatrices(
+            Camera reflectionCam,
+            Vector3 planePos,
+            Vector3 planeNormal,
+            Transform mirrorSurface = null,
+            float planeOffset = 0.07f,
+            bool useObliqueClip = false,
+            float obliqueSideSign = 1f)
+        {
+            if (mirrorSurface != null)
+                FitReflectionCameraToMirrorSurface(reflectionCam, mirrorSurface);
+            else
+                SyncReflectionCameraFromViewer(reflectionCam);
+
+            return FinalizeReflectionProjection(
+                reflectionCam,
+                planePos,
+                planeNormal,
+                planeOffset,
+                useObliqueClip,
+                obliqueSideSign);
+        }
+
+        public static void ResizeReflectionRenderTexture(
+            RenderTexture renderTexture,
+            Camera reflectionCam,
+            int longEdgePixels,
+            int antiAliasing)
+        {
+            if (renderTexture == null || reflectionCam == null)
+                return;
+
+            longEdgePixels = Mathf.Clamp(longEdgePixels, 512, 8192);
+            antiAliasing = NormalizeMsaa(antiAliasing);
+            var aspect = Mathf.Max(reflectionCam.aspect, 0.01f);
+
+            var width = longEdgePixels;
+            var height = Mathf.Max(1, Mathf.RoundToInt(longEdgePixels / aspect));
+
+            if (renderTexture.width == width
+                && renderTexture.height == height
+                && renderTexture.antiAliasing == antiAliasing)
+                return;
+
+            renderTexture.Release();
+            renderTexture.width = width;
+            renderTexture.height = height;
+            renderTexture.antiAliasing = antiAliasing;
+            renderTexture.Create();
         }
 
         public static Matrix4x4 GetGpuViewProjectionMatrix(Camera cam)

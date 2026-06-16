@@ -88665,11 +88665,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AvianVoice.Embodiment.XrRigTaskStartPoses
   taskPoses:
   - taskId: meet
-    worldPosition: {x: 34.8, y: -12.697, z: 64.341}
+    worldPosition: {x: 34.8, y: -12.697, z: 64.53}
     worldRotation: {x: -0, y: -0, z: -0, w: 1}
     configured: 1
   - taskId: breath_sync
-    worldPosition: {x: 34.8, y: -12.627602, z: 64.12}
+    worldPosition: {x: 34.8, y: -12.697, z: 64.53}
     worldRotation: {x: -0, y: -0, z: -0, w: 1}
     configured: 1
   - taskId: flying
@@ -88677,15 +88677,15 @@ MonoBehaviour:
     worldRotation: {x: 0, y: 0, z: 0, w: 1}
     configured: 1
   - taskId: singing
-    worldPosition: {x: 34.8, y: -12.627602, z: 64.12}
+    worldPosition: {x: 34.8, y: -12.697, z: 64.53}
     worldRotation: {x: -0, y: -0, z: -0, w: 1}
     configured: 1
   - taskId: call_friends
-    worldPosition: {x: 34.8, y: -12.627602, z: 64.12}
+    worldPosition: {x: 34.8, y: -12.697, z: 64.53}
     worldRotation: {x: -0, y: -0, z: -0, w: 1}
     configured: 1
   - taskId: reflection
-    worldPosition: {x: 34.8, y: -12.627602, z: 64.12}
+    worldPosition: {x: 34.8, y: -12.697, z: 64.53}
     worldRotation: {x: -0, y: -0, z: -0, w: 1}
     configured: 1
   applyBootTaskOnPlay: 1
@@ -149718,7 +149718,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 34.24, y: -11.13759, z: 66.01}
-  m_LocalScale: {x: 5, y: 2, z: 2}
+  m_LocalScale: {x: 3, y: 2, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1448462872}

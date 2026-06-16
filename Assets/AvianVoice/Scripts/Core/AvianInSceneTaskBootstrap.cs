@@ -29,6 +29,7 @@ namespace AvianVoice.Core
             BirdSceneRoles.ResetSession();
             AvianLabSceneLayout.ApplyRuntimeLayout();
             AvianHudLayerSetup.ApplyToXrRig();
+            ApplyHudVisibility();
             BirdSceneRoles.EnsureSetup();
 
             var taskRoot = GameObject.Find("TaskRoot") ?? new GameObject("TaskRoot");
@@ -57,6 +58,8 @@ namespace AvianVoice.Core
 
             var flight = xrOrigin.GetComponent<FlightControlTask>() ?? xrOrigin.AddComponent<FlightControlTask>();
             EnsureCharacterController(xrOrigin);
+            if (xrOrigin.GetComponent<AvianXrThumbstickLocomotion>() == null)
+                xrOrigin.AddComponent<AvianXrThumbstickLocomotion>();
             flight.enabled = false;
 
             EnsureMirror(xrOrigin);
@@ -117,8 +120,6 @@ namespace AvianVoice.Core
 
             if (BirdSceneRoles.Player != null)
                 mirror.SetBirdBodyRoot(BirdSceneRoles.Player);
-
-            mirror.SetMirrorActive(true);
         }
 
         static void EnsureCharacterController(GameObject xrOrigin)
@@ -132,6 +133,22 @@ namespace AvianVoice.Core
             cc.radius = 0.3f;
             cc.slopeLimit = 45f;
             cc.stepOffset = 0.3f;
+        }
+
+        static void ApplyHudVisibility()
+        {
+            AvianVoiceSettings settings = null;
+            foreach (var asset in Resources.FindObjectsOfTypeAll<AvianVoiceSettings>())
+            {
+                if (asset != null && asset.name.Contains("AvianVoiceSettings"))
+                {
+                    settings = asset;
+                    break;
+                }
+            }
+
+            var show = settings == null || settings.showHudPanels;
+            AvianHudVisibility.SetAllVisible(show);
         }
     }
 }

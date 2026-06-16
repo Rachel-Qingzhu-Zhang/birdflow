@@ -6,7 +6,7 @@ Shader "AvianVoice/PondWater"
         _DeepColor ("Deep Color", Color) = (0.08, 0.28, 0.38, 0.55)
         _ReflectionTex ("Reflection Texture", 2D) = "black" {}
         _ReflectionStrength ("Reflection Strength", Range(0, 1)) = 0.88
-        _ReflectionBrightness ("Reflection Brightness", Range(0.5, 2)) = 1.15
+        _ReflectionBrightness ("Reflection Brightness", Range(0.5, 2)) = 1.38
         _ReflectionScale ("Reflection Scale", Range(0.5, 2.5)) = 1.5
         _OverheadReflection ("Overhead Reflection", Range(0, 1)) = 0.82
         _WaterTintStrength ("Water Tint Over Reflection", Range(0, 1)) = 0.35
@@ -167,6 +167,7 @@ Shader "AvianVoice/PondWater"
                 reflUv = (reflUv - 0.5) / max(_ReflectionScale, 0.01) + 0.5;
                 half3 reflection = SAMPLE_TEXTURE2D(_ReflectionTex, sampler_ReflectionTex, reflUv).rgb
                     * _ReflectionBrightness;
+                reflection = reflection / (1.0h + reflection * 0.14h);
                 float reflectMix = _ReflectionStrength * saturate(
                     _OverheadReflection * overhead + fresnel * (1.0 - _OverheadReflection * 0.35));
                 half3 color = lerp(waterColor, reflection, reflectMix);

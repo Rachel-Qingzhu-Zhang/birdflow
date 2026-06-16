@@ -39,7 +39,7 @@ Material:
     - _OverheadReflection: 0.82
     - _PondEdgeStart: 0.72
     - _PondEdgeWidth: 0.16
-    - _ReflectionBrightness: 1.15
+    - _ReflectionBrightness: 1.38
     - _ReflectionDistortion: 0.018
     - _ReflectionScale: 1.5
     - _ReflectionStrength: 0.88

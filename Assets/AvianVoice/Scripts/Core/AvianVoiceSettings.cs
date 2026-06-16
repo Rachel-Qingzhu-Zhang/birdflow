@@ -84,6 +84,8 @@ namespace AvianVoice.Core
         [Header("Experiment")]
         public bool mirrorEnabled = true;
         public bool wingMappingEnabled = true;
+        [Tooltip("When false, hides TaskFlowUI, TrainingHUD, and voice mode panels.")]
+        public bool showHudPanels = false;
         public float recorderSampleHz = 30f;
     }
 }

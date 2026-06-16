@@ -37,7 +37,10 @@ namespace AvianVoice.Core
             var head = ResolveHeadAnchor(xrOrigin.transform);
             EnsureRuntimeUiIfMissing(xrOrigin, head);
             AvianHudLayerSetup.ApplyToXrRig();
+            ApplyHudVisibility(settings);
             EnsureRuntimeAudioIfMissing(xrOrigin);
+            if (xrOrigin.GetComponent<AvianXrThumbstickLocomotion>() == null)
+                xrOrigin.AddComponent<AvianXrThumbstickLocomotion>();
             DesktopFlyCamera.Ensure(xrOrigin, head, platformProfile);
 
             if (!autoSetup)
@@ -54,6 +57,7 @@ namespace AvianVoice.Core
             if (hasMic && !hasHud)
             {
                 EnsureRuntimeUi(xrOrigin, head);
+                ApplyHudVisibility(settings);
                 return;
             }
 
@@ -100,6 +104,7 @@ namespace AvianVoice.Core
             }
 
             Debug.Log("[AvianVoice] Lab ready on '" + xrOrigin.name + "'. Speak into mic, hold Space=breath, T=voice mode. Look for HUD near hands.");
+            ApplyHudVisibility(settings);
         }
 
         /// <summary>
@@ -132,6 +137,12 @@ namespace AvianVoice.Core
             if (bootstrap != null)
                 bootstrap.AttachUi(hud, toggle);
             Debug.Log("[AvianVoice] Created missing HUD/Mode UI on '" + head.name + "'.");
+        }
+
+        static void ApplyHudVisibility(AvianVoiceSettings voiceSettings)
+        {
+            var show = voiceSettings == null || voiceSettings.showHudPanels;
+            AvianHudVisibility.SetAllVisible(show);
         }
 
         static void EnsureTaskKeyboardSwitcher(GameObject xrOrigin)

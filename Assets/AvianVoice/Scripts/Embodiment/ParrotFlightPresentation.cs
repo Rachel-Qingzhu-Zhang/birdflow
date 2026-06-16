@@ -14,17 +14,30 @@ namespace AvianVoice.Embodiment
         bool worldSpaceFollow = true;
 
         [SerializeField]
-        float followDistanceBehind = 1.45f;
+        float followDistanceBehind = 0.508f;
 
         [SerializeField]
-        float followDropBelowEye = 0.62f;
+        float followDropBelowEye = 0.217f;
 
         [SerializeField]
         float followUniformScale = 0.72f;
 
+        [Header("Beak anchor")]
+        [SerializeField]
+        bool useBeakAnchoredFollow = true;
+
+        [SerializeField]
+        float eyeAheadOfBeak = 0.04f;
+
+        [SerializeField]
+        float eyeBelowBeak = 0.02f;
+
+        [SerializeField]
+        float bodyObstructionPushBack = 0.12f;
+
         [Header("Legacy camera-parent mode (off by default)")]
         [SerializeField]
-        Vector3 anchorLocalOffset = new(0f, -0.35f, -1.4f);
+        Vector3 anchorLocalOffset = new(0f, -0.35f, -0.49f);
 
         [SerializeField]
         Vector3 anchorLocalEuler = Vector3.zero;
@@ -41,8 +54,12 @@ namespace AvianVoice.Embodiment
         Transform flightAnchor;
         Coroutine flightRoutine;
         bool flightActive;
+        bool beakAnchorCaptured;
         float savedAnimatorSpeed = 1f;
         Vector3 savedWorldScale = Vector3.one;
+        Vector3 rootToBeakLocal;
+        Transform beakBone;
+        SkinnedMeshRenderer bodyRenderer;
 
         void Awake()
         {
@@ -57,7 +74,10 @@ namespace AvianVoice.Embodiment
                 return;
 
             flightActive = true;
+            beakAnchorCaptured = false;
+            beakBone = null;
             savedWorldScale = transform.localScale;
+            bodyRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
             rigPin.CaptureRestPose();
             rigPin.SetPinEnabled(true);
 
@@ -158,11 +178,75 @@ namespace AvianVoice.Embodiment
             forward.Normalize();
 
             var eye = view.position;
-            var bodyPos = eye - forward * followDistanceBehind + Vector3.down * followDropBelowEye;
-            transform.SetPositionAndRotation(bodyPos, Quaternion.LookRotation(forward, Vector3.up));
+            var rotation = Quaternion.LookRotation(forward, Vector3.up);
+
+            if (useBeakAnchoredFollow && TryApplyBeakAnchoredPose(eye, forward, rotation))
+            {
+                ResolveCameraBodyObstruction(eye, forward);
+            }
+            else
+            {
+                var bodyPos = eye - forward * followDistanceBehind + Vector3.down * followDropBelowEye;
+                transform.SetPositionAndRotation(bodyPos, rotation);
+                ResolveCameraBodyObstruction(eye, forward);
+            }
 
             if (followUniformScale > 0f)
                 transform.localScale = savedWorldScale * followUniformScale;
+        }
+
+        bool TryApplyBeakAnchoredPose(Vector3 eye, Vector3 forward, Quaternion rotation)
+        {
+            if (beakBone == null)
+                beakBone = FindFlightAnchorBone();
+
+            if (beakBone == null)
+                return false;
+
+            if (!beakAnchorCaptured)
+            {
+                rootToBeakLocal = transform.InverseTransformPoint(beakBone.position);
+                beakAnchorCaptured = true;
+            }
+
+            var targetBeak = eye - forward * eyeAheadOfBeak + Vector3.up * eyeBelowBeak;
+            var rootPos = targetBeak - rotation * rootToBeakLocal;
+            transform.SetPositionAndRotation(rootPos, rotation);
+            return true;
+        }
+
+        static Transform FindFlightAnchorBone(Transform root)
+        {
+            Transform beak = null;
+            Transform head = null;
+            foreach (var bone in root.GetComponentsInChildren<Transform>(true))
+            {
+                switch (bone.name)
+                {
+                    case "parrot_Beak1_bone":
+                        beak = bone;
+                        break;
+                    case "parrot_Head_bone":
+                        head = bone;
+                        break;
+                }
+            }
+
+            return beak != null ? beak : head;
+        }
+
+        Transform FindFlightAnchorBone() => FindFlightAnchorBone(transform);
+
+        void ResolveCameraBodyObstruction(Vector3 eye, Vector3 forward)
+        {
+            if (bodyRenderer == null)
+                return;
+
+            bodyRenderer.updateWhenOffscreen = true;
+            if (!bodyRenderer.bounds.Contains(eye))
+                return;
+
+            transform.position -= forward * bodyObstructionPushBack;
         }
 
         void ApplyAnchorLocalPose()
