@@ -39,7 +39,6 @@ namespace AvianVoice.Embodiment
         float orbitSpeedForMember;
         float bobPhase;
         Animator animator;
-        ParrotMainCtrlPin rigPin;
         Coroutine flightRoutine;
 
         public void ConfigureScale(float scale)
@@ -56,76 +55,13 @@ namespace AvianVoice.Embodiment
             orbitAngle = index * 62f + lateralSpawnOffset * 18f + Random.Range(-8f, 8f);
             bobPhase = Random.Range(0f, Mathf.PI * 2f);
 
-            PrepareParrotInstance();
+            FlockParrotSetup.PrepareInstance(transform, templateBird);
+            animator = GetComponent<Animator>();
             transform.localScale = Vector3.one * flockScale;
             if (!gameObject.activeSelf)
                 gameObject.SetActive(true);
             ApplyOrbitPose();
             BeginFlightAnimation();
-        }
-
-        void PrepareParrotInstance()
-        {
-            ParrotEmbodimentWiring.DisableConflictingParrotDemoScript(transform);
-            StripFriendOnlyComponents();
-            StripRoleMarkerSpheres(transform);
-
-            animator = GetComponent<Animator>();
-            var gate = ParrotEmbodimentWiring.EnsureAnimatorGate(transform);
-            if (templateBird != null)
-            {
-                var sourceGate = templateBird.GetComponent<ParrotPackAnimatorGate>();
-                gate.InheritSavedControllerFrom(sourceGate);
-            }
-
-            rigPin = GetComponent<ParrotMainCtrlPin>() ?? gameObject.AddComponent<ParrotMainCtrlPin>();
-            rigPin.CaptureRestPose();
-            rigPin.SetPinEnabled(true);
-
-            if (animator != null)
-            {
-                ParrotEmbodimentWiring.RestorePackAnimatorForFlight(animator);
-                animator.applyRootMotion = false;
-                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-            }
-
-            SetLayerRecursive(gameObject, BirdSceneRoles.MirrorLayer);
-        }
-
-        void StripFriendOnlyComponents()
-        {
-            var worldGuard = GetComponent<WorldPlacedBird>();
-            if (worldGuard != null)
-                Destroy(worldGuard);
-
-            foreach (var role in GetComponents<BirdSceneRole>())
-                Destroy(role);
-            foreach (var marker in GetComponents<RoleMarker>())
-                Destroy(marker);
-            foreach (var breath in GetComponents<FriendBreathVisual>())
-                Destroy(breath);
-            foreach (var breath in GetComponents<ParrotBreathEmbodiment>())
-                Destroy(breath);
-            foreach (var cue in GetComponents<FriendTeachingCue>())
-                Destroy(cue);
-            foreach (var visuals in GetComponents<ParrotMatchVisuals>())
-                Destroy(visuals);
-        }
-
-        static void StripRoleMarkerSpheres(Transform root)
-        {
-            foreach (var child in root.GetComponentsInChildren<Transform>(true))
-            {
-                if (child.name is "PlayerMarker" or "FriendMarker" or "FriendBreathCue")
-                    Destroy(child.gameObject);
-            }
-        }
-
-        static void SetLayerRecursive(GameObject root, int layer)
-        {
-            root.layer = layer;
-            foreach (Transform child in root.transform)
-                SetLayerRecursive(child.gameObject, layer);
         }
 
         void BeginFlightAnimation()
@@ -140,7 +76,7 @@ namespace AvianVoice.Embodiment
 
         IEnumerator FlightEnterRoutine()
         {
-            ResetFlightBools();
+            FlockParrotSetup.ResetFlightBools(animator);
             animator.speed = 1f;
             SetBool("idle", false);
             SetBool("takeoff", true);
@@ -188,22 +124,6 @@ namespace AvianVoice.Embodiment
         {
             if (flightRoutine != null)
                 StopCoroutine(flightRoutine);
-        }
-
-        void ResetFlightBools()
-        {
-            SetBool("walk", false);
-            SetBool("fly", false);
-            SetBool("glide", false);
-            SetBool("takeoff", false);
-            SetBool("landing", false);
-            SetBool("flyleft", false);
-            SetBool("flyright", false);
-            SetBool("turnleft", false);
-            SetBool("turnright", false);
-            SetBool("dance", false);
-            SetBool("eat", false);
-            SetBool("jump", false);
         }
 
         void SetBool(string param, bool value)

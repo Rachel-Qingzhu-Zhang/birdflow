@@ -20,7 +20,7 @@ namespace AvianVoice.Embodiment
         float sphereWorldDiameter = 0.196f;
 
         [SerializeField]
-        float heightAboveHead = 0.168f;
+        float heightAboveHead = 0.252f;
 
         [SerializeField]
         Color playerColor = new(0.35f, 0.55f, 1f);

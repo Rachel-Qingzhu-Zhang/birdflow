@@ -1,6 +1,7 @@
 using AvianVoice.Core;
 using AvianVoice.UI;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace AvianVoice.Embodiment
 {
@@ -19,7 +20,15 @@ namespace AvianVoice.Embodiment
         Transform birdBodyRoot;
 
         [SerializeField]
-        int textureSize = 2048;
+        [Tooltip("Long edge of the mirror reflection render target in pixels.")]
+        int textureSize = 4096;
+
+        [SerializeField]
+        [Tooltip("MSAA samples for the mirror render target (1, 2, 4, or 8).")]
+        int renderTextureAntiAliasing = 4;
+
+        [SerializeField]
+        bool matchViewerAspect = true;
 
         [SerializeField]
         LayerMask mirrorReflectionMask;
@@ -64,16 +73,38 @@ namespace AvianVoice.Embodiment
         [SerializeField]
         float mirrorBirdLookHeight = 0.42f;
 
+        [SerializeField]
+        bool enablePerchFillLight = true;
+
+        [SerializeField]
+        float perchFillLightIntensity = 1.15f;
+
+        [SerializeField]
+        [Range(0.85f, 1.05f)]
+        float perchFillLightWarmth = 0.97f;
+
+        [SerializeField]
+        float perchPointLightIntensity = 0.95f;
+
+        [SerializeField]
+        float perchPointLightRange = 9f;
+
         Camera mirrorCamera;
         RenderTexture renderTexture;
         GameObject mirrorQuad;
+        Material mirrorDisplayMaterial;
         Transform worldMirrorRoot;
+        Light perchFillLight;
+        Light perchPointLight;
         bool built;
         bool mirrorVisible = true;
         bool worldMirrorAnchored;
         bool usingSceneHierarchyMirror;
         bool birdLayersEnsured;
         Vector3 anchoredPlaneNormal = Vector3.forward;
+
+        static readonly int ReflectionVpId = Shader.PropertyToID("_ReflectionVP");
+        static readonly int UseProjectedUvId = Shader.PropertyToID("_UseProjectedUv");
 
         public void SetBirdBodyRoot(Transform root)
         {
@@ -92,7 +123,26 @@ namespace AvianVoice.Embodiment
                 mirrorCamera.enabled = active;
             if (worldMirrorRoot != null)
                 worldMirrorRoot.gameObject.SetActive(active);
+
+            if (perchFillLight != null)
+                perchFillLight.enabled = active && enablePerchFillLight;
+            if (perchPointLight != null)
+                perchPointLight.enabled = active && enablePerchFillLight;
         }
+
+        public static void ConfigureMirrorPanelRenderer(Renderer renderer)
+        {
+            if (renderer == null)
+                return;
+
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            renderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+        }
+
+        static int BirdMirrorLightMask => 1 << BirdSceneRoles.MirrorLayer;
 
         public void Initialize(AvianVoiceSettings voiceSettings)
         {
@@ -134,7 +184,7 @@ namespace AvianVoice.Embodiment
             mirrorReflectionMask = PlanarReflectionUtility.BuildDefaultReflectionMask();
             EnsureSceneBirdMirrorLayers();
 
-            renderTexture = new RenderTexture(textureSize, textureSize, 16);
+            renderTexture = CreateReflectionRenderTexture();
             renderTexture.Create();
 
             if (useWorldPlacement)
@@ -167,8 +217,15 @@ namespace AvianVoice.Embodiment
             ApplyMirrorMaterial(mirrorQuad != null ? mirrorQuad.GetComponent<MeshRenderer>() : null);
             SetMirrorDisplayLayers(worldMirrorRoot);
 
+            if (mirrorQuad != null)
+                mirrorQuad.layer = BirdSceneRoles.MirrorDisplayLayer;
+
+            ConfigureMirrorVisuals(worldMirrorRoot);
+            EnsureBirdFillLight();
+
             if (manualSceneMirror)
             {
+                NormalizeMirrorRootScale(worldMirrorRoot, mirrorQuad != null ? mirrorQuad.transform : null);
                 anchoredPlaneNormal = worldMirrorRoot.forward;
                 worldMirrorAnchored = true;
                 Debug.Log(
@@ -237,6 +294,7 @@ namespace AvianVoice.Embodiment
                 mirrorQuad.transform.localRotation = Quaternion.identity;
                 mirrorQuad.transform.localScale = new Vector3(worldMirrorSize.x, worldMirrorSize.y, 1f);
                 Destroy(mirrorQuad.GetComponent<Collider>());
+                ConfigureMirrorPanelRenderer(mirrorQuad.GetComponent<Renderer>());
             }
 
             var frame = root.Find("MirrorFrame")?.gameObject;
@@ -250,6 +308,7 @@ namespace AvianVoice.Embodiment
                 frame.transform.localScale = new Vector3(worldMirrorSize.x + 0.18f, worldMirrorSize.y + 0.18f, 1f);
                 Destroy(frame.GetComponent<Collider>());
                 ApplyFrameMaterial(frame.GetComponent<MeshRenderer>());
+                ConfigureMirrorPanelRenderer(frame.GetComponent<Renderer>());
             }
 
             SetMirrorDisplayLayers(root);
@@ -278,6 +337,7 @@ namespace AvianVoice.Embodiment
             mirrorQuad.transform.localScale = new Vector3(0.55f, 0.85f, 1f);
             Destroy(mirrorQuad.GetComponent<Collider>());
             ApplyMirrorMaterial(mirrorQuad.GetComponent<MeshRenderer>());
+            ConfigureMirrorPanelRenderer(mirrorQuad.GetComponent<Renderer>());
             SetMirrorDisplayLayers(mirrorQuad.transform);
             mirrorCamera.gameObject.layer = BirdSceneRoles.MirrorDisplayLayer;
         }
@@ -291,6 +351,7 @@ namespace AvianVoice.Embodiment
             cam.depth = -10;
             cam.allowHDR = true;
             cam.clearFlags = CameraClearFlags.Skybox;
+            cam.forceIntoRenderTexture = true;
 
             SyncMirrorCameraFromViewer(cam);
         }
@@ -298,6 +359,14 @@ namespace AvianVoice.Embodiment
         static void SyncMirrorCameraFromViewer(Camera mirrorCam)
         {
             PlanarReflectionUtility.SyncReflectionCameraFromViewer(mirrorCam);
+        }
+
+        RenderTexture CreateReflectionRenderTexture()
+        {
+            return PlanarReflectionUtility.CreateReflectionRenderTexture(
+                textureSize,
+                matchViewerAspect,
+                renderTextureAntiAliasing);
         }
 
         void ApplyMirrorMaterial(MeshRenderer renderer)
@@ -318,11 +387,106 @@ namespace AvianVoice.Embodiment
             }
 
             mat.mainTexture = renderTexture;
+            if (mat.HasProperty("_MainTex"))
+                mat.SetTexture("_MainTex", renderTexture);
+            if (mat.HasProperty("_BaseMap"))
+                mat.SetTexture("_BaseMap", renderTexture);
             if (mat.HasProperty("_Brightness"))
                 mat.SetFloat("_Brightness", mirrorDisplayBrightness);
             if (mat.HasProperty("_Vignette"))
                 mat.SetFloat("_Vignette", mirrorDisplayVignette);
+            if (mat.HasProperty("_UseProjectedUv"))
+                mat.SetFloat("_UseProjectedUv", 0f);
+
+            if (mat.shader == null || mat.shader.name == "Hidden/InternalErrorShader")
+                Debug.LogError("[AvianVoice] Mirror shader missing. Assign AvianVoice/MirrorRT or add shader to Always Included Shaders.");
+
             renderer.material = mat;
+            mirrorDisplayMaterial = renderer.material;
+        }
+
+        void ConfigureMirrorVisuals(Transform root)
+        {
+            if (root == null)
+                return;
+
+            foreach (var childName in new[] { "MirrorQuad", "MirrorFrame" })
+            {
+                var child = root.Find(childName);
+                if (child != null)
+                    ConfigureMirrorPanelRenderer(child.GetComponent<Renderer>());
+            }
+        }
+
+        void EnsureBirdFillLight()
+        {
+            if (!enablePerchFillLight || worldMirrorRoot == null)
+                return;
+
+            EnsurePerchLight(
+                "MirrorPerchFillLight",
+                ref perchFillLight,
+                LightType.Directional);
+
+            EnsurePerchLight(
+                "MirrorPerchPointFill",
+                ref perchPointLight,
+                LightType.Point);
+
+            UpdateBirdFillLight();
+        }
+
+        void EnsurePerchLight(string objectName, ref Light light, LightType type)
+        {
+            if (light != null)
+                return;
+
+            var existing = worldMirrorRoot.Find(objectName);
+            if (existing != null)
+                light = existing.GetComponent<Light>();
+
+            if (light != null)
+                return;
+
+            var lightGo = new GameObject(objectName);
+            lightGo.transform.SetParent(worldMirrorRoot, false);
+            light = lightGo.AddComponent<Light>();
+            light.type = type;
+            light.shadows = LightShadows.None;
+            light.cullingMask = BirdMirrorLightMask;
+        }
+
+        void UpdateBirdFillLight()
+        {
+            if (worldMirrorRoot == null)
+                return;
+
+            var enabled = mirrorVisible && enablePerchFillLight;
+            var mirrorForward = worldMirrorRoot.forward;
+            if (mirrorForward.sqrMagnitude < 0.01f)
+                mirrorForward = Vector3.forward;
+
+            if (perchFillLight != null)
+            {
+                perchFillLight.enabled = enabled;
+                perchFillLight.intensity = perchFillLightIntensity;
+                perchFillLight.color = new Color(1f, perchFillLightWarmth, perchFillLightWarmth * 0.9f);
+                perchFillLight.cullingMask = BirdMirrorLightMask;
+
+                var towardBirds = -mirrorForward;
+                towardBirds.y = Mathf.Max(towardBirds.y, 0.08f);
+                perchFillLight.transform.rotation = Quaternion.LookRotation(towardBirds.normalized, Vector3.up);
+            }
+
+            if (perchPointLight != null)
+            {
+                perchPointLight.enabled = enabled;
+                perchPointLight.intensity = perchPointLightIntensity;
+                perchPointLight.range = perchPointLightRange;
+                perchPointLight.color = new Color(1f, 0.98f, 0.94f);
+                perchPointLight.cullingMask = BirdMirrorLightMask;
+                perchPointLight.transform.position = worldMirrorRoot.position + mirrorForward * 0.35f;
+            }
         }
 
         static void ApplyFrameMaterial(MeshRenderer renderer)
@@ -338,6 +502,7 @@ namespace AvianVoice.Embodiment
             var frameMat = new Material(frameShader);
             frameMat.color = new Color(0.15f, 0.72f, 0.95f, 1f);
             renderer.material = frameMat;
+            ConfigureMirrorPanelRenderer(renderer);
         }
 
         void AnchorWorldMirrorOnce()
@@ -370,6 +535,27 @@ namespace AvianVoice.Embodiment
                 " (between birds and XR Origin). Place AvianWorldMirror in the scene to override with Hierarchy edits.");
         }
 
+        void NormalizeMirrorRootScale(Transform root, Transform quad)
+        {
+            if (root == null || quad == null)
+                return;
+
+            var rootScale = root.localScale;
+            if (Mathf.Approximately(rootScale.x, 1f)
+                && Mathf.Approximately(rootScale.y, 1f)
+                && Mathf.Approximately(rootScale.z, 1f))
+                return;
+
+            var quadLocal = quad.localScale;
+            quad.localScale = new Vector3(
+                quadLocal.x * rootScale.x,
+                quadLocal.y * rootScale.y,
+                quadLocal.z * rootScale.z);
+            root.localScale = Vector3.one;
+            Debug.Log(
+                "[AvianVoice] Mirror root non-uniform scale baked into MirrorQuad; root reset to (1,1,1) for correct reflection.");
+        }
+
         void ResetMirrorChildTransforms()
         {
             if (mirrorQuad != null)
@@ -398,6 +584,8 @@ namespace AvianVoice.Embodiment
                 }
 
                 UpdatePlanarReflectionCamera();
+                ConfigureMirrorVisuals(worldMirrorRoot);
+                UpdateBirdFillLight();
             }
             else
                 UpdateHeadMirrorCamera();
@@ -444,14 +632,50 @@ namespace AvianVoice.Embodiment
             if (!TryResolveMirrorPlane(out var planePos, out var planeNormal))
                 return;
 
-            var reflectedPos = PlanarReflectionUtility.ReflectPointAcrossPlane(viewerTransform.position, planePos, planeNormal);
-            var reflectedForward = PlanarReflectionUtility.ReflectDirection(viewerTransform.forward, planeNormal);
-            var reflectedUp = PlanarReflectionUtility.ReflectDirection(viewerTransform.up, planeNormal);
+            PlanarReflectionUtility.ApplyMirroredViewerMatrix(
+                mirrorCamera,
+                viewerCam,
+                planePos,
+                planeNormal);
 
-            mirrorCamera.transform.SetPositionAndRotation(
-                reflectedPos,
-                Quaternion.LookRotation(reflectedForward, reflectedUp));
-            PlanarReflectionUtility.SyncReflectionCameraFromViewer(mirrorCamera);
+            var reflectionVp = PlanarReflectionUtility.PrepareReflectionCameraMatrices(
+                mirrorCamera,
+                planePos,
+                planeNormal,
+                useObliqueClip: true);
+            UpdateMirrorShaderMatrices(reflectionVp);
+        }
+
+        void UpdateMirrorShaderMatrices(Matrix4x4 reflectionVp)
+        {
+            EnsureMirrorDisplayMaterial();
+            if (mirrorDisplayMaterial == null)
+                return;
+
+            if (mirrorDisplayMaterial.HasProperty(ReflectionVpId))
+                mirrorDisplayMaterial.SetMatrix(ReflectionVpId, reflectionVp);
+            if (mirrorDisplayMaterial.HasProperty(UseProjectedUvId))
+                mirrorDisplayMaterial.SetFloat(UseProjectedUvId, 0f);
+
+            if (mirrorDisplayMaterial.HasProperty("_MainTex"))
+                mirrorDisplayMaterial.SetTexture("_MainTex", renderTexture);
+        }
+
+        void EnsureMirrorDisplayMaterial()
+        {
+            if (mirrorQuad == null)
+                return;
+
+            var renderer = mirrorQuad.GetComponent<MeshRenderer>();
+            if (renderer == null)
+                return;
+
+            if (mirrorDisplayMaterial != null
+                && mirrorDisplayMaterial.shader != null
+                && mirrorDisplayMaterial.shader.name.Contains("MirrorRT"))
+                return;
+
+            ApplyMirrorMaterial(renderer);
         }
 
         void UpdateHeadMirrorCamera()

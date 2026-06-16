@@ -208,21 +208,22 @@ Hold E4 — pitch 328/330 Hz, breath 0.65
 
 **任务 ID**：`call_friends`
 
-**设计意图**：用旋律 + 呼吸同步「呼唤」同伴，鸟群逐渐增多（1 → 3 → 更多）。
+**设计意图**：进入任务时前方已有鸟群伙伴悬空栖息；用旋律 + 呼吸同步「呼唤」它们飞来环绕，形成交流合唱。
 
 **流程**：
 
-1. 鸟友演示 Pattern A 呼吸（4/4）。
-2. 依次模仿两个音：**E4、G4**（可配置 `melodyHz`）。
-3. 评分 = **音高匹配 60%** + **呼吸同步 40%**；呼吸同步需 ≥ **55%**。
-4. 每完成一音：
-   - 第 1 音：召唤 **1** 只鸟（小球或 `flockBirdPrefab`）
-   - 第 2 音：再召唤 **2** 只
-   - 之后：进入 **Flock** 阶段
+1. **进入任务**：玩家视角前方扇形内生成 **7** 只小鸟（`CallFriendsCompanionBehaviour`），idle 悬空栖息，仅 Task 5 存在，离开任务自动销毁。
+2. 鸟友演示 Pattern A 呼吸（4/4）。
+3. 依次模仿两个音：**E4、G4**（可配置 `melodyHz`）。
+4. 评分 = **音高匹配 60%** + **呼吸同步 40%**；呼吸同步需 ≥ **55%**；稳定约 **0.45 s** 触发。
+5. 每完成一音，**最近的未响应 idle 鸟**飞来绕玩家环绕并 chirp：
+   - 第 1 音（E4）：**1** 只飞来
+   - 第 2 音（G4）：再 **2** 只飞来，随后**剩余全部**加入环绕
+6. 鸟群到齐后短合唱（E4/G4 各一轮，鸟群交错回应）+ `SuccessChirpBurst`。
 
-**镜子**：关闭。
+**镜子**：关闭。池塘水面反射开启。
 
-**HUD 示例**：`Call E4 + breath sync 68%`
+**HUD 示例**：`Call E4 + breath sync 68%` → `Flock arrived — friends communicate!`
 
 ---
 
@@ -410,7 +411,8 @@ Avian_Lab.unity
 │   ├── MeetBirdTask                ← 任务 1
 │   ├── BreathSyncTask              ← 任务 2
 │   ├── SingingBranchTask           ← 任务 4
-│   ├── CallFriendsTask             ← 任务 5
+│   ├── CallFriendsTask             ← 任务 5（运行时生成 CallFriendsCompanionBehaviour 鸟群）
+│   ├── CallFriendsCompanionBehaviour / CallFriendsCompanionLayout  ← 任务 5 鸟群栖息与飞来
 │   └── ReflectionTask              ← 任务 6
 └── TaskManager + TaskModeKeyboardSwitcher（按键 1–6）
 ```

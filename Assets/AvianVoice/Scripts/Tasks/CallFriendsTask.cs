@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using AvianVoice.Audio;
 using AvianVoice.Core;
 using AvianVoice.Data;
@@ -44,6 +46,27 @@ namespace AvianVoice.Tasks
         float flockScale = FlockParrotBehaviour.DefaultFlockScale;
 
         [SerializeField]
+        int initialCompanionCount = 7;
+
+        [SerializeField]
+        float perchForwardMin = 4f;
+
+        [SerializeField]
+        float perchForwardMax = 9f;
+
+        [SerializeField]
+        float perchLateralSpread = 5f;
+
+        [SerializeField]
+        float perchHeightMin = 0.4f;
+
+        [SerializeField]
+        float perchHeightMax = 1.6f;
+
+        [SerializeField]
+        int[] birdsPerNote = { 1, 2 };
+
+        [SerializeField]
         float[] melodyHz = { 330f, 392f };
 
         [SerializeField]
@@ -61,11 +84,15 @@ namespace AvianVoice.Tasks
         BirdFriendDemonstrator demonstrator;
         ParrotMatchVisuals friendVisuals;
         TaskFlowUI taskUi;
-        readonly List<GameObject> summoned = new();
+        readonly List<CallFriendsCompanionBehaviour> companions = new();
+        Transform orbitCenter;
         int stepIndex;
         float matchHold;
         float score;
+        int sessionSeed;
         SummonStage stage = SummonStage.None;
+        Coroutine chorusRoutine;
+        bool chorusComplete;
 
         void Start()
         {
@@ -89,11 +116,15 @@ namespace AvianVoice.Tasks
             if (!TaskActivity.IsActive("call_friends"))
                 return;
 
-            ClearSummoned();
+            ClearCompanions();
             stepIndex = 0;
             matchHold = 0f;
             score = 0f;
             stage = SummonStage.None;
+            chorusComplete = false;
+            sessionSeed = Random.Range(0, 100000);
+            ResolveOrbitCenter();
+            SpawnIdleCompanions();
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternA4x4);
             demonstrator?.RestartPattern();
             PlayReference();
@@ -103,7 +134,11 @@ namespace AvianVoice.Tasks
         void OnDisable()
         {
             friendVisuals?.ApplyMatch(0f);
-            ClearSummoned();
+            CancelInvoke(nameof(PlaySuccessChirpDelayed));
+            if (chorusRoutine != null)
+                StopCoroutine(chorusRoutine);
+            chorusRoutine = null;
+            ClearCompanions();
         }
 
         void Update()
@@ -157,27 +192,34 @@ namespace AvianVoice.Tasks
         void AdvanceSummon(float stepScore)
         {
             matchHold = 0f;
-            successChirp?.PlaySuccessBurst();
             friendVisuals?.PulsePerfect();
+            Invoke(nameof(PlaySuccessChirpDelayed), 0.2f);
 
+            var noteIndex = stepIndex;
             stepIndex++;
+            var noteHz = melodyHz[Mathf.Clamp(noteIndex, 0, melodyHz.Length - 1)];
+            var summonCount = birdsPerNote != null && noteIndex < birdsPerNote.Length
+                ? birdsPerNote[noteIndex]
+                : 1;
+
             if (stepIndex == 1)
             {
                 stage = SummonStage.OneBird;
-                SpawnBird(0f);
+                SummonNearestCompanions(summonCount, noteHz, noteIndex);
             }
             else if (stepIndex == 2)
             {
                 stage = SummonStage.ThreeBirds;
-                SpawnBird(-0.8f);
-                SpawnBird(0.8f);
-            }
-            else
-            {
+                SummonNearestCompanions(summonCount, noteHz, noteIndex);
+                SummonAllRemaining(noteHz);
                 stage = SummonStage.Flock;
-                for (var i = 0; i < 3; i++)
-                    SpawnBird(Random.Range(-1.2f, 1.2f));
-                SetHud("Flock arrived!");
+                if (!chorusComplete)
+                {
+                    if (chorusRoutine != null)
+                        StopCoroutine(chorusRoutine);
+                    chorusRoutine = StartCoroutine(CommunicateChorusRoutine());
+                }
+                SetHud("Flock arrived — friends communicate!");
             }
 
             if (stepIndex < melodyHz.Length)
@@ -186,44 +228,99 @@ namespace AvianVoice.Tasks
             taskManager?.ReportScore(stepScore);
         }
 
-        void SpawnBird(float lateralOffset)
+        void PlaySuccessChirpDelayed()
         {
-            var template = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend : transform;
-            var bird = CreateFlockParrotInstance();
-            if (bird == null)
-            {
-                BirdSceneRoles.TryGetFlockOrbitCenter(out var center);
-                if (center == default && template != null)
-                    center = template.position;
-                var pos = center + Vector3.right * lateralOffset + Vector3.up * 0.5f;
-                bird = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                bird.transform.position = pos;
-                bird.transform.localScale = Vector3.one * 0.15f;
-                var renderer = bird.GetComponent<MeshRenderer>();
-                if (renderer != null)
-                {
-                    var shader = Shader.Find("Universal Render Pipeline/Lit");
-                    if (shader != null)
-                    {
-                        var mat = new Material(shader);
-                        mat.color = new Color(0.4f, 0.9f, 0.5f);
-                        renderer.material = mat;
-                    }
-                }
-                Destroy(bird.GetComponent<Collider>());
-            }
-            else
-            {
-                bird.name = $"FlockParrot_{summoned.Count + 1}";
-                var behaviour = bird.GetComponent<FlockParrotBehaviour>() ?? bird.AddComponent<FlockParrotBehaviour>();
-                behaviour.ConfigureScale(flockScale);
-                behaviour.Initialize(template, summoned.Count, lateralOffset);
-            }
-
-            summoned.Add(bird);
+            successChirp?.PlaySuccessBurst();
         }
 
-        GameObject CreateFlockParrotInstance()
+        void SpawnIdleCompanions()
+        {
+            if (!CallFriendsCompanionLayout.TryGetPlayerViewAnchor(out var anchor, out var flatForward))
+                return;
+
+            var settings = new CallFriendsCompanionLayout.PerchSettings
+            {
+                forwardMin = perchForwardMin,
+                forwardMax = perchForwardMax,
+                lateralSpread = perchLateralSpread,
+                heightMin = perchHeightMin,
+                heightMax = perchHeightMax,
+                fanAngleDegrees = 150f
+            };
+
+            var count = Mathf.Clamp(initialCompanionCount, 1, 10);
+            var template = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend : transform;
+
+            for (var i = 0; i < count; i++)
+            {
+                var bird = CreateCompanionInstance();
+                if (bird == null)
+                    continue;
+
+                var pos = CallFriendsCompanionLayout.SamplePerchedPosition(
+                    anchor, flatForward, i, count, sessionSeed, settings);
+                var facing = CallFriendsCompanionLayout.FacingToward(anchor, pos, i, sessionSeed);
+
+                bird.name = $"CallFriend_{i + 1}";
+                var behaviour = bird.GetComponent<CallFriendsCompanionBehaviour>()
+                                  ?? bird.AddComponent<CallFriendsCompanionBehaviour>();
+                behaviour.ConfigureScale(flockScale);
+                behaviour.InitializePerched(template, i, pos, facing, flockScale);
+                companions.Add(behaviour);
+            }
+        }
+
+        void SummonNearestCompanions(int count, float noteHz, int noteIndex)
+        {
+            ResolveOrbitCenter();
+            if (orbitCenter == null)
+                return;
+
+            var perched = companions
+                .Where(c => c != null && c.IsPerched)
+                .OrderBy(c => c.DistanceTo(orbitCenter.position))
+                .Take(count)
+                .ToList();
+
+            for (var i = 0; i < perched.Count; i++)
+                perched[i].RespondToCall(orbitCenter, noteHz, library, noteIndex * 10 + i);
+        }
+
+        void SummonAllRemaining(float noteHz)
+        {
+            ResolveOrbitCenter();
+            if (orbitCenter == null)
+                return;
+
+            var remaining = companions.Where(c => c != null && c.IsPerched).ToList();
+            for (var i = 0; i < remaining.Count; i++)
+                remaining[i].RespondToCall(orbitCenter, noteHz, library, 20 + i);
+        }
+
+        IEnumerator CommunicateChorusRoutine()
+        {
+            yield return new WaitForSeconds(1.5f);
+
+            for (var note = 0; note < melodyHz.Length; note++)
+            {
+                library?.PlayNearest(source, melodyHz[note], 1f, 0f);
+                var idx = 0;
+                foreach (var companion in companions)
+                {
+                    if (companion == null || companion.IsPerched)
+                        continue;
+                    companion.PlayAnswerCall(library, 0.08f + idx * 0.12f);
+                    idx++;
+                }
+                yield return new WaitForSeconds(0.6f);
+            }
+
+            chorusComplete = true;
+            chorusRoutine = null;
+            SetHud("Flock gathered! Friends say goodbye soon — press 6 for Reflection.");
+        }
+
+        GameObject CreateCompanionInstance()
         {
             if (flockBirdPrefab != null)
                 return Instantiate(flockBirdPrefab);
@@ -234,18 +331,28 @@ namespace AvianVoice.Tasks
 
             var clone = Instantiate(template.gameObject);
             clone.SetActive(false);
-            clone.name = "FlockParrot";
+            clone.name = "CallFriend";
             return clone;
         }
 
-        void ClearSummoned()
+        void ResolveOrbitCenter()
         {
-            foreach (var go in summoned)
+            if (CallFriendsCompanionLayout.TryGetPlayerViewAnchor(out var anchor, out _))
+                orbitCenter = anchor;
+            else if (BirdSceneRoles.Player != null)
+                orbitCenter = BirdSceneRoles.Player;
+            else
+                orbitCenter = transform;
+        }
+
+        void ClearCompanions()
+        {
+            foreach (var companion in companions)
             {
-                if (go != null)
-                    Destroy(go);
+                if (companion != null)
+                    Destroy(companion.gameObject);
             }
-            summoned.Clear();
+            companions.Clear();
         }
 
         void PlayReference()

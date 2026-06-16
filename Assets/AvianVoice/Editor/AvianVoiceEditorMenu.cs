@@ -217,6 +217,8 @@ namespace AvianVoice.Editor
                     quadMat.color = new Color(0.08f, 0.12f, 0.18f, 1f);
                     quadRenderer.sharedMaterial = quadMat;
                 }
+
+                MirrorBodySetup.ConfigureMirrorPanelRenderer(quadRenderer);
             }
 
             var frame = root.transform.Find("MirrorFrame");
@@ -243,6 +245,8 @@ namespace AvianVoice.Editor
                     frameMat.color = new Color(0.15f, 0.72f, 0.95f, 1f);
                     frameRenderer.sharedMaterial = frameMat;
                 }
+
+                MirrorBodySetup.ConfigureMirrorPanelRenderer(frameRenderer);
             }
 
             if (log)

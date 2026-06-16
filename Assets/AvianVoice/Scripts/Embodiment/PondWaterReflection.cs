@@ -144,6 +144,12 @@ namespace AvianVoice.Embodiment
                 viewer,
                 transform.position,
                 planeNormal);
+            PlanarReflectionUtility.PrepareReflectionCameraMatrices(
+                reflectionCamera,
+                transform.position,
+                planeNormal,
+                useObliqueClip: true,
+                obliqueSideSign: -1f);
         }
 
         void OnDestroy()

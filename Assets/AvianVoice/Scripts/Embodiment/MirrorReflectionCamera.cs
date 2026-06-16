@@ -8,6 +8,13 @@ namespace AvianVoice.Embodiment
     [RequireComponent(typeof(Camera))]
     public class MirrorReflectionCamera : MonoBehaviour
     {
+        Camera cam;
+
+        void Awake()
+        {
+            cam = GetComponent<Camera>();
+        }
+
         void OnPreRender()
         {
             GL.invertCulling = true;
@@ -16,6 +23,11 @@ namespace AvianVoice.Embodiment
         void OnPostRender()
         {
             GL.invertCulling = false;
+            if (cam != null)
+            {
+                cam.ResetProjectionMatrix();
+                cam.ResetWorldToCameraMatrix();
+            }
         }
     }
 }
