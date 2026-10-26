@@ -31,6 +31,10 @@ namespace AvianVoice.Core
             AvianHudLayerSetup.ApplyToXrRig();
             ApplyHudVisibility();
             BirdSceneRoles.EnsureSetup();
+            SuppressAlternateBirdBodies();
+            RoleMarker.EnsureMarkersExist();
+            RoleMarker.SetMarkersForTask("meet");
+            // LabBirdSceneLighting deferred: its point lights / MPBs were leaving the Fragilem17 mirror black.
 
             var taskRoot = GameObject.Find("TaskRoot") ?? new GameObject("TaskRoot");
             if (taskRoot.GetComponent<BirdSceneRolesLayout>() == null)
@@ -43,6 +47,8 @@ namespace AvianVoice.Core
 
             var demonstrator = taskRoot.GetComponent<BirdFriendDemonstrator>() ?? taskRoot.AddComponent<BirdFriendDemonstrator>();
             var successChirp = taskRoot.GetComponent<SuccessChirpBurst>() ?? taskRoot.AddComponent<SuccessChirpBurst>();
+            if (taskRoot.GetComponent<BirdExperienceAudio>() == null)
+                taskRoot.AddComponent<BirdExperienceAudio>();
 
             var meet = taskRoot.GetComponent<MeetBirdTask>() ?? taskRoot.AddComponent<MeetBirdTask>();
             var breathSync = taskRoot.GetComponent<BreathSyncTask>() ?? taskRoot.AddComponent<BreathSyncTask>();
@@ -120,6 +126,9 @@ namespace AvianVoice.Core
 
             if (BirdSceneRoles.Player != null)
                 mirror.SetBirdBodyRoot(BirdSceneRoles.Player);
+
+            // Meet starts with the world mirror live.
+            mirror.SetMirrorActive(true);
         }
 
         static void EnsureCharacterController(GameObject xrOrigin)
@@ -149,6 +158,27 @@ namespace AvianVoice.Core
 
             var show = settings == null || settings.showHudPanels;
             AvianHudVisibility.SetAllVisible(show);
+        }
+
+        /// <summary>
+        /// Keep Lab embodiment on FriendParrot/PlayerParrot: hide pigeon FPV and cube placeholders.
+        /// </summary>
+        static void SuppressAlternateBirdBodies()
+        {
+            if (BirdSceneRoles.Friend == null || BirdSceneRoles.Player == null)
+                return;
+
+            foreach (var pigeon in Object.FindObjectsByType<PigeonFpvSetup>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (pigeon != null && pigeon.gameObject.activeSelf)
+                    pigeon.gameObject.SetActive(false);
+            }
+
+            foreach (var placeholder in Object.FindObjectsByType<AvianBodyPlaceholder>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (placeholder != null)
+                    Object.Destroy(placeholder.gameObject);
+            }
         }
     }
 }

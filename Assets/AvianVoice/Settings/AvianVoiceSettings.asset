@@ -20,7 +20,7 @@ MonoBehaviour:
   maxPitchHz: 800
   loudnessSmooth: 8
   dspBufferSizeOverride: 256
-  voicedThreshold: 0.02
+  voicedThreshold: 0.06
   loudnessGain: 8
   referencePitchHz: 220
   transformCooldown: 0.14
@@ -29,9 +29,9 @@ MonoBehaviour:
   assistivePitchRangeSemitones: 12
   transformCooldownUsesClipLength: 1
   transformClipGapSeconds: 0
-  transformSustainedRetrigger: 1
-  transformSustainLoudnessMin: 0.05
-  onsetLoudnessDelta: 0.02
+  transformSustainedRetrigger: 0
+  transformSustainLoudnessMin: 0.45
+  onsetLoudnessDelta: 0.15
   transformPitchFromReference: 1
   pitchSmooth: 20
   transformPitchStabilityHz: 40

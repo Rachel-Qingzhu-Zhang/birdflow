@@ -42,7 +42,7 @@ namespace AvianVoice.Embodiment
         float takeoffDuration = 0.35f;
 
         [SerializeField]
-        float flyToDuration = 1.2f;
+        float flyToDuration = 3.4f;
 
         Transform templateBird;
         Transform orbitCenter;
@@ -90,6 +90,9 @@ namespace AvianVoice.Embodiment
 
             if (!gameObject.activeSelf)
                 gameObject.SetActive(true);
+
+            foreach (var renderer in GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                renderer.updateWhenOffscreen = true;
 
             BeginIdleAnimation();
             EnsureChirpSource();
@@ -144,19 +147,41 @@ namespace AvianVoice.Embodiment
             if (orbitCenter == null)
                 return;
 
-            orbitAngle += orbitSpeedForMember * Time.deltaTime;
-            var rad = orbitAngle * Mathf.Deg2Rad;
-            var bob = Mathf.Sin(Time.time * 2.1f + bobPhase) * orbitBobAmplitude;
-            var center = orbitCenter.position + Vector3.up * 0.5f;
-            var offset = new Vector3(
-                Mathf.Cos(rad) * orbitRadiusForMember,
-                flightHeight + bob,
-                Mathf.Sin(rad) * orbitRadiusForMember);
-            transform.position = center + offset;
+            var slot = ViewSlotPosition(GatherDistance());
+            var sway = Mathf.Sin(Time.time * 0.8f + bobPhase) * 0.12f;
+            var right = orbitCenter.right;
+            right.y = 0f;
+            if (right.sqrMagnitude > 0.0001f)
+                right.Normalize();
+            transform.position = slot + right * sway + Vector3.up * Mathf.Sin(Time.time * 2.1f + bobPhase) * orbitBobAmplitude;
 
-            var tangent = new Vector3(-Mathf.Sin(rad), 0f, Mathf.Cos(rad));
-            if (tangent.sqrMagnitude > 0.0001f)
-                transform.rotation = Quaternion.LookRotation(tangent.normalized, Vector3.up);
+            var toView = orbitCenter.position - transform.position;
+            toView.y = 0f;
+            if (toView.sqrMagnitude > 0.0001f)
+                transform.rotation = Quaternion.LookRotation(toView.normalized, Vector3.up);
+        }
+
+        Vector3 ViewSlotPosition(float distance)
+        {
+            if (orbitCenter == null)
+                return transform.position;
+
+            var forward = orbitCenter.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = Vector3.forward;
+            forward.Normalize();
+
+            var right = Vector3.Cross(Vector3.up, forward);
+            var lateral = Mathf.Lerp(-1.4f, 1.4f, (memberIndex % 7) / 6f);
+            lateral += Mathf.Sin(Time.time * 0.45f + memberIndex) * 0.1f;
+            var height = Mathf.Lerp(0.35f, 1.15f, (memberIndex % 5) / 4f);
+            return orbitCenter.position + forward * distance + right * lateral + Vector3.up * height;
+        }
+
+        float GatherDistance()
+        {
+            return 5f;
         }
 
         void BeginIdleAnimation()
@@ -180,7 +205,7 @@ namespace AvianVoice.Embodiment
                 animator.SetBool("takeoff", true);
             }
 
-            yield return new WaitForSeconds(takeoffDuration);
+            yield return new WaitForSeconds(takeoffDuration + memberIndex * 0.16f);
 
             if (animator != null)
             {
@@ -191,22 +216,21 @@ namespace AvianVoice.Embodiment
             }
 
             var start = transform.position;
-            var entryAngle = orbitAngle * Mathf.Deg2Rad;
-            var center = orbitCenter.position + Vector3.up * 0.5f;
-            var entryOffset = new Vector3(
-                Mathf.Cos(entryAngle) * orbitRadiusForMember,
-                flightHeight,
-                Mathf.Sin(entryAngle) * orbitRadiusForMember);
-            var target = center + entryOffset;
+            var target = ViewSlotPosition(GatherDistance());
+            var travel = Vector3.Distance(start, target);
+            var duration = Mathf.Clamp(travel / 3.6f, flyToDuration, 6.2f);
 
             var elapsed = 0f;
-            while (elapsed < flyToDuration)
+            while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
-                var t = Mathf.SmoothStep(0f, 1f, elapsed / flyToDuration);
+                var t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+                var liveTarget = ViewSlotPosition(GatherDistance());
+                if (elapsed < duration * 0.55f)
+                    target = liveTarget;
                 transform.position = Vector3.Lerp(start, target, t);
 
-                var moveDir = target - start;
+                var moveDir = target - transform.position;
                 moveDir.y = 0f;
                 if (moveDir.sqrMagnitude > 0.0001f)
                     transform.rotation = Quaternion.LookRotation(moveDir.normalized, Vector3.up);
@@ -233,7 +257,7 @@ namespace AvianVoice.Embodiment
             chirpSource.spatialBlend = 0.75f;
             chirpSource.volume = 0.85f;
             chirpSource.minDistance = 0.5f;
-            chirpSource.maxDistance = 18f;
+            chirpSource.maxDistance = 36f;
         }
 
         void PlayChirpEcho()

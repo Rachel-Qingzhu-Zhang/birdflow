@@ -5,11 +5,12 @@ Shader "AvianVoice/PondWater"
         _ShallowColor ("Shallow Color", Color) = (0.35, 0.72, 0.62, 0.45)
         _DeepColor ("Deep Color", Color) = (0.08, 0.28, 0.38, 0.55)
         _ReflectionTex ("Reflection Texture", 2D) = "black" {}
-        _ReflectionStrength ("Reflection Strength", Range(0, 1)) = 0.88
-        _ReflectionBrightness ("Reflection Brightness", Range(0.5, 2)) = 1.38
-        _ReflectionScale ("Reflection Scale", Range(0.5, 2.5)) = 1.5
-        _OverheadReflection ("Overhead Reflection", Range(0, 1)) = 0.82
-        _WaterTintStrength ("Water Tint Over Reflection", Range(0, 1)) = 0.35
+        _ReflectionStrength ("Reflection Strength", Range(0, 1)) = 0.95
+        _ReflectionBrightness ("Reflection Brightness", Range(0.5, 2.5)) = 1.7
+        _ReflectionScale ("Reflection Scale", Range(0.5, 2.5)) = 1.15
+        _OverheadReflection ("Overhead Reflection", Range(0, 1)) = 1.0
+        _OverheadZoom ("Overhead Reflection Zoom", Range(1, 2.5)) = 1.65
+        _WaterTintStrength ("Water Tint Over Reflection", Range(0, 1)) = 0.1
         _BumpMap ("Normal Map", 2D) = "bump" {}
         _BumpScale ("Normal Scale", Range(0, 2)) = 0.42
         _RippleScale ("Ripple Tiling", Range(1, 24)) = 9
@@ -81,6 +82,7 @@ Shader "AvianVoice/PondWater"
             float _ReflectionBrightness;
             float _ReflectionScale;
             float _OverheadReflection;
+            float _OverheadZoom;
             float _WaterTintStrength;
             float _BumpScale;
             float _RippleScale;
@@ -163,13 +165,18 @@ Shader "AvianVoice/PondWater"
                 float3 viewDir = normalize(GetWorldSpaceViewDir(input.positionWS));
                 float fresnel = pow(1.0 - saturate(dot(normalWS, viewDir)), _FresnelPower);
                 float overhead = saturate(dot(normalWS, viewDir));
+                // Looking straight down: boost mix and zoom the RT center so the FPV bird reads larger.
+                float overheadBoost = saturate(overhead * overhead * 1.35);
+                float zoom = max(_ReflectionScale, 0.01) * lerp(1.0, max(_OverheadZoom, 1.0), overheadBoost);
                 float2 reflUv = screenUv + bump.xy * _ReflectionDistortion;
-                reflUv = (reflUv - 0.5) / max(_ReflectionScale, 0.01) + 0.5;
+                reflUv = (reflUv - 0.5) / zoom + 0.5;
+                reflUv = saturate(reflUv);
                 half3 reflection = SAMPLE_TEXTURE2D(_ReflectionTex, sampler_ReflectionTex, reflUv).rgb
-                    * _ReflectionBrightness;
-                reflection = reflection / (1.0h + reflection * 0.14h);
+                    * (_ReflectionBrightness * lerp(1.0, 1.2, overheadBoost));
+                reflection = reflection / (1.0h + reflection * 0.12h);
                 float reflectMix = _ReflectionStrength * saturate(
-                    _OverheadReflection * overhead + fresnel * (1.0 - _OverheadReflection * 0.35));
+                    _OverheadReflection * max(overhead, overheadBoost) + fresnel * (1.0 - _OverheadReflection * 0.2));
+                reflectMix = max(reflectMix, _ReflectionStrength * overheadBoost * 0.92);
                 half3 color = lerp(waterColor, reflection, reflectMix);
                 color = lerp(color, waterColor, _WaterTintStrength * (1.0 - reflectMix));
 

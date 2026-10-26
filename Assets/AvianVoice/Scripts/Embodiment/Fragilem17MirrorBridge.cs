@@ -295,11 +295,10 @@ namespace AvianVoice.Embodiment
             if (active)
             {
                 EnsureRendererEvents(renderer);
+                // Let MirrorRenderer.OnEnable call PrewarmTextures once.
+                // Calling PrewarmTextures again DestroyImmediate's GetTemporary RTs and leaves a black mirror.
                 if (!renderer.enabled)
-                {
                     renderer.enabled = true;
-                    renderer.PrewarmTextures();
-                }
             }
             else if (renderer.enabled)
             {

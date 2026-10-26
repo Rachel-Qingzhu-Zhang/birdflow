@@ -50,7 +50,7 @@ namespace AvianVoice.Tasks
             {
                 taskId = "flying",
                 displayName = "Flying",
-                instruction = "Deep inhale to rise; exhale to glide down. Wings follow breath energy.",
+                instruction = "Hold Space to climb, release to glide down. E/Q still nudge height.",
                 sceneName = ""
             },
             new()
@@ -115,7 +115,19 @@ namespace AvianVoice.Tasks
             BindBehaviour("singing", singingTask);
             BindBehaviour("call_friends", callFriendsTask);
             BindBehaviour("reflection", reflectionTask);
+            SetInstruction("flying", "Hold Space to climb, release to glide down. E/Q still nudge height.");
             ApplyCurrentTask();
+        }
+
+        void SetInstruction(string taskId, string instruction)
+        {
+            for (var i = 0; i < tasks.Length; i++)
+            {
+                if (tasks[i].taskId != taskId)
+                    continue;
+                tasks[i].instruction = instruction;
+                return;
+            }
         }
 
         public void AdvanceTask()
@@ -162,6 +174,8 @@ namespace AvianVoice.Tasks
             var entry = tasks[currentIndex];
             UpdateMirrorForTask(entry.taskId);
             UpdatePondWaterForTask(entry.taskId);
+            UpdateRoleMarkersForTask(entry.taskId);
+            // Perch fill lights stay off while restoring Fragilem17 mirror imaging.
             UpdateRecorderScene(entry.taskId);
 
             if (switchMode == TaskSwitchMode.InScene)
@@ -215,6 +229,11 @@ namespace AvianVoice.Tasks
         {
             var showPondReflection = taskId is "flying" or "singing" or "call_friends";
             Embodiment.PondWaterReflection.SetAllReflectionActive(showPondReflection);
+        }
+
+        static void UpdateRoleMarkersForTask(string taskId)
+        {
+            Embodiment.RoleMarker.SetMarkersForTask(taskId);
         }
 
         static void UpdateRecorderScene(string taskId)

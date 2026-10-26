@@ -45,7 +45,7 @@ namespace AvianVoice.Editor
 
             AvianInSceneTaskBootstrap.EnsureForLabScene();
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-            Debug.Log("[AvianVoice] In-scene TaskManager wiring refreshed. Play: keys 1-4 switch tasks.");
+            Debug.Log("[AvianVoice] In-scene TaskManager wiring refreshed. Play: keys 1-6 switch tasks.");
         }
 
         [MenuItem("Avian Voice/Apply Avian Lab Setup (Parrot + Breath)")]

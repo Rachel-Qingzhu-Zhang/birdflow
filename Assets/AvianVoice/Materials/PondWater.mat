@@ -36,16 +36,17 @@ Material:
     - _BumpScale: 0.42
     - _FoamDistance: 0.55
     - _FresnelPower: 3.5
-    - _OverheadReflection: 0.82
+    - _OverheadReflection: 1
+    - _OverheadZoom: 1.65
     - _PondEdgeStart: 0.72
     - _PondEdgeWidth: 0.16
-    - _ReflectionBrightness: 1.38
-    - _ReflectionDistortion: 0.018
-    - _ReflectionScale: 1.5
-    - _ReflectionStrength: 0.88
+    - _ReflectionBrightness: 1.7
+    - _ReflectionDistortion: 0.01
+    - _ReflectionScale: 1.15
+    - _ReflectionStrength: 0.95
     - _RippleScale: 9
     - _RippleStrength: 0.38
-    - _WaterTintStrength: 0.35
+    - _WaterTintStrength: 0.1
     - _WaveAmplitude: 0.035
     - _WaveFrequency: 1.35
     - _WaveSpeed: 0.55

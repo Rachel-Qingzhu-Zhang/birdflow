@@ -7,10 +7,12 @@ namespace AvianVoice.Embodiment
     /// </summary>
     public static class ParrotChestBreathTuning
     {
-        public const float AmplitudeMultiplier = 2.25f;
-        public const float ChestInhaleScale = 0.22f;
-        public const float SecondaryChestInhaleScale = 0.15f;
-        public const float EmphasisPower = 0.55f;
+        // Linear map: depth 0.5 → +20% chest, depth 1 → +40% chest.
+        // Belly uses the same breath signal at a slightly smaller amount.
+        public const float AmplitudeMultiplier = 1f;
+        public const float ChestInhaleScale = 0.40f;
+        public const float SecondaryChestInhaleScale = 0.28f;
+        public const float EmphasisPower = 1f;
 
         public static float DepthToEmphasis(float depth) =>
             Mathf.Pow(Mathf.Clamp01(depth), EmphasisPower);

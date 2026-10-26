@@ -115,7 +115,16 @@ namespace AvianVoice.Core
             }
 
             HandleLook();
+            // Flight task owns locomotion (fixed heading + key altitude); avoid double-move with look-relative WASD.
+            if (IsFlightTaskActive())
+                return;
             HandleMove();
+        }
+
+        static bool IsFlightTaskActive()
+        {
+            return AvianVoice.Tasks.TaskActivity.IsActive("flying")
+                   || AvianVoice.Tasks.TaskActivity.IsActive("flight");
         }
 
         bool ShouldRun()

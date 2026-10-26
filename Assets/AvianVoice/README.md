@@ -4,6 +4,8 @@ VR bird body illusion vocal training prototype for CHI 2027 research.
 
 **中文项目总览（场景与任务目标）** → [PROJECT_OVERVIEW_CN.md](PROJECT_OVERVIEW_CN.md)
 
+**中文 User Flow（项目内容 + 各场景流程）** → [PROJECT_USERFLOW_CN.md](PROJECT_USERFLOW_CN.md)
+
 **中文场景说明与后续操作（推荐阅读）** → [SCENES_GUIDE.md](SCENES_GUIDE.md)
 
 ## Quick start

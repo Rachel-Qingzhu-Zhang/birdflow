@@ -16,9 +16,13 @@ namespace AvianVoice.Embodiment
         Transform chest;
         Transform chestMid;
         Transform neck;
+        Transform leftWing;
+        Transform rightWing;
         Vector3 chestRestScale = Vector3.one;
         Vector3 chestMidRestScale = Vector3.one;
         Vector3 neckRestScale = Vector3.one;
+        Quaternion leftWingRest = Quaternion.identity;
+        Quaternion rightWingRest = Quaternion.identity;
         float smoothedDepth;
 
         void Awake()
@@ -56,6 +60,10 @@ namespace AvianVoice.Embodiment
             ApplyChestBone(chest, chestRestScale, ParrotChestBreathTuning.ChestInhaleScale, emphasis,
                 out var upperFactor);
             CompensateNeck(midFactor * upperFactor);
+            var inhaling = demonstrator == null || demonstrator.IsInhaling;
+            ParrotBreathWingPose.Apply(
+                leftWing, rightWing, leftWingRest, rightWingRest,
+                depth, inhaling, Time.time);
         }
 
         void ApplyChestBone(Transform bone, Vector3 rest, float amount, float emphasis, out float factor)
@@ -82,6 +90,7 @@ namespace AvianVoice.Embodiment
                 chest.localScale = chestRestScale;
             if (neck != null)
                 neck.localScale = neckRestScale;
+            ParrotBreathWingPose.Restore(leftWing, rightWing, leftWingRest, rightWingRest);
         }
 
         void CacheBones()
@@ -90,12 +99,18 @@ namespace AvianVoice.Embodiment
             chest = refs.chest;
             chestMid = refs.secondaryChest;
             neck = refs.neck;
+            leftWing = refs.leftWing;
+            rightWing = refs.rightWing;
             if (chest != null)
                 chestRestScale = chest.localScale;
             if (chestMid != null)
                 chestMidRestScale = chestMid.localScale;
             if (neck != null)
                 neckRestScale = neck.localScale;
+            if (leftWing != null)
+                leftWingRest = leftWing.localRotation;
+            if (rightWing != null)
+                rightWingRest = rightWing.localRotation;
         }
 
         static AvianVoiceSettings FindAvianSettings()

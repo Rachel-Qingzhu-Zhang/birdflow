@@ -48,6 +48,8 @@ namespace AvianVoice.Tasks
         int stepIndex;
         float matchHold;
         float score;
+        float stablePitch;
+        bool imitateClip;
         void Start()
         {
             if (taskManager == null)
@@ -72,13 +74,16 @@ namespace AvianVoice.Tasks
             stepIndex = 0;
             matchHold = 0f;
             score = 0f;
+            stablePitch = 0f;
+            imitateClip = BirdExperienceAudio.Ensure()?.HasPitchClip == true;
             PlayStepReference();
-            SetHud($"Orange bird sings {NoteLabel(melodyHz[0])} first — match its pitch + keep breath (Space).");
+            SetHud($"Orange bird sings {NoteLabel(melodyHz[0])} first — imitate the note and keep breath (Space).");
         }
 
         void OnDisable()
         {
             friendVisuals?.ApplyMatch(0f);
+            BirdExperienceAudio.Ensure()?.StopAll();
         }
 
         void Update()
@@ -89,6 +94,7 @@ namespace AvianVoice.Tasks
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
                 AdvanceStep(1f);
+                Debug.Log("[AvianVoice] Singing cheat.");
                 return;
             }
 
@@ -106,13 +112,31 @@ namespace AvianVoice.Tasks
 
             var breathOk = breath.Current.depth > 0.25f;
             var richBreath = breath.Current.depth >= deepBreathThreshold ? 1f : 0.6f;
+            var stable = false;
+            if (v.voiced > 0.5f && v.pitchHz > 90f && v.pitchHz < 950f)
+            {
+                if (stablePitch <= 0f)
+                    stablePitch = v.pitchHz;
+                stable = Mathf.Abs(v.pitchHz - stablePitch) <= 50f;
+                if (!stable)
+                    stablePitch = v.pitchHz;
+            }
+            else
+            {
+                stablePitch = 0f;
+            }
+
             var combined = pitchMatch * (breathOk ? richBreath : 0.3f);
+            if (imitateClip && stable)
+                combined = Mathf.Max(combined, breathOk ? richBreath : 0.3f);
             score = Mathf.Lerp(score, combined, Time.deltaTime * 2f);
             taskManager?.ReportScore(score);
             SessionScoreCache.RecordVoice(combined);
             friendVisuals?.ApplyMatch(combined);
 
-            if (pitchMatch > 0.75f && breathOk)
+            var targetHit = pitchMatch > 0.75f;
+            var imitateHit = imitateClip && stable;
+            if ((targetHit || imitateHit) && breathOk)
                 matchHold += Time.deltaTime;
             else
                 matchHold = 0f;
@@ -129,7 +153,8 @@ namespace AvianVoice.Tasks
             stepIndex++;
             if (stepIndex >= melodyHz.Length)
             {
-                successChirp?.PlaySuccessBurst();
+                if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
+                    successChirp?.PlaySuccessBurst();
                 friendVisuals?.PulsePerfect();
                 SetHud("Melody complete!");
                 return;
@@ -144,7 +169,18 @@ namespace AvianVoice.Tasks
         {
             if (stepIndex >= melodyHz.Length)
                 return;
-            library?.PlayNearest(source, melodyHz[stepIndex], 1f, 0f);
+
+            var target = melodyHz[stepIndex];
+            var audio = BirdExperienceAudio.Ensure();
+            var rootHz = melodyHz[0] > 1f ? melodyHz[0] : target;
+            if (audio != null && audio.HasPitchClip)
+            {
+                audio.PlayPitchStep(stepIndex, melodyHz.Length, target / rootHz);
+                friendVisuals?.PulsePerfect();
+                return;
+            }
+
+            library?.PlayNearest(source, target, 1f, 0f);
             friendVisuals?.PulsePerfect();
         }
 

@@ -67,26 +67,42 @@ namespace AvianVoice.Tasks
             phase = Phase.PatternA;
             syncHold = 0f;
             score = 0f;
+            if (breath == null)
+                breath = FindAnyObjectByType<BreathSimulator>();
+            if (demonstrator == null)
+                demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
+            breath?.ResetDepth();
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternA4x4);
             demonstrator?.RestartPattern();
+            if (demonstrator != null)
+                breath?.SetGuidedCycle(demonstrator.InhaleDuration, demonstrator.ExhaleDuration);
             SetHud("Orange bird leads Pattern A (4s/4s). Copy its rhythm with Space.");
         }
 
         void OnDisable()
         {
             friendVisuals?.ApplyMatch(0f);
+            breath?.ClearGuidedCycle();
+            BirdExperienceAudio.Ensure()?.StopAll();
         }
 
         void Update()
         {
-            if (!enabled || !TaskActivity.IsActive("breath_sync") || phase == Phase.Complete)
+            if (!enabled || !TaskActivity.IsActive("breath_sync"))
                 return;
 
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
-                AdvancePhase(1f);
+                if (phase != Phase.Complete)
+                    AdvancePhase(1f);
+                else
+                    BirdExperienceAudio.Ensure()?.PlayForestReward();
+                Debug.Log("[AvianVoice] Breath sync cheat. Phase=" + phase);
                 return;
             }
+
+            if (phase == Phase.Complete)
+                return;
 
             if (breath == null || demonstrator == null)
                 return;
@@ -98,6 +114,8 @@ namespace AvianVoice.Tasks
             SessionScoreCache.RecordSynchronization(sync);
             SessionScoreCache.RecordBreathing(sync);
             friendVisuals?.ApplyMatch(sync);
+            if (sync >= syncThreshold)
+                BirdExperienceAudio.Ensure()?.PlayBreathReward();
 
             if (sync >= syncThreshold)
                 syncHold += Time.deltaTime;
@@ -116,7 +134,8 @@ namespace AvianVoice.Tasks
         void AdvancePhase(float finalScore)
         {
             syncHold = 0f;
-            successChirp?.PlaySuccessBurst();
+            if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
+                successChirp?.PlaySuccessBurst();
             friendVisuals?.PulsePerfect();
 
             if (phase == Phase.PatternA)
@@ -124,6 +143,8 @@ namespace AvianVoice.Tasks
                 phase = Phase.PatternB;
                 demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternB6x6);
                 demonstrator?.RestartPattern();
+                if (demonstrator != null)
+                    breath?.SetGuidedCycle(demonstrator.InhaleDuration, demonstrator.ExhaleDuration);
                 SetHud("Orange bird leads Pattern B (6s/6s). Watch + listen, then match.");
                 return;
             }

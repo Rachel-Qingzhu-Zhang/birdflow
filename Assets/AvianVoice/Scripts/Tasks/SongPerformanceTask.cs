@@ -106,15 +106,16 @@ namespace AvianVoice.Tasks
             if (!enabled || !TaskActivity.IsActive("song"))
                 return;
 
-            if (phase == SongPhase.Complete || phase == SongPhase.Finale || stepAdvanceLocked)
-                return;
-
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
-                if (stepIndex < melodyHz.Length)
+                if (phase != SongPhase.Complete && stepIndex < melodyHz.Length && !stepAdvanceLocked)
                     StartCoroutine(CheatAdvanceRoutine());
+                Debug.Log("[AvianVoice] Song cheat.");
                 return;
             }
+
+            if (phase == SongPhase.Complete || phase == SongPhase.Finale || stepAdvanceLocked)
+                return;
 
             if (analyzer == null || stepIndex >= melodyHz.Length)
                 return;

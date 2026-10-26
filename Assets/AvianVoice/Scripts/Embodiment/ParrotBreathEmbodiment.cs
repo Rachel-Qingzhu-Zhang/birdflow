@@ -20,9 +20,13 @@ namespace AvianVoice.Embodiment
         Transform chest;
         Transform chestMid;
         Transform neck;
+        Transform leftWing;
+        Transform rightWing;
         Vector3 chestRestScale = Vector3.one;
         Vector3 chestMidRestScale = Vector3.one;
         Vector3 neckRestScale = Vector3.one;
+        Quaternion leftWingRest = Quaternion.identity;
+        Quaternion rightWingRest = Quaternion.identity;
         float smoothedDepth;
 
         void Awake()
@@ -48,6 +52,7 @@ namespace AvianVoice.Embodiment
         void OnDisable()
         {
             RestoreChestScales();
+            ParrotBreathWingPose.Restore(leftWing, rightWing, leftWingRest, rightWingRest);
         }
 
         void LateUpdate()
@@ -71,6 +76,9 @@ namespace AvianVoice.Embodiment
             if (emphasis < 0.001f)
             {
                 RestoreChestScales();
+                var idleAnimator = GetComponent<Animator>();
+                if (idleAnimator == null || !idleAnimator.enabled)
+                    ParrotBreathWingPose.Restore(leftWing, rightWing, leftWingRest, rightWingRest);
                 return;
             }
 
@@ -79,6 +87,13 @@ namespace AvianVoice.Embodiment
             ApplyChestBone(chest, chestRestScale, ParrotChestBreathTuning.ChestInhaleScale, emphasis,
                 out var upperChestFactor);
             CompensateNeckScale(midChestFactor * upperChestFactor);
+            var packAnimator = GetComponent<Animator>();
+            if (packAnimator == null || !packAnimator.enabled)
+            {
+                ParrotBreathWingPose.Apply(
+                    leftWing, rightWing, leftWingRest, rightWingRest,
+                    depth, breath != null && breath.Current.isInhaling, Time.time);
+            }
         }
 
         void ApplyChestBone(
@@ -121,6 +136,8 @@ namespace AvianVoice.Embodiment
             chest = refs.chest;
             chestMid = refs.secondaryChest;
             neck = refs.neck;
+            leftWing = refs.leftWing;
+            rightWing = refs.rightWing;
 
             if (chest != null)
                 chestRestScale = chest.localScale;
@@ -128,6 +145,10 @@ namespace AvianVoice.Embodiment
                 chestMidRestScale = chestMid.localScale;
             if (neck != null)
                 neckRestScale = neck.localScale;
+            if (leftWing != null)
+                leftWingRest = leftWing.localRotation;
+            if (rightWing != null)
+                rightWingRest = rightWing.localRotation;
         }
 
         static float BreathEmphasis(float depth) => ParrotChestBreathTuning.DepthToEmphasis(depth);

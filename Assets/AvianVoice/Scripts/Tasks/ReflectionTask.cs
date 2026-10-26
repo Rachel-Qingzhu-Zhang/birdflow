@@ -1,4 +1,5 @@
 using AvianVoice.Audio;
+using AvianVoice.Core;
 using AvianVoice.Data;
 using AvianVoice.Embodiment;
 using AvianVoice.Physiology;
@@ -70,6 +71,21 @@ namespace AvianVoice.Tasks
         {
             if (!enabled || !TaskActivity.IsActive("reflection"))
                 return;
+
+            if (AvianInput.WasTaskCheatPressedThisFrame())
+            {
+                timer = fadeDuration;
+                if (!farewellPlayed)
+                {
+                    farewellPlayed = true;
+                    successChirp?.PlaySuccessBurst();
+                }
+
+                ShowScores();
+                SetHud(BuildHudText(true));
+                Debug.Log("[AvianVoice] Reflection cheat: scores and question shown.");
+                return;
+            }
 
             timer += Time.deltaTime;
             UpdateBreathSync();

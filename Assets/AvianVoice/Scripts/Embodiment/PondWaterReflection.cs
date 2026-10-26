@@ -24,8 +24,8 @@ namespace AvianVoice.Embodiment
         bool enableReflectionFillLight = true;
 
         [SerializeField]
-        [Range(0.5f, 2f)]
-        float reflectionBrightness = 1.38f;
+        [Range(0.5f, 2.5f)]
+        float reflectionBrightness = 1.7f;
 
         [SerializeField]
         Material waterMaterial;
@@ -214,6 +214,7 @@ namespace AvianVoice.Embodiment
             if (!birdsPrepared)
             {
                 PlanarReflectionUtility.EnsureBirdRenderersVisible();
+                EnsurePlayerBirdOnMirrorLayer();
                 birdsPrepared = true;
             }
 
@@ -221,17 +222,26 @@ namespace AvianVoice.Embodiment
             if (viewer == null)
                 return;
 
+            if (meshRenderer != null && meshRenderer.sharedMaterial != null &&
+                meshRenderer.sharedMaterial.HasProperty("_ReflectionTex") &&
+                renderTexture != null)
+            {
+                meshRenderer.sharedMaterial.SetTexture("_ReflectionTex", renderTexture);
+            }
+
             var planeNormal = PlanarReflectionUtility.ResolvePlaneNormalTowardViewer(transform, viewer);
             PlanarReflectionUtility.UpdateReflectionCameraPose(
                 reflectionCamera,
                 viewer,
                 transform.position,
                 planeNormal);
+            // Milder oblique clip so a near-camera bird body is less likely to be sliced away.
             PlanarReflectionUtility.PrepareReflectionCameraMatrices(
                 reflectionCamera,
                 transform.position,
                 planeNormal,
                 mirrorSurface: null,
+                planeOffset: 0.02f,
                 useObliqueClip: true,
                 obliqueSideSign: -1f);
 
@@ -248,6 +258,30 @@ namespace AvianVoice.Embodiment
         {
             if (renderTexture != null)
                 renderTexture.Release();
+        }
+
+        static void EnsurePlayerBirdOnMirrorLayer()
+        {
+            var player = BirdSceneRoles.Player;
+            if (player == null)
+                return;
+
+            foreach (var renderer in player.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == null)
+                    continue;
+                // Keep role marker spheres off the reflection layer.
+                if (renderer.gameObject.name is "PlayerMarker" or "FriendMarker")
+                {
+                    // Keep markers out of the pond reflection pass.
+                    renderer.gameObject.layer = BirdSceneRoles.UiLayer;
+                    continue;
+                }
+
+                renderer.gameObject.layer = BirdSceneRoles.MirrorLayer;
+                if (renderer is SkinnedMeshRenderer skinned)
+                    skinned.updateWhenOffscreen = true;
+            }
         }
 
         static void SetLayerRecursive(GameObject root, int layer)

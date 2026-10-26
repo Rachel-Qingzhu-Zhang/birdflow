@@ -14,26 +14,26 @@ namespace AvianVoice.Embodiment
         bool worldSpaceFollow = true;
 
         [SerializeField]
-        float followDistanceBehind = 0.508f;
+        float followDistanceBehind = 0.55f;
 
         [SerializeField]
-        float followDropBelowEye = 0.217f;
+        float followDropBelowEye = 0.55f;
 
         [SerializeField]
-        float followUniformScale = 0.72f;
+        float followUniformScale = 0.95f;
 
         [Header("Beak anchor")]
         [SerializeField]
         bool useBeakAnchoredFollow = true;
 
         [SerializeField]
-        float eyeAheadOfBeak = 0.04f;
+        float eyeAheadOfBeak = 0.1f;
 
         [SerializeField]
-        float eyeBelowBeak = 0.02f;
+        float eyeBelowBeak = 0.08f;
 
         [SerializeField]
-        float bodyObstructionPushBack = 0.12f;
+        float bodyObstructionPushBack = 0.28f;
 
         [Header("Legacy camera-parent mode (off by default)")]
         [SerializeField]
@@ -80,6 +80,9 @@ namespace AvianVoice.Embodiment
             bodyRenderer = GetComponentInChildren<SkinnedMeshRenderer>();
             rigPin.CaptureRestPose();
             rigPin.SetPinEnabled(true);
+            // Role marker spheres sit on the head and fill the FPV FOV during flight.
+            RoleMarker.SetMarkersVisibleOnBird(transform, false);
+            RoleMarker.SetAllMarkersVisible(false);
 
             worldGuard?.SaveWorldPose();
             if (!worldSpaceFollow)
@@ -108,6 +111,7 @@ namespace AvianVoice.Embodiment
 
             flightActive = false;
             rigPin.SetPinEnabled(false);
+            RoleMarker.SetAllMarkersVisible(true);
 
             if (animator != null)
                 animator.speed = savedAnimatorSpeed;
@@ -274,7 +278,8 @@ namespace AvianVoice.Embodiment
             {
                 animator.Play("glide", 0, 0f);
                 yield return null;
-                animator.speed = 0f;
+                // Keep the clip running. Main/COM pins stop root drift; wings can still glide or flap.
+                animator.speed = savedAnimatorSpeed > 0.05f ? savedAnimatorSpeed : 1f;
             }
 
             flightRoutine = null;
@@ -303,7 +308,15 @@ namespace AvianVoice.Embodiment
             if (!flightActive || animator == null)
                 return;
 
-            SetBool("glide", glide || flightActive);
+            if (animator.speed < 0.05f)
+                animator.speed = savedAnimatorSpeed > 0.05f ? savedAnimatorSpeed : 1f;
+
+            SetBool("glide", glide);
+            SetBool("fly", !glide);
+
+            var state = glide ? "glide" : "fly";
+            if (!animator.GetCurrentAnimatorStateInfo(0).IsName(state))
+                animator.Play(state, 0, 0f);
         }
 
         void ResetFlightBools()

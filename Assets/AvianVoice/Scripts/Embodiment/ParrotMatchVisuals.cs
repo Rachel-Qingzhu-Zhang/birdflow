@@ -30,6 +30,9 @@ namespace AvianVoice.Embodiment
 
             match = Mathf.Clamp01(match);
             block ??= new MaterialPropertyBlock();
+            if (baseColors == null || baseColors.Length != renderers.Length)
+                CacheBaseColors();
+
             var glow = Color.Lerp(Color.black, Color.cyan * 2.5f, match);
             var tint = Color.Lerp(Color.white, new Color(0.55f, 0.95f, 1f), match * 0.85f);
 
@@ -44,7 +47,12 @@ namespace AvianVoice.Embodiment
                 if (mat != null && mat.HasProperty(EmissionColorId))
                     block.SetColor(EmissionColorId, glow);
                 if (mat != null && mat.HasProperty(BaseColorId))
-                    block.SetColor(BaseColorId, tint);
+                {
+                    // Keep original albedo; only tint toward cyan as match rises.
+                    var baseCol = i < baseColors.Length ? baseColors[i] : Color.white;
+                    block.SetColor(BaseColorId, baseCol * tint);
+                }
+
                 r.SetPropertyBlock(block);
             }
 

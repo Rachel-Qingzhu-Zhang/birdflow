@@ -50,6 +50,7 @@ namespace AvianVoice.Core
             var hasHud = head.GetComponentInChildren<TrainingHUD>(true) != null;
             if (hasMic && hasHud)
             {
+                StripPlaceholderIfRoleBirdsPresent(head);
                 Debug.Log("[AvianVoice] Already initialized on " + xrOrigin.name);
                 return;
             }
@@ -58,11 +59,23 @@ namespace AvianVoice.Core
             {
                 EnsureRuntimeUi(xrOrigin, head);
                 ApplyHudVisibility(settings);
+                StripPlaceholderIfRoleBirdsPresent(head);
                 return;
             }
 
             if (settings == null)
                 settings = ScriptableObject.CreateInstance<AvianVoiceSettings>();
+
+            // Lab scenes with FriendParrot/PlayerParrot should not spawn cube placeholder bodies.
+            if (SceneHasRoleParrots())
+            {
+                EnsureRuntimeUi(xrOrigin, head);
+                EnsureRuntimeAudioIfMissing(xrOrigin);
+                StripPlaceholderIfRoleBirdsPresent(head);
+                Debug.Log("[AvianVoice] Role parrots present — skipped AvianBody_Placeholder cold-path.");
+                ApplyHudVisibility(settings);
+                return;
+            }
 
             var body = AvianBodyPlaceholder.Create(head);
             body.transform.localPosition = new Vector3(0f, -0.2f, 0.25f);
@@ -105,6 +118,36 @@ namespace AvianVoice.Core
 
             Debug.Log("[AvianVoice] Lab ready on '" + xrOrigin.name + "'. Speak into mic, hold Space=breath, T=voice mode. Look for HUD near hands.");
             ApplyHudVisibility(settings);
+        }
+
+        static bool SceneHasRoleParrots()
+        {
+            var hasFriend = false;
+            var hasPlayer = false;
+            foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (t == null)
+                    continue;
+                if (t.name == BirdSceneRoles.FriendName)
+                    hasFriend = true;
+                else if (t.name == BirdSceneRoles.PlayerName)
+                    hasPlayer = true;
+            }
+
+            return hasFriend && hasPlayer;
+        }
+
+        static void StripPlaceholderIfRoleBirdsPresent(Transform head)
+        {
+            if (!SceneHasRoleParrots() || head == null)
+                return;
+
+            foreach (var placeholder in Object.FindObjectsByType<AvianBodyPlaceholder>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (placeholder == null)
+                    continue;
+                Object.Destroy(placeholder.gameObject);
+            }
         }
 
         /// <summary>
@@ -257,7 +300,7 @@ namespace AvianVoice.Core
                 canvasGo.transform,
                 "TaskInstruction",
                 new Vector2(0f, -8f),
-                "1-4 switch task | N next",
+                "1-6 switch task | N next | C cheat",
                 AvianHudLayout.TaskInstructionSize,
                 AvianHudLayout.TaskBodyFontSize);
             var score = CreateText(

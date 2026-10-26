@@ -217,7 +217,21 @@ namespace AvianVoice.Embodiment
             RefreshPinPoses(Player);
             SetLayerRecursive(Friend.gameObject, MirrorLayer);
             SetLayerRecursive(Player.gameObject, MirrorLayer);
+            // Markers stay on Default so the main camera always sees them.
+            foreach (var marker in Object.FindObjectsByType<RoleMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (marker == null)
+                    continue;
+                foreach (var child in marker.GetComponentsInChildren<Transform>(true))
+                {
+                    if (child.name is "PlayerMarker" or "FriendMarker")
+                        child.gameObject.layer = 0;
+                }
+            }
+
             EnsurePlayerBirdVisible();
+            RoleMarker.EnsureMarkersExist();
+            LabBirdSceneLighting.Ensure();
         }
 
         public static void EnsurePlayerBirdVisible()
@@ -229,6 +243,8 @@ namespace AvianVoice.Embodiment
             foreach (var renderer in Player.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer == null)
+                    continue;
+                if (renderer.gameObject.name is "PlayerMarker" or "FriendMarker")
                     continue;
 
                 renderer.enabled = true;

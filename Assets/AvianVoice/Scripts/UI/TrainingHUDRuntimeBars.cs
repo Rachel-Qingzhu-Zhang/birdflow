@@ -25,7 +25,7 @@ namespace AvianVoice.UI
             pitchBar = CreateBar("Pitch", 0f, Color.cyan);
             pitchText = CreateLabel("PitchText", -spacing * 0.55f, "-- Hz");
             latencyText = CreateLabel("LatencyText", -spacing * 1.05f, "-- ms");
-            CreateLabel("Hint", spacing * 2f, "1-4=Task | Space=Inhale | T=Voice | C=Cheat (2/4)");
+            CreateLabel("Hint", spacing * 2f, "1-6=Task | Space=Inhale | T=Voice | C=Cheat");
         }
 
         void Update()

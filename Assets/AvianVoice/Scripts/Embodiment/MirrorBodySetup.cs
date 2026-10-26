@@ -39,8 +39,8 @@ namespace AvianVoice.Embodiment
         float mirrorFrustumExtension = 0.25f;
 
         [SerializeField]
-        [Tooltip("When off, mirror fill lights appear in the reflection (brighter birds, small GPU cost).")]
-        bool mirrorDisablePixelLights = false;
+        [Tooltip("When on, Fragilem17 reflection cameras skip additional lights (more stable mirror RT). Main view still uses MirrorFillLight.")]
+        bool mirrorDisablePixelLights = true;
 
         [SerializeField]
         [Tooltip("Optional Fragilem17 material override. Leave empty for a clean clinical mirror (no smudges or refraction).")]
@@ -94,16 +94,90 @@ namespace AvianVoice.Embodiment
             if (!built && active)
                 BuildMirror();
 
-            if (mirrorQuad != null)
-                mirrorQuad.SetActive(active);
+            // Never deactivate AvianWorldMirror / MirrorQuad — that tears down Fragilem17 RTs.
+            if (worldMirrorRoot != null && !worldMirrorRoot.gameObject.activeSelf)
+                worldMirrorRoot.gameObject.SetActive(true);
 
-            Fragilem17MirrorBridge.SetMirrorRenderingActive(fragilem17Renderer, active);
+            if (mirrorQuad != null && !mirrorQuad.activeSelf)
+                mirrorQuad.SetActive(true);
 
-            if (worldMirrorRoot != null)
-                worldMirrorRoot.gameObject.SetActive(active);
+            if (active)
+                EnsureFragilem17Bound();
+
+            SetMirrorVisualsEnabled(active);
+
+            if (fragilem17Renderer != null)
+            {
+                if (active)
+                {
+                    // One clean OnEnable → PrewarmTextures cycle.
+                    if (fragilem17Renderer.enabled)
+                        fragilem17Renderer.enabled = false;
+                    Fragilem17MirrorBridge.SetMirrorRenderingActive(fragilem17Renderer, true);
+                }
+                else
+                {
+                    Fragilem17MirrorBridge.SetMirrorRenderingActive(fragilem17Renderer, false);
+                }
+            }
 
             if (reflectionFillLighting != null)
                 reflectionFillLighting.SetFillActive(active && enableReflectionFillLight);
+        }
+
+        void EnsureFragilem17Bound()
+        {
+            if (mirrorQuad == null)
+                return;
+
+            var meshRenderer = mirrorQuad.GetComponent<MeshRenderer>();
+            var needsBind = fragilem17Renderer == null
+                            || meshRenderer == null
+                            || meshRenderer.sharedMaterial == null
+                            || !IsFragilem17MirrorMaterial(meshRenderer.sharedMaterial)
+                            || mirrorQuad.GetComponent<MirrorSurface>() == null
+                            || mirrorQuad.GetComponent<MirrorRenderer>() == null;
+
+            if (needsBind)
+                fragilem17Renderer = ConfigureFragilem17OnQuad(mirrorQuad);
+            else if (fragilem17Renderer == null)
+                fragilem17Renderer = mirrorQuad.GetComponent<MirrorRenderer>();
+
+            if (worldMirrorRoot != null)
+                SetMirrorDisplayLayers(worldMirrorRoot);
+            else
+                mirrorQuad.layer = BirdSceneRoles.MirrorDisplayLayer;
+        }
+
+        void SetMirrorVisualsEnabled(bool active)
+        {
+            if (mirrorQuad != null)
+            {
+                var quadRenderer = mirrorQuad.GetComponent<MeshRenderer>();
+                if (quadRenderer != null)
+                    quadRenderer.enabled = active;
+            }
+
+            var frame = worldMirrorRoot != null ? worldMirrorRoot.Find("MirrorFrame") : null;
+            if (frame == null)
+                return;
+
+            var frameRenderer = frame.GetComponent<MeshRenderer>();
+            if (frameRenderer != null)
+                frameRenderer.enabled = active;
+            else
+                frame.gameObject.SetActive(active);
+        }
+
+        static bool IsFragilem17MirrorMaterial(Material mat)
+        {
+            if (mat == null || mat.shader == null)
+                return false;
+
+            var shaderName = mat.shader.name;
+            return shaderName.IndexOf("MirrorsAndPortals", System.StringComparison.OrdinalIgnoreCase) >= 0
+                   || mat.HasProperty("_TexLeft")
+                   || mat.HasProperty("_TexRight");
         }
 
         public static void ConfigureMirrorPanelRenderer(Renderer renderer)

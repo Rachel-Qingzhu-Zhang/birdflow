@@ -18,7 +18,8 @@ namespace AvianVoice.Core
         public float loudnessSmooth = 8f;
         [Tooltip("Override Unity DSP buffer size at startup (0 = use Platform Profile only). 128–256 = lower latency.")]
         public int dspBufferSizeOverride = 256;
-        public float voicedThreshold = 0.02f;
+        [Tooltip("Raw mic RMS required before a frame counts as voiced. Above room noise and fan hum.")]
+        public float voicedThreshold = 0.06f;
         public float loudnessGain = 8f;
 
         [Header("Voice Mapping")]
@@ -33,12 +34,12 @@ namespace AvianVoice.Core
         public bool transformCooldownUsesClipLength = true;
         [Tooltip("Extra seconds after each clip before the next trigger (0 = strictly clip length).")]
         public float transformClipGapSeconds = 0f;
-        [Tooltip("After the first chirp, keep retriggering while voiced (cooldown only), not only on loudness spikes.")]
-        public bool transformSustainedRetrigger = true;
-        [Tooltip("Min loudness to allow sustained retrigger (0-1).")]
-        public float transformSustainLoudnessMin = 0.08f;
-        [Tooltip("Rise in loudness since last frame required for the first chirp after silence.")]
-        public float onsetLoudnessDelta = 0.03f;
+        [Tooltip("When enabled, keep retriggering on cooldown while loudness stays high. Leave off so room noise cannot chain chirps.")]
+        public bool transformSustainedRetrigger = false;
+        [Tooltip("Min loudness (0-1, after gain) required before a sustained retrigger is allowed.")]
+        public float transformSustainLoudnessMin = 0.45f;
+        [Tooltip("Rise in gained loudness since last frame required to start a chirp.")]
+        public float onsetLoudnessDelta = 0.15f;
         [Tooltip("Map playback pitch from voice Hz / referencePitchHz (easier to hear than clip basePitchHz alone).")]
         public bool transformPitchFromReference = true;
         [Tooltip("Smoothing for mapped playback pitch (higher = faster tracking).")]

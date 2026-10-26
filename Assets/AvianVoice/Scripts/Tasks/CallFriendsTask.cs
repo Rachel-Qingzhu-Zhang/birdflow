@@ -49,19 +49,19 @@ namespace AvianVoice.Tasks
         int initialCompanionCount = 7;
 
         [SerializeField]
-        float perchForwardMin = 4f;
+        float perchForwardMin = 30f;
 
         [SerializeField]
-        float perchForwardMax = 9f;
+        float perchForwardMax = 30f;
 
         [SerializeField]
-        float perchLateralSpread = 5f;
+        float perchLateralSpread = 4f;
 
         [SerializeField]
-        float perchHeightMin = 0.4f;
+        float perchHeightMin = 1.8f;
 
         [SerializeField]
-        float perchHeightMax = 1.6f;
+        float perchHeightMax = 4.6f;
 
         [SerializeField]
         int[] birdsPerNote = { 1, 2 };
@@ -89,10 +89,18 @@ namespace AvianVoice.Tasks
         int stepIndex;
         float matchHold;
         float score;
+        float stablePitch;
+        bool imitateMelody;
         int sessionSeed;
         SummonStage stage = SummonStage.None;
         Coroutine chorusRoutine;
         bool chorusComplete;
+        bool friendHomeSaved;
+        bool friendHoldingView;
+        Vector3 friendHomePosition;
+        Quaternion friendHomeRotation;
+        Vector3 friendHomeScale;
+        Coroutine friendFlightRoutine;
 
         void Start()
         {
@@ -120,15 +128,19 @@ namespace AvianVoice.Tasks
             stepIndex = 0;
             matchHold = 0f;
             score = 0f;
+            stablePitch = 0f;
+            imitateMelody = BirdExperienceAudio.Ensure()?.HasMelodyClip == true;
             stage = SummonStage.None;
             chorusComplete = false;
             sessionSeed = Random.Range(0, 100000);
+            EnsureSummonPlan();
+            RememberFriendHome();
             ResolveOrbitCenter();
             SpawnIdleCompanions();
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternA4x4);
             demonstrator?.RestartPattern();
             PlayReference();
-            SetHud("Call friends: sing with Pattern A breath.");
+            SetHud("Imitate the melody with Pattern A breath. One bird, then three, then the flock.");
         }
 
         void OnDisable()
@@ -138,6 +150,8 @@ namespace AvianVoice.Tasks
             if (chorusRoutine != null)
                 StopCoroutine(chorusRoutine);
             chorusRoutine = null;
+            RestoreFriendHome();
+            BirdExperienceAudio.Ensure()?.StopAll();
             ClearCompanions();
         }
 
@@ -149,6 +163,7 @@ namespace AvianVoice.Tasks
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
                 AdvanceSummon(1f);
+                Debug.Log("[AvianVoice] Call friends cheat. Step=" + stepIndex);
                 return;
             }
 
@@ -171,14 +186,32 @@ namespace AvianVoice.Tasks
             }
 
             var breathSync = BreathSyncEvaluator.Evaluate(breath.Current, demonstrator);
+            var stable = false;
+            if (v.voiced > 0.5f && v.pitchHz > 90f && v.pitchHz < 950f)
+            {
+                if (stablePitch <= 0f)
+                    stablePitch = v.pitchHz;
+                stable = Mathf.Abs(v.pitchHz - stablePitch) <= 55f;
+                if (!stable)
+                    stablePitch = v.pitchHz;
+            }
+            else
+            {
+                stablePitch = 0f;
+            }
+
             var combined = pitchMatch * 0.6f + breathSync * 0.4f;
+            if (imitateMelody && stable)
+                combined = Mathf.Max(combined, 0.55f + breathSync * 0.45f);
             score = Mathf.Lerp(score, combined, Time.deltaTime * 2f);
             taskManager?.ReportScore(score);
-            SessionScoreCache.RecordVoice(pitchMatch);
+            SessionScoreCache.RecordVoice(Mathf.Max(pitchMatch, imitateMelody && stable ? 0.8f : 0f));
             SessionScoreCache.RecordSynchronization(breathSync);
             friendVisuals?.ApplyMatch(combined);
 
-            if (pitchMatch > 0.7f && breathSync >= breathSyncMin)
+            var targetHit = pitchMatch > 0.7f;
+            var imitateHit = imitateMelody && stable;
+            if ((targetHit || imitateHit) && breathSync >= breathSyncMin)
                 matchHold += Time.deltaTime;
             else
                 matchHold = 0f;
@@ -193,26 +226,20 @@ namespace AvianVoice.Tasks
         {
             matchHold = 0f;
             friendVisuals?.PulsePerfect();
-            Invoke(nameof(PlaySuccessChirpDelayed), 0.2f);
+            if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
+                Invoke(nameof(PlaySuccessChirpDelayed), 0.2f);
 
-            var noteIndex = stepIndex;
+            var noteIndex = melodyHz == null || melodyHz.Length == 0
+                ? 0
+                : Mathf.Clamp(stepIndex, 0, melodyHz.Length - 1);
+            var noteHz = melodyHz != null && melodyHz.Length > 0 ? melodyHz[noteIndex] : 440f;
             stepIndex++;
-            var noteHz = melodyHz[Mathf.Clamp(noteIndex, 0, melodyHz.Length - 1)];
-            var summonCount = birdsPerNote != null && noteIndex < birdsPerNote.Length
-                ? birdsPerNote[noteIndex]
-                : 1;
 
-            if (stepIndex == 1)
+            var flying = companions.Count(c => c != null && !c.IsPerched);
+            if (melodyHz != null && stepIndex >= melodyHz.Length)
             {
-                stage = SummonStage.OneBird;
-                SummonNearestCompanions(summonCount, noteHz, noteIndex);
-            }
-            else if (stepIndex == 2)
-            {
-                stage = SummonStage.ThreeBirds;
-                SummonNearestCompanions(summonCount, noteHz, noteIndex);
-                SummonAllRemaining(noteHz);
                 stage = SummonStage.Flock;
+                SummonAllRemaining(noteHz);
                 if (!chorusComplete)
                 {
                     if (chorusRoutine != null)
@@ -221,16 +248,198 @@ namespace AvianVoice.Tasks
                 }
                 SetHud("Flock arrived — friends communicate!");
             }
+            else if (flying <= 0)
+            {
+                stage = SummonStage.OneBird;
+                BeginFriendApproach();
+                var firstWave = birdsPerNote != null && birdsPerNote.Length > 0
+                    ? Mathf.Max(1, birdsPerNote[0])
+                    : 1;
+                SummonNearestCompanions(firstWave, noteHz, noteIndex);
+                SetHud("Your bird friend flies in. Imitate the melody again.");
+            }
+            else
+            {
+                stage = SummonStage.ThreeBirds;
+                var need = Mathf.Max(1, 3 - flying);
+                SummonNearestCompanions(need, noteHz, noteIndex);
+                SetHud("Three friends are here. Sing once more to call the flock.");
+            }
 
-            if (stepIndex < melodyHz.Length)
+            if (melodyHz != null && stepIndex < melodyHz.Length)
                 PlayReference();
 
             taskManager?.ReportScore(stepScore);
         }
 
+        void EnsureSummonPlan()
+        {
+            if (melodyHz == null || melodyHz.Length < 3)
+                melodyHz = new[] { 330f, 392f, 440f };
+        }
+
         void PlaySuccessChirpDelayed()
         {
             successChirp?.PlaySuccessBurst();
+        }
+
+        void RememberFriendHome()
+        {
+            var friend = BirdSceneRoles.Friend;
+            if (friend == null)
+                return;
+
+            friendHomePosition = friend.position;
+            friendHomeRotation = friend.rotation;
+            friendHomeScale = friend.localScale;
+            friendHomeSaved = true;
+            friendHoldingView = false;
+        }
+
+        void BeginFriendApproach()
+        {
+            var friend = BirdSceneRoles.Friend;
+            if (friend == null || friendFlightRoutine != null || friendHoldingView)
+                return;
+
+            var animator = friend.GetComponent<Animator>();
+            ParrotEmbodimentWiring.RestorePackAnimatorForFlight(animator);
+            if (animator != null)
+            {
+                animator.applyRootMotion = false;
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                FlockParrotSetup.ResetFlightBools(animator);
+                animator.speed = 1f;
+                animator.SetBool("takeoff", true);
+            }
+
+            foreach (var renderer in friend.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                renderer.updateWhenOffscreen = true;
+
+            friendFlightRoutine = StartCoroutine(FriendApproachRoutine(friend, animator));
+        }
+
+        IEnumerator FriendApproachRoutine(Transform friend, Animator animator)
+        {
+            var view = ResolveViewTransform();
+            var distantStart = FriendViewPoint(18f, 2.8f);
+            var gather = FriendViewPoint(6.2f, 0.25f);
+            if (view != null)
+            {
+                var side = view.right;
+                side.y = 0f;
+                if (side.sqrMagnitude > 0.0001f)
+                    distantStart += side.normalized * 2.6f;
+            }
+
+            var inbound = gather - distantStart;
+            inbound.y = 0f;
+            var startRot = inbound.sqrMagnitude > 0.001f
+                ? Quaternion.LookRotation(inbound.normalized, Vector3.up)
+                : friend.rotation;
+            friend.SetPositionAndRotation(distantStart, startRot);
+
+            yield return new WaitForSeconds(0.28f);
+            if (animator != null)
+            {
+                animator.SetBool("takeoff", false);
+                animator.SetBool("fly", true);
+                animator.Play("fly", 0, 0f);
+            }
+
+            var start = friend.position;
+            var elapsed = 0f;
+            const float duration = 4.6f;
+            while (elapsed < duration && friend != null)
+            {
+                elapsed += Time.deltaTime;
+                var t = Mathf.SmoothStep(0f, 1f, elapsed / Mathf.Max(0.01f, duration));
+                var target = FriendViewPoint(6.2f, 0.25f);
+                friend.position = Vector3.Lerp(start, target, t);
+                var travel = target - start;
+                travel.y = 0f;
+                if (travel.sqrMagnitude > 0.001f)
+                {
+                    var face = Quaternion.LookRotation(travel.normalized, Vector3.up);
+                    friend.rotation = Quaternion.Slerp(startRot, face, t);
+                }
+
+                yield return null;
+            }
+
+            if (animator != null)
+            {
+                animator.SetBool("fly", false);
+                animator.SetBool("glide", true);
+            }
+
+            friendHoldingView = true;
+            friendFlightRoutine = null;
+        }
+
+        void LateUpdate()
+        {
+            if (!enabled || !friendHoldingView || !TaskActivity.IsActive("call_friends"))
+                return;
+
+            var friend = BirdSceneRoles.Friend;
+            if (friend == null)
+                return;
+
+            var target = FriendViewPoint(6.4f, 0.35f);
+            var follow = 1f - Mathf.Exp(-6f * Time.deltaTime);
+            friend.position = Vector3.Lerp(friend.position, target, follow);
+
+            var view = ResolveViewTransform();
+            if (view == null)
+                return;
+
+            var toView = view.position - friend.position;
+            toView.y = 0f;
+            if (toView.sqrMagnitude > 0.001f)
+            {
+                var face = Quaternion.LookRotation(toView.normalized, Vector3.up);
+                friend.rotation = Quaternion.Slerp(friend.rotation, face, follow);
+            }
+        }
+
+        void RestoreFriendHome()
+        {
+            friendHoldingView = false;
+            if (friendFlightRoutine != null)
+            {
+                StopCoroutine(friendFlightRoutine);
+                friendFlightRoutine = null;
+            }
+
+            var friend = BirdSceneRoles.Friend;
+            if (friend == null || !friendHomeSaved)
+                return;
+
+            friend.SetPositionAndRotation(friendHomePosition, friendHomeRotation);
+            friend.localScale = friendHomeScale;
+            ParrotEmbodimentWiring.DisablePackIdleAnimation(friend.GetComponent<Animator>());
+        }
+
+        static Vector3 FriendViewPoint(float distance, float height)
+        {
+            var view = ResolveViewTransform();
+            if (view == null)
+                return Vector3.zero;
+
+            var forward = view.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = Vector3.forward;
+            forward.Normalize();
+            return view.position + forward * distance + Vector3.up * height;
+        }
+
+        static Transform ResolveViewTransform()
+        {
+            if (CallFriendsCompanionLayout.TryGetPlayerViewAnchor(out var anchor, out _))
+                return anchor;
+            return Camera.main != null ? Camera.main.transform : null;
         }
 
         void SpawnIdleCompanions()
@@ -245,7 +454,7 @@ namespace AvianVoice.Tasks
                 lateralSpread = perchLateralSpread,
                 heightMin = perchHeightMin,
                 heightMax = perchHeightMax,
-                fanAngleDegrees = 150f
+                fanAngleDegrees = 16f
             };
 
             var count = Mathf.Clamp(initialCompanionCount, 1, 10);
@@ -299,20 +508,29 @@ namespace AvianVoice.Tasks
 
         IEnumerator CommunicateChorusRoutine()
         {
-            yield return new WaitForSeconds(1.5f);
+            yield return new WaitForSeconds(0.45f);
 
-            for (var note = 0; note < melodyHz.Length; note++)
+            var audio = BirdExperienceAudio.Ensure();
+            if (audio != null && audio.HasMelodyClip)
             {
-                library?.PlayNearest(source, melodyHz[note], 1f, 0f);
-                var idx = 0;
-                foreach (var companion in companions)
+                audio.PlayMelody(true);
+            }
+            else if (melodyHz != null)
+            {
+                for (var note = 0; note < melodyHz.Length; note++)
                 {
-                    if (companion == null || companion.IsPerched)
-                        continue;
-                    companion.PlayAnswerCall(library, 0.08f + idx * 0.12f);
-                    idx++;
+                    library?.PlayNearest(source, melodyHz[note], 1f, 0f);
+                    yield return new WaitForSeconds(0.55f);
                 }
-                yield return new WaitForSeconds(0.6f);
+            }
+
+            var idx = 0;
+            foreach (var companion in companions)
+            {
+                if (companion == null || companion.IsPerched)
+                    continue;
+                companion.PlayAnswerCall(library, 0.05f + idx * 0.1f);
+                idx++;
             }
 
             chorusComplete = true;
@@ -357,7 +575,14 @@ namespace AvianVoice.Tasks
 
         void PlayReference()
         {
-            if (stepIndex >= melodyHz.Length)
+            var audio = BirdExperienceAudio.Ensure();
+            if (audio != null && audio.HasMelodyClip)
+            {
+                audio.PlayMelody(true);
+                return;
+            }
+
+            if (melodyHz == null || stepIndex >= melodyHz.Length)
                 return;
             library?.PlayNearest(source, melodyHz[stepIndex], 1f, 0f);
         }
@@ -382,7 +607,12 @@ namespace AvianVoice.Tasks
             friendVisuals.BindFromScene();
         }
 
-        static string NoteLabel(float hz) => hz < 360f ? "E4" : "G4";
+        static string NoteLabel(float hz)
+        {
+            if (hz < 360f) return "E4";
+            if (hz < 420f) return "G4";
+            return "A4";
+        }
 
         void SetHud(string message)
         {

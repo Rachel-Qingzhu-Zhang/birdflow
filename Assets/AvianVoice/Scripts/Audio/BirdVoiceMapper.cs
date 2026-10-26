@@ -21,6 +21,7 @@ namespace AvianVoice.Audio
         float lastFrameLoudness;
         float lastTriggerAttemptTime = -1f;
         bool requireOnsetAfterSilence = true;
+        bool loggedAssistiveMixerWarning;
 
         public VoiceMapMode Mode => mode;
 
@@ -57,6 +58,14 @@ namespace AvianVoice.Audio
 
             if (assistiveMonitorSource != null)
                 assistiveMonitorSource.mute = mode != VoiceMapMode.Assistive;
+
+            if (mode == VoiceMapMode.Assistive && mixer == null && !loggedAssistiveMixerWarning)
+            {
+                loggedAssistiveMixerWarning = true;
+                Debug.LogWarning(
+                    "[AvianVoice] Assistive mode has no AudioMixer assigned. " +
+                    "Only AssistiveMonitor pitch will change — wire mixerReference on AvianAppBootstrap for full Assistive audio.");
+            }
         }
 
         void Update()
@@ -90,9 +99,20 @@ namespace AvianVoice.Audio
             requireOnsetAfterSilence = false;
 
             var pitchHz = v.pitchHz > 0f ? v.pitchHz : settings.referencePitchHz;
-            library?.PlayNearest(transformSource, pitchHz, v.loudness, settings);
+            var loudness = v.loudness;
+            if (AvianVoice.Tasks.TaskActivity.IsActive("singing"))
+                loudness = ApplySingingRichness(loudness);
+            library?.PlayNearest(transformSource, pitchHz, loudness, settings);
             lastTriggerAttemptTime = Time.time;
             lastFrameLoudness = v.loudness;
+        }
+
+        float ApplySingingRichness(float loudness)
+        {
+            var breathSim = FindAnyObjectByType<AvianVoice.Physiology.BreathSimulator>();
+            if (breathSim != null && breathSim.Current.depth >= 0.7f)
+                return Mathf.Clamp01(loudness * 1.35f + 0.06f);
+            return loudness;
         }
 
         bool ShouldTriggerTransformCall(VoiceFrame v)
@@ -112,12 +132,11 @@ namespace AvianVoice.Audio
 
             var loudnessDelta = v.loudness - lastFrameLoudness;
             var onset = loudnessDelta >= settings.onsetLoudnessDelta;
+            if (requireOnsetAfterSilence)
+                return onset;
+
             var sustained = settings.transformSustainedRetrigger &&
                             v.loudness >= settings.transformSustainLoudnessMin;
-
-            if (requireOnsetAfterSilence)
-                return onset || sustained;
-
             return onset || sustained;
         }
 

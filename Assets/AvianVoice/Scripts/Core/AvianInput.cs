@@ -14,10 +14,10 @@ namespace AvianVoice.Core
         {
 #if ENABLE_INPUT_SYSTEM
             var keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.spaceKey.isPressed)
-                return true;
+            if (keyboard != null)
+                return keyboard.spaceKey.isPressed;
 
-            // Desktop fallback when Keyboard device is not created (common in XR focus).
+            // Only when no keyboard device (common under XR focus): use LMB as inhale.
             var mouse = Mouse.current;
             if (mouse != null && mouse.leftButton.isPressed)
                 return true;
@@ -28,32 +28,36 @@ namespace AvianVoice.Core
         public static bool WasTPressedThisFrame()
         {
 #if ENABLE_INPUT_SYSTEM
-            return Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame;
-#else
-            return Input.GetKeyDown(KeyCode.T);
+            if (Keyboard.current != null)
+                return Keyboard.current.tKey.wasPressedThisFrame;
 #endif
+            return Input.GetKeyDown(KeyCode.T);
         }
 
         public static bool WasDigitPressedThisFrame(int digit)
         {
-#if ENABLE_INPUT_SYSTEM
-            if (Keyboard.current == null || digit < 0 || digit > 9)
+            if (digit < 0 || digit > 9)
                 return false;
-            return digit switch
+
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null)
             {
-                0 => Keyboard.current.digit0Key.wasPressedThisFrame,
-                1 => Keyboard.current.digit1Key.wasPressedThisFrame,
-                2 => Keyboard.current.digit2Key.wasPressedThisFrame,
-                3 => Keyboard.current.digit3Key.wasPressedThisFrame,
-                4 => Keyboard.current.digit4Key.wasPressedThisFrame,
-                5 => Keyboard.current.digit5Key.wasPressedThisFrame,
-                6 => Keyboard.current.digit6Key.wasPressedThisFrame,
-                7 => Keyboard.current.digit7Key.wasPressedThisFrame,
-                8 => Keyboard.current.digit8Key.wasPressedThisFrame,
-                9 => Keyboard.current.digit9Key.wasPressedThisFrame,
-                _ => false
-            };
-#else
+                return digit switch
+                {
+                    0 => Keyboard.current.digit0Key.wasPressedThisFrame,
+                    1 => Keyboard.current.digit1Key.wasPressedThisFrame,
+                    2 => Keyboard.current.digit2Key.wasPressedThisFrame,
+                    3 => Keyboard.current.digit3Key.wasPressedThisFrame,
+                    4 => Keyboard.current.digit4Key.wasPressedThisFrame,
+                    5 => Keyboard.current.digit5Key.wasPressedThisFrame,
+                    6 => Keyboard.current.digit6Key.wasPressedThisFrame,
+                    7 => Keyboard.current.digit7Key.wasPressedThisFrame,
+                    8 => Keyboard.current.digit8Key.wasPressedThisFrame,
+                    9 => Keyboard.current.digit9Key.wasPressedThisFrame,
+                    _ => false
+                };
+            }
+#endif
             return digit switch
             {
                 0 => Input.GetKeyDown(KeyCode.Alpha0),
@@ -68,7 +72,6 @@ namespace AvianVoice.Core
                 9 => Input.GetKeyDown(KeyCode.Alpha9),
                 _ => false
             };
-#endif
         }
 
         public static bool WasNextTaskPressedThisFrame()
@@ -83,14 +86,45 @@ namespace AvianVoice.Core
             return Input.GetKeyDown(KeyCode.N) || Input.GetKeyDown(KeyCode.RightBracket);
         }
 
-        /// <summary>Debug cheat for pitch/song tasks (simulate a perfect vocal match).</summary>
+        /// <summary>Debug cheat (C). Checks every keyboard and the legacy manager so one backend cannot hide the press.</summary>
         public static bool WasTaskCheatPressedThisFrame()
         {
 #if ENABLE_INPUT_SYSTEM
-            return Keyboard.current != null && Keyboard.current.cKey.wasPressedThisFrame;
-#else
-            return Input.GetKeyDown(KeyCode.C);
+            foreach (var device in InputSystem.devices)
+            {
+                if (device is Keyboard keyboard && keyboard.cKey.wasPressedThisFrame)
+                    return true;
+            }
 #endif
+#if ENABLE_LEGACY_INPUT_MANAGER
+            if (Input.GetKeyDown(KeyCode.C))
+                return true;
+#endif
+            return false;
+        }
+
+        /// <summary>
+        /// Flight altitude: +1 up (E / UpArrow / R), -1 down (Q / DownArrow / F).
+        /// </summary>
+        public static float GetFlightAltitudeAxis()
+        {
+            var axis = 0f;
+#if ENABLE_INPUT_SYSTEM
+            var keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                if (keyboard.eKey.isPressed || keyboard.upArrowKey.isPressed || keyboard.rKey.isPressed)
+                    axis += 1f;
+                if (keyboard.qKey.isPressed || keyboard.downArrowKey.isPressed || keyboard.fKey.isPressed)
+                    axis -= 1f;
+                return Mathf.Clamp(axis, -1f, 1f);
+            }
+#endif
+            if (Input.GetKey(KeyCode.E) || Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.R))
+                axis += 1f;
+            if (Input.GetKey(KeyCode.Q) || Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.F))
+                axis -= 1f;
+            return Mathf.Clamp(axis, -1f, 1f);
         }
     }
 }

@@ -121,7 +121,33 @@ namespace AvianVoice.Embodiment
             if (index < 0 || !taskPoses[index].configured)
                 return;
 
-            ApplyPose(taskPoses[index].worldPosition, taskPoses[index].worldRotation);
+            var position = taskPoses[index].worldPosition;
+            var rotation = taskPoses[index].worldRotation;
+            if (taskId == "flying")
+                ClampFlyingPoseNearPond(ref position, ref rotation);
+
+            ApplyPose(position, rotation);
+        }
+
+        static void ClampFlyingPoseNearPond(ref Vector3 position, ref Quaternion rotation)
+        {
+            var pond = UnityEngine.Object.FindAnyObjectByType<PondWaterReflection>();
+            if (pond == null)
+                return;
+
+            var water = pond.transform.position;
+            // Keep flyer close to the surface: reflection of an FPV bird scales ~1/(2H).
+            const float targetHeightAboveWater = 2.15f;
+            const float maxHeightAboveWater = 3.25f;
+
+            position.x = water.x;
+            position.z = water.z - 3.5f;
+            if (position.y - water.y > maxHeightAboveWater || position.y - water.y < 1.2f)
+                position.y = water.y + targetHeightAboveWater;
+
+            // Stronger downward look so the pond fills the view on enter.
+            var euler = rotation.eulerAngles;
+            rotation = Quaternion.Euler(38f, euler.y, 0f);
         }
 
         public void ApplyPose(Vector3 worldPosition, Quaternion worldRotation)

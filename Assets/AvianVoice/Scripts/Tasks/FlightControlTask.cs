@@ -1,7 +1,10 @@
+using AvianVoice.Audio;
+using AvianVoice.Core;
 using AvianVoice.Data;
 using AvianVoice.Embodiment;
 using AvianVoice.Physiology;
 using UnityEngine;
+using UnityEngine.XR;
 
 namespace AvianVoice.Tasks
 {
@@ -18,26 +21,32 @@ namespace AvianVoice.Tasks
         float forwardSpeed = 1.75f;
 
         [SerializeField]
-        float verticalSpeedMid = 0.7f;
+        float altitudeSpeed = 2.2f;
 
         [SerializeField]
-        float verticalSpeedHigh = 2.1f;
+        float minAltitude = -40f;
 
         [SerializeField]
-        float glideDescentMin = 0.21f;
+        float maxAltitude = 40f;
 
         [SerializeField]
-        float glideDescentSpeed = 1.05f;
+        float maxHeightAboveWater = 3.4f;
 
         [SerializeField]
-        float flightReflectionScaleMultiplier = 1.4f;
+        float minHeightAboveWater = 1.15f;
+
+        [SerializeField]
+        // > 1 zooms the reflection center so the near-camera bird reads larger on the pond.
+        float flightReflectionScaleMultiplier = 1.55f;
 
         CharacterController controller;
         ParrotFlightPresentation parrotFlight;
         XrRigPoseSnapshot rigSnapshot;
-        Transform flightHeading;
+        Vector3 lockedTravelForward = Vector3.forward;
         float score;
         bool glideActive;
+        bool flightSessionActive;
+        float cheatClimbTimer;
         ParrotBreathEmbodiment playerBreathEmbodiment;
 
         void Awake()
@@ -64,7 +73,7 @@ namespace AvianVoice.Tasks
                 controller = GetComponent<CharacterController>();
 
             rigSnapshot?.SavePose();
-            ResolveFlightHeading();
+            CaptureLockedTravelForward();
             ResolveParrotFlightPresentation();
             SetFriendCompanionVisible(false);
             SetPlayerBreathEmbodimentEnabled(false);
@@ -75,11 +84,18 @@ namespace AvianVoice.Tasks
                 SnapToGroundIfNeeded();
             score = 0f;
             glideActive = false;
-            Debug.Log("[AvianVoice] Flying: deep inhale to rise, exhale to glide down.");
+            flightSessionActive = true;
+            cheatClimbTimer = 0f;
+            Debug.Log("[AvianVoice] Flying: hold Space to climb, release to glide down. E/Q or stick still nudge height.");
         }
 
         void OnDisable()
         {
+            // Record once on exit so Reflection scores are not inflated by per-frame peaks.
+            if (flightSessionActive)
+                SessionScoreCache.RecordBreathing(score);
+            flightSessionActive = false;
+
             PondWaterReflection.RestoreAllReflectionScales();
             parrotFlight?.EndFlightPresentation();
             SetFriendCompanionVisible(true);
@@ -90,12 +106,14 @@ namespace AvianVoice.Tasks
 
         bool IsActiveTask() => TaskActivity.IsActive("flying") || TaskActivity.IsActive("flight");
 
-        void ResolveFlightHeading()
+        void CaptureLockedTravelForward()
         {
-            if (WorldPlacedBird.TryFindFlightAnchor(out var anchor, out _) && anchor != null)
-                flightHeading = anchor;
-            else
-                flightHeading = transform;
+            // Use XR Origin yaw only — not Camera Offset / HMD look direction.
+            lockedTravelForward = transform.forward;
+            lockedTravelForward.y = 0f;
+            if (lockedTravelForward.sqrMagnitude < 0.0001f)
+                lockedTravelForward = Vector3.forward;
+            lockedTravelForward.Normalize();
         }
 
         void ResolveParrotFlightPresentation()
@@ -127,7 +145,6 @@ namespace AvianVoice.Tasks
                     continue;
                 renderer.enabled = visible;
             }
-
         }
 
         void SetPlayerBreathEmbodimentEnabled(bool enabled)
@@ -162,18 +179,16 @@ namespace AvianVoice.Tasks
                 return;
 
             var groundedY = hit.point.y;
+            var p = transform.position;
+            p.y = groundedY;
             if (controller != null)
             {
-                var p = transform.position;
-                p.y = groundedY;
                 controller.enabled = false;
                 transform.position = p;
                 controller.enabled = true;
             }
             else
             {
-                var p = transform.position;
-                p.y = groundedY;
                 transform.position = p;
             }
         }
@@ -183,52 +198,136 @@ namespace AvianVoice.Tasks
             if (!enabled || !IsActiveTask())
                 return;
 
-            if (breath == null)
-                return;
-
-            var b = breath.Current;
-            var verticalSpeed = ComputeVerticalSpeed(b.depth, b.isInhaling);
-            var heading = flightHeading != null ? flightHeading : transform;
-            var forward = heading.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 0.0001f)
-                forward = heading.forward;
-            forward.Normalize();
-
-            var move = forward * forwardSpeed + Vector3.up * verticalSpeed;
-            controller.Move(move * Time.deltaTime);
-
-            var stability = b.isInhaling ? b.depth : 1f - b.depth;
-            score = Mathf.Lerp(score, stability, Time.deltaTime);
-            taskManager?.ReportScore(score);
-            SessionScoreCache.RecordBreathing(stability);
-
-            UpdateParrotGlide(stability, b.depth);
-        }
-
-        float ComputeVerticalSpeed(float depth, bool inhaling)
-        {
-            if (inhaling)
+            if (AvianInput.WasTaskCheatPressedThisFrame())
             {
-                if (depth < 0.5f)
-                    return Mathf.Lerp(0f, verticalSpeedMid, depth / 0.5f);
-                return Mathf.Lerp(verticalSpeedMid, verticalSpeedHigh, (depth - 0.5f) / 0.5f);
+                score = 1f;
+                cheatClimbTimer = 0.85f;
+                taskManager?.ReportScore(score);
+                SessionScoreCache.RecordBreathing(1f);
+                BirdExperienceAudio.Ensure()?.PlayForestReward();
+                Debug.Log("[AvianVoice] Flying cheat: score 1, brief climb.");
             }
 
-            return -Mathf.Lerp(glideDescentMin, glideDescentSpeed, 1f - depth);
-        }
-
-        void UpdateParrotGlide(float stability, float breathDepth)
-        {
-            if (parrotFlight == null)
+            if (controller == null)
                 return;
 
-            var wantGlide = stability >= 0.5f && breathDepth > 0.2f;
+            // Keep travel axis on the XR Origin yaw. HMD look does not steer movement.
+            // Thumbstick snap-turn rotates the origin, which updates this forward.
+            var travelForward = transform.forward;
+            travelForward.y = 0f;
+            if (travelForward.sqrMagnitude < 0.0001f)
+                travelForward = lockedTravelForward;
+            travelForward.Normalize();
+            lockedTravelForward = travelForward;
+
+            var verticalSpeed = ResolveVerticalSpeed();
+            if (cheatClimbTimer > 0f)
+            {
+                cheatClimbTimer -= Time.deltaTime;
+                verticalSpeed = Mathf.Max(verticalSpeed, altitudeSpeed);
+            }
+
+            var move = travelForward * forwardSpeed + Vector3.up * verticalSpeed;
+            controller.Move(move * Time.deltaTime);
+            ClampAltitude();
+
+            if (breath != null)
+            {
+                var b = breath.Current;
+                var stability = b.isInhaling ? b.depth : 1f - b.depth;
+                score = Mathf.Lerp(score, stability, Time.deltaTime);
+                UpdateParrotGlide();
+            }
+
+            taskManager?.ReportScore(score);
+        }
+
+        float ResolveVerticalSpeed()
+        {
+            var axis = AvianInput.GetFlightAltitudeAxis();
+            if (Mathf.Abs(axis) > 0.01f)
+                return axis * altitudeSpeed;
+
+            // VR: left/right stick Y still nudges height when the player asks for it.
+            if (TryReadThumbstickY(out var stickY) && Mathf.Abs(stickY) > 0.25f)
+                return Mathf.Clamp(stickY, -1f, 1f) * altitudeSpeed;
+
+            return BreathVerticalMeters();
+        }
+
+        /// <summary>
+        /// Inhale climbs (about 1 m/s at half breath, tuned cap at full breath).
+        /// Exhale descends. The cap is the existing altitudeSpeed so the pond band stays comfortable.
+        /// </summary>
+        float BreathVerticalMeters()
+        {
+            if (breath == null)
+                return 0f;
+
+            var frame = breath.Current;
+            if (frame.isInhaling)
+            {
+                if (frame.depth <= 0.5f)
+                    return Mathf.Lerp(0f, 1f, frame.depth / 0.5f);
+                return Mathf.Lerp(1f, altitudeSpeed, (frame.depth - 0.5f) / 0.5f);
+            }
+
+            return -Mathf.Lerp(0.35f, 1.35f, 1f - frame.depth);
+        }
+
+        void ClampAltitude()
+        {
+            var p = transform.position;
+            var clampedY = Mathf.Clamp(p.y, minAltitude, maxAltitude);
+
+            var pond = UnityEngine.Object.FindAnyObjectByType<PondWaterReflection>();
+            if (pond != null)
+            {
+                var waterY = pond.transform.position.y;
+                clampedY = Mathf.Clamp(clampedY, waterY + minHeightAboveWater, waterY + maxHeightAboveWater);
+            }
+
+            if (Mathf.Approximately(clampedY, p.y))
+                return;
+
+            p.y = clampedY;
+            controller.enabled = false;
+            transform.position = p;
+            controller.enabled = true;
+        }
+
+        static bool TryReadThumbstickY(out float y)
+        {
+            y = 0f;
+            if (TryReadNodeY(XRNode.RightHand, out y))
+                return true;
+            return TryReadNodeY(XRNode.LeftHand, out y);
+        }
+
+        static bool TryReadNodeY(XRNode node, out float y)
+        {
+            y = 0f;
+            var device = InputDevices.GetDeviceAtXRNode(node);
+            if (!device.isValid)
+                return false;
+            if (!device.TryGetFeatureValue(CommonUsages.primary2DAxis, out var stick))
+                return false;
+            y = stick.y;
+            return Mathf.Abs(y) > 0.0001f;
+        }
+
+        void UpdateParrotGlide()
+        {
+            if (parrotFlight == null || breath == null)
+                return;
+
+            var frame = breath.Current;
+            var wantGlide = !frame.isInhaling || frame.depth < 0.22f;
             if (wantGlide == glideActive)
                 return;
 
             glideActive = wantGlide;
-            parrotFlight.SetGlide(true);
+            parrotFlight.SetGlide(wantGlide);
         }
     }
 }
