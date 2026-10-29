@@ -47,6 +47,7 @@ namespace AvianVoice.Tasks
         bool pitchCorrect;
         float matchHold;
         float score;
+        float melodyRetryAt;
 
         void Start()
         {
@@ -80,7 +81,8 @@ namespace AvianVoice.Tasks
             demonstratorPause?.SetTeachingActive(false);
             BindPoses();
             EnsureFriendVisuals();
-            PlayStepReference();
+            PlayCompanionMelody(true);
+            melodyRetryAt = Time.time + 0.35f;
             SetHud("Listen, then hold the same note.");
         }
 
@@ -115,6 +117,14 @@ namespace AvianVoice.Tasks
         {
             if (!enabled || !TaskActivity.IsActive("singing"))
                 return;
+
+            if (melodyRetryAt > 0f && Time.time >= melodyRetryAt)
+            {
+                melodyRetryAt = 0f;
+                var playing = BirdExperienceAudio.Ensure();
+                if (playing == null || !playing.IsReferencePlaying)
+                    PlayCompanionMelody(true);
+            }
 
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
@@ -168,28 +178,27 @@ namespace AvianVoice.Tasks
                 return;
             }
 
-            PlayStepReference();
+            PlayCompanionMelody(false);
             SetHud($"Next: hold {NoteLabel(melodyHz[stepIndex])}.");
             taskManager?.ReportScore(stepScore);
         }
 
-        void PlayStepReference()
+        void PlayCompanionMelody(bool restart)
         {
-            if (stepIndex >= melodyHz.Length)
-                return;
-
-            var target = melodyHz[stepIndex];
             var audio = BirdExperienceAudio.Ensure();
             var singer = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend : BirdSceneRoles.Player;
-            var rootHz = melodyHz[0] > 1f ? melodyHz[0] : target;
-            if (audio != null && audio.HasPitchClip)
-                audio.PlayPitchStepNear(singer, stepIndex, melodyHz.Length, target / rootHz);
+            if (audio != null)
+                audio.PlayMelodyNear(singer, restart);
 
-            var cue = audio != null ? audio.CueSource : NoteSource(singer);
-            library?.PlayTeachingCue(cue, target, 1f);
+            if ((audio == null || !audio.HasMelodyClip) && stepIndex < melodyHz.Length)
+            {
+                var cue = audio != null ? audio.CueSource : NoteSource(singer);
+                library?.PlayTeachingCue(cue, melodyHz[stepIndex], 1f);
+            }
+
             var phrase = audio != null && audio.IsReferencePlaying
-                ? Mathf.Max(1.15f, audio.ReferenceSecondsRemaining)
-                : 1.15f;
+                ? Mathf.Max(1.4f, audio.ReferenceSecondsRemaining)
+                : 1.4f;
             friendSingUntil = Time.time + phrase;
             friendVisuals?.PulsePerfect();
         }

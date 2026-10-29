@@ -72,14 +72,19 @@ namespace AvianVoice.UI
                 return null;
 
             var parent = ResolveFollowTarget(head);
-            var existing = parent.GetComponentInChildren<SceneWishMenu>(true);
-            if (existing == null && parent != head)
-                existing = head.GetComponentInChildren<SceneWishMenu>(true);
+            var existing = Object.FindAnyObjectByType<SceneWishMenu>(FindObjectsInactive.Include);
             if (existing != null)
             {
                 if (existing.transform.parent != parent)
+                {
                     existing.transform.SetParent(parent, false);
+                    existing.transform.localPosition = Vector3.zero;
+                    existing.transform.localRotation = Quaternion.identity;
+                }
+
+                existing.gameObject.SetActive(true);
                 existing.EnsureBuilt();
+                existing.KeepReachable();
                 SceneGuide.Ensure(parent);
                 return existing;
             }
@@ -92,6 +97,14 @@ namespace AvianVoice.UI
             menu.EnsureBuilt();
             SceneGuide.Ensure(parent);
             return menu;
+        }
+
+        void KeepReachable()
+        {
+            if (chipRoot != null)
+                chipRoot.SetActive(!open);
+            if (panelRoot != null)
+                panelRoot.SetActive(open);
         }
 
         static Transform ResolveFollowTarget(Transform head)
@@ -123,8 +136,27 @@ namespace AvianVoice.UI
                     RefreshActive();
             }
 
+            FollowViewerCamera();
             if (AvianInput.WasWishMenuPressedThisFrame() || WasXrMenuPressed())
                 SetOpen(!open);
+        }
+
+        void FollowViewerCamera()
+        {
+            var cam = Camera.main;
+            if (cam == null)
+                return;
+
+            if (transform.parent != cam.transform)
+            {
+                transform.SetParent(cam.transform, false);
+                transform.localPosition = Vector3.zero;
+                transform.localRotation = Quaternion.identity;
+                SceneGuide.Ensure(cam.transform);
+            }
+
+            cam.cullingMask |= 1 << BirdSceneRoles.UiLayer;
+            KeepReachable();
         }
 
         public void SetOpen(bool value)

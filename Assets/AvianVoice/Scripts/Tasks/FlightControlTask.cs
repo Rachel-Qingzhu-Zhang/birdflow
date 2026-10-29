@@ -175,6 +175,15 @@ namespace AvianVoice.Tasks
                 playerBreathEmbodiment.enabled = enabled;
         }
 
+        void KeepOriginUpright()
+        {
+            var euler = transform.eulerAngles;
+            if (Mathf.Abs(Mathf.DeltaAngle(euler.x, 0f)) < 0.5f && Mathf.Abs(Mathf.DeltaAngle(euler.z, 0f)) < 0.5f)
+                return;
+
+            transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
+        }
+
         bool ShouldSnapRigToGround()
         {
             var taskPoses = GetComponent<XrRigTaskStartPoses>();
@@ -227,6 +236,8 @@ namespace AvianVoice.Tasks
             if (controller == null)
                 return;
 
+            KeepOriginUpright();
+
             // Keep travel axis on the XR Origin yaw. HMD look does not steer movement.
             // Thumbstick snap-turn rotates the origin, which updates this forward.
             var travelForward = transform.forward;
@@ -246,7 +257,15 @@ namespace AvianVoice.Tasks
             }
 
             var move = travelForward * forwardSpeed + Vector3.up * verticalSpeed;
+            var before = transform.position;
             controller.Move(move * Time.deltaTime);
+            if ((transform.position - before).sqrMagnitude < 0.00001f && move.sqrMagnitude > 0.01f)
+            {
+                controller.enabled = false;
+                transform.position = before + travelForward * (forwardSpeed * Time.deltaTime) + Vector3.up * 0.12f;
+                controller.enabled = true;
+            }
+
             ClampAltitude();
 
             UpdateScore(voice, isVoiced);

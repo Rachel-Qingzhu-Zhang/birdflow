@@ -70,23 +70,28 @@ namespace AvianVoice.Core
         public bool transformBlockOverlap = true;
 
         [Header("Bird Song Synth (Transform mode)")]
-        [Tooltip("Real-time synthesized bird whistle that follows your pitch. Off = play sample chirps instead.")]
+        [Tooltip("Synthesized bird chirps that follow your pitch. Off = play sample chirps instead.")]
         public bool useSynthTransform = true;
-        [Tooltip("Human pitch range mapped log-linearly onto the bird range.")]
+        [Tooltip("Bird Hz = human Hz * this ratio, then clamped to the bird range. 8 = three octaves up.")]
+        public float synthPitchRatio = 8f;
+        [Tooltip("Length of one chirp in seconds.")]
+        public float synthChirpSeconds = 0.08f;
+        [Tooltip("Unused for timing. Chirps follow voice onsets; this is only a fallback.")]
+        public float synthChirpGapSeconds = 0.05f;
         public float synthHumanMinHz = 90f;
         public float synthHumanMaxHz = 900f;
-        public float synthBirdMinHz = 1800f;
-        public float synthBirdMaxHz = 6000f;
+        public float synthBirdMinHz = 1600f;
+        public float synthBirdMaxHz = 5500f;
         [Tooltip("Trill (frequency wobble) rate range in Hz. Louder voice = faster trill.")]
         public float synthTrillRateMin = 18f;
         public float synthTrillRateMax = 28f;
         [Tooltip("Trill depth in semitones.")]
-        public float synthTrillDepthSemitones = 1.2f;
+        public float synthTrillDepthSemitones = 0.6f;
         [Tooltip("Upward glide at note onset, in semitones below the target.")]
-        public float synthOnsetGlideSemitones = 5f;
-        public float synthOnsetGlideSeconds = 0.12f;
-        public float synthAttackSeconds = 0.02f;
-        public float synthReleaseSeconds = 0.12f;
+        public float synthOnsetGlideSemitones = 2.5f;
+        public float synthOnsetGlideSeconds = 0.04f;
+        public float synthAttackSeconds = 0.008f;
+        public float synthReleaseSeconds = 0.09f;
         [Tooltip("2nd harmonic level relative to the fundamental.")]
         [Range(0f, 1f)]
         public float synthHarmonic2 = 0.18f;
@@ -94,7 +99,7 @@ namespace AvianVoice.Core
         [Range(0f, 1f)]
         public float synthNoise = 0.06f;
         [Range(0f, 1f)]
-        public float synthVolume = 0.5f;
+        public float synthVolume = 0.65f;
         [Tooltip("Pitch glide time constant between voice frames (seconds).")]
         public float synthPitchSmoothSeconds = 0.04f;
 

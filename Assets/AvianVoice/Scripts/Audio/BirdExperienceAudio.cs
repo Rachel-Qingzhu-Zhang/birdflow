@@ -20,6 +20,8 @@ namespace AvianVoice.Audio
         AudioClip forestRewardClip;
         Coroutine sliceRoutine;
         float nextForestTime;
+        bool replayMelodyAfterReset;
+        Transform lastMelodyBird;
 
         public bool HasPitchClip => pitchClip != null;
         public bool HasMelodyClip => melodyClip != null;
@@ -48,6 +50,17 @@ namespace AvianVoice.Audio
 
         void Awake()
         {
+            LoadClips();
+            AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
+        }
+
+        void OnDestroy()
+        {
+            AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
+        }
+
+        void LoadClips()
+        {
             pitchClip = Resources.Load<AudioClip>(Folder + "/bird_pitch");
             melodyClip = Resources.Load<AudioClip>(Folder + "/bird_melody");
             breathRewardClip = Resources.Load<AudioClip>(Folder + "/birds_reward");
@@ -56,6 +69,13 @@ namespace AvianVoice.Audio
             melodyClip?.LoadAudioData();
             breathRewardClip?.LoadAudioData();
             forestRewardClip?.LoadAudioData();
+        }
+
+        void OnAudioConfigurationChanged(bool deviceWasChanged)
+        {
+            if (!replayMelodyAfterReset || !isActiveAndEnabled)
+                return;
+            PlayMelodyNear(lastMelodyBird, true);
         }
 
         void Start()
@@ -142,13 +162,19 @@ namespace AvianVoice.Audio
         public void PlayMelodyNear(Transform bird, bool restart)
         {
             EnsureSources();
+            if (melodyClip == null)
+                LoadClips();
             if (melodyClip == null || referenceSource == null)
                 return;
 
+            lastMelodyBird = bird;
             PlaceReferenceNear(bird);
 
             if (!restart && referenceSource.isPlaying && referenceSource.clip == melodyClip)
+            {
+                replayMelodyAfterReset = true;
                 return;
+            }
 
             if (sliceRoutine != null)
             {
@@ -158,10 +184,26 @@ namespace AvianVoice.Audio
 
             referenceSource.clip = melodyClip;
             referenceSource.pitch = 1f;
-            referenceSource.volume = 0.85f;
+            referenceSource.volume = 1f;
+            referenceSource.mute = false;
             referenceSource.loop = false;
+            referenceSource.ignoreListenerPause = true;
             referenceSource.time = 0f;
             referenceSource.Play();
+            replayMelodyAfterReset = true;
+        }
+
+        public void PlayMelodyStepNear(Transform bird, int step, int stepCount)
+        {
+            EnsureSources();
+            if (melodyClip == null || referenceSource == null)
+                return;
+
+            PlaceReferenceNear(bird);
+            if (melodyClip.length > 2.8f && stepCount > 1)
+                PlaySlice(melodyClip, step, stepCount);
+            else
+                PlayMelodyNear(bird, true);
         }
 
         /// <summary>Longer tree-birds bed while a breath pattern is actually matched.</summary>
@@ -204,6 +246,7 @@ namespace AvianVoice.Audio
                 sliceRoutine = null;
             }
 
+            replayMelodyAfterReset = false;
             if (referenceSource != null)
                 referenceSource.Stop();
             if (feedbackSource != null)
@@ -232,7 +275,7 @@ namespace AvianVoice.Audio
         IEnumerator StopReferenceAfter(float seconds)
         {
             yield return new WaitForSeconds(Mathf.Max(0.15f, seconds));
-            if (referenceSource != null && referenceSource.clip == pitchClip)
+            if (referenceSource != null)
                 referenceSource.Stop();
             sliceRoutine = null;
         }
@@ -275,6 +318,8 @@ namespace AvianVoice.Audio
             source.volume = 1f;
             source.loop = false;
             source.dopplerLevel = 0f;
+            source.mute = false;
+            source.ignoreListenerPause = true;
         }
     }
 }

@@ -195,12 +195,10 @@ namespace AvianVoice.Editor
                 return;
             }
 
-            var before = refs.leftWing.localRotation;
-            Invoke(flight, "LateUpdate");
-            Invoke(flight, "ApplyFlightWings");
-            var after = refs.leftWing.localRotation;
-            var opened = Quaternion.Angle(before, after) > 20f;
-            Line(report, opened, "flight wings", "humerusDelta=" + Quaternion.Angle(before, after).ToString("0") + " deg");
+            var animator = bird.GetComponent<Animator>();
+            ParrotEmbodimentWiring.RestorePackAnimatorForFlight(animator);
+            var ready = animator != null && animator.enabled && animator.runtimeAnimatorController != null;
+            Line(report, ready, "flight animator", ready ? animator.runtimeAnimatorController.name : "missing controller");
         }
 
         static bool BaroqueRenderersEnabled()

@@ -36,7 +36,7 @@ namespace AvianVoice.UI
         public static readonly Vector3 WishPanelLocalPosition = new(-0.22f, -0.02f, 0.72f);
         public static readonly Vector2 WishChipCanvasSize = new(168f, 48f);
         public static readonly float WishChipWorldScale = 0.0009f;
-        public static readonly Vector3 WishChipLocalPosition = new(-0.30f, -0.18f, 0.58f);
+        public static readonly Vector3 WishChipLocalPosition = new(0.16f, -0.04f, 0.56f);
 
         public static readonly Vector2 GuideCanvasSize = new(460f, 96f);
         public static readonly float GuideWorldScale = 0.0009f;

@@ -2,6 +2,8 @@
 
 VR bird body illusion vocal training prototype for CHI 2027 research.
 
+**Team handbook (EN / 日本語 / 中文)** → [TEAM_GUIDE.md](TEAM_GUIDE.md) · open [TEAM_GUIDE.html](TEAM_GUIDE.html) in a browser for language tabs.
+
 **中文项目总览（场景与任务目标）** → [PROJECT_OVERVIEW_CN.md](PROJECT_OVERVIEW_CN.md)
 
 **中文 User Flow（项目内容 + 各场景流程）** → [PROJECT_USERFLOW_CN.md](PROJECT_USERFLOW_CN.md)

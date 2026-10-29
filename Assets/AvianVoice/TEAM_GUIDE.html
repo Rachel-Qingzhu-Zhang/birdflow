@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Birdflow / Avian Voice — Team Guide</title>
+  <style>
+    :root {
+      --bg: #141612;
+      --panel: #1c1f1b;
+      --ink: #f3eee4;
+      --muted: #b7b0a4;
+      --gold: #c9a96a;
+      --line: rgba(201, 169, 106, 0.28);
+      --code: #0e100e;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 "Segoe UI", "Hiragino Sans", "Noto Sans SC", "Noto Sans JP", sans-serif; }
+    a { color: var(--gold); }
+    header {
+      position: sticky; top: 0; z-index: 5;
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+      padding: 14px 22px; background: rgba(20, 22, 18, 0.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(10px);
+    }
+    header h1 { margin: 0; font-size: 1.05rem; font-weight: 600; letter-spacing: 0.04em; }
+    header p { margin: 2px 0 0; color: var(--muted); font-size: 0.82rem; }
+    .langs { display: flex; gap: 8px; }
+    .langs button {
+      background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
+      padding: 6px 14px; cursor: pointer; font: inherit;
+    }
+    .langs button[aria-pressed="true"] { background: var(--gold); color: #1a160f; border-color: var(--gold); }
+    main { max-width: 980px; margin: 0 auto; padding: 28px 22px 80px; }
+    .lang { display: none; }
+    .lang.on { display: block; }
+    h2 { margin: 2.1rem 0 0.6rem; font-size: 1.35rem; color: var(--gold); }
+    h3 { margin: 1.4rem 0 0.45rem; font-size: 1.08rem; }
+    p, li { color: #ece7dc; }
+    .lead { font-size: 1.05rem; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; margin: 0.7rem 0 1.1rem; font-size: 0.94rem; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #23261f; color: var(--gold); font-weight: 600; }
+    code, pre { font-family: Consolas, "Cascadia Mono", monospace; }
+    code { background: var(--code); padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.9em; }
+    pre { background: var(--code); border: 1px solid var(--line); padding: 12px 14px; overflow: auto; border-radius: 8px; font-size: 0.86rem; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 10px 0 16px; }
+    .muted { color: var(--muted); }
+    nav.toc { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 12px 0 24px; }
+    nav.toc a { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--ink); background: var(--panel); font-size: 0.9rem; }
+    nav.toc a:hover { border-color: var(--gold); }
+    footer { color: var(--muted); font-size: 0.85rem; margin-top: 48px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Birdflow / Avian Voice</h1>
+      <p>Team handbook · live lab as of October 2026</p>
+    </div>
+    <div class="langs" role="tablist" aria-label="Language">
+      <button type="button" data-set="en" aria-pressed="true">English</button>
+      <button type="button" data-set="ja" aria-pressed="false">日本語</button>
+      <button type="button" data-set="zh" aria-pressed="false">中文</button>
+    </div>
+  </header>
+  <main>
+
+<article id="en" class="lang on" lang="en">
+  <p class="lead">VR research prototype for a bird-body illusion. Voice is the only gameplay input. Open <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>.</p>
+  <nav class="toc">
+    <a href="#en-what">1. Project</a>
+    <a href="#en-run">2. How to run</a>
+    <a href="#en-io">3. Input / output</a>
+    <a href="#en-scenes">4. Six scenes</a>
+    <a href="#en-voice">5. Voice → bird</a>
+    <a href="#en-code">6. Code map</a>
+    <a href="#en-layers">7. Layers</a>
+  </nav>
+
+  <h2 id="en-what">1. What this project is</h2>
+  <p><strong>Birdflow</strong> is a Unity 6 VR prototype. The playable module is <strong>Avian Voice</strong> under <code>Assets/AvianVoice/</code>. It supports CHI 2027 work on:</p>
+  <ul>
+    <li><strong>Bird body illusion</strong> — first-person parrot, chest, wings, beak, pond reflection, baroque mirror.</li>
+    <li><strong>Voice as the only gameplay input</strong> — mic drives song, flight climb, and pitch matching. There is no Space-key breath.</li>
+    <li><strong>Guided embodiment</strong> — a teacher timeline moves the player bird’s chest. The companion parrot appears when the task is singing together.</li>
+  </ul>
+  <p>Player bird: <code>PlayerParrot</code>. Companion: <code>FriendParrot</code> (hidden except in Singing). RoleMarker spheres are not gameplay.</p>
+
+  <h2 id="en-run">2. How to run</h2>
+  <table>
+    <tr><th>Engine</th><td>Unity 6000.3.4f1 (Unity 6), URP</td></tr>
+    <tr><th>XR</th><td>OpenXR, XR Interaction Toolkit, XR Hands</td></tr>
+    <tr><th>Settings</th><td><code>Assets/AvianVoice/Settings/AvianVoiceSettings.asset</code></td></tr>
+  </table>
+  <ol>
+    <li>Open the lab scene and press Play.</li>
+    <li>Allow the microphone. On Windows, capture starts, the audio device is reset so speakers work, then capture restarts once.</li>
+    <li>Pick a scene with the <strong>I want …</strong> chip, <strong>M</strong>, or the XR menu button. Keys <strong>1–6</strong> also switch. <strong>C</strong> cheats (turn off <code>enableDebugCheat</code> before a study).</li>
+  </ol>
+  <p>Desktop: right-mouse look, WASD move (WASD off during Flying). <strong>E / Q</strong> nudge altitude. Debug HUD stays off while <code>showHudPanels</code> is false; the wish menu and scene prompt stay visible.</p>
+
+  <h2 id="en-io">3. Input and output</h2>
+  <h3>Input</h3>
+  <table>
+    <tr><th>Channel</th><th>Role</th></tr>
+    <tr><td>Microphone</td><td>Primary gameplay: YIN pitch, loudness, voiced</td></tr>
+    <tr><td>Wish menu / M / XR menu</td><td>Choose a scene (invitational copy, not numbered titles)</td></tr>
+    <tr><td>Keys 1–6, N</td><td>Jump / next task</td></tr>
+    <tr><td>C</td><td>Debug complete</td></tr>
+    <tr><td>E / Q, stick Y</td><td>Flight altitude</td></tr>
+    <tr><td>T</td><td>Transform ↔ Assistive (if mode UI is on)</td></tr>
+  </table>
+  <p><code>BreathSimulator</code> copies the teacher pattern (<code>Source.Guided</code>). No breath button.</p>
+  <h3>Output</h3>
+  <table>
+    <tr><th>Channel</th><th>What the user gets</th></tr>
+    <tr><td>Transform song (default)</td><td>Discrete synthesized chirps that follow pitch contour</td></tr>
+    <tr><td>Assistive</td><td>Own voice, pitch-shifted / optional reverb</td></tr>
+    <tr><td>Experience clips</td><td><code>Resources/BirdExperience/</code> melody, forest sting, reward</td></tr>
+    <tr><td>Body</td><td>Chest, wings, beak, vocal bob; fly clip while flying</td></tr>
+    <tr><td>Mirror</td><td>Meet, Breath Sync, Singing, Reflection</td></tr>
+    <tr><td>Pond reflection</td><td>Flying, Call Friends</td></tr>
+    <tr><td>Log</td><td><code>avian_trials.jsonl</code> in persistentDataPath</td></tr>
+  </table>
+
+  <h2 id="en-scenes">4. Six scenes — task and user flow</h2>
+  <p>All six live inside <code>Avian_Lab</code>. <code>TaskManager</code> enables one behaviour at a time.</p>
+  <div class="card">
+    <p><strong>1 Meet</strong> (<code>meet</code>) — “I want to meet my bird self.” Look at the player bird in the mirror. Friend hidden. Completes after ~6 seconds. Script: <code>MeetBirdTask.cs</code>.</p>
+    <p><strong>2 Breath Sync</strong> (<code>breath_sync</code>) — “I want to learn its breath.” Watch the player bird breathe on a teacher timeline (Pattern A 4/4 × 3 cycles, then Pattern B 6/6 × 2). No breath key. Scripts: <code>BreathSyncTask.cs</code>, <code>BirdFriendDemonstrator.cs</code>, <code>BreathSimulator.cs</code>.</p>
+    <p><strong>3 Flying</strong> (<code>flying</code>) — “I want to fly above the water.” Auto-glide forward. Sing louder or higher to climb, stay quiet to descend. Pond reflection on; player mesh hidden from the headset. Scripts: <code>FlightControlTask.cs</code>, <code>ParrotFlightPresentation.cs</code>.</p>
+    <p><strong>4 Singing</strong> (<code>singing</code>) — “I want to sing as a bird.” Friend visible. Companion plays <code>bird_melody.wav</code>. Hold 330 → 392 → 440 → 494 Hz (~40 Hz, 0.45 s). Script: <code>SingingBranchTask.cs</code>.</p>
+    <p><strong>5 Call Friends</strong> (<code>call_friends</code>) — “I want to call my bird friends.” Listen, sing back, flock arrives (1 → 3 → flock). Scripts: <code>CallFriendsTask.cs</code>, <code>Embodiment/Flock/</code>.</p>
+    <p><strong>6 Reflection</strong> (<code>reflection</code>) — “I want to rest by the water.” Mirror on, scores, farewell. Script: <code>ReflectionTask.cs</code>.</p>
+  </div>
+  <p>Intended order 1→6. The wish card can jump. Prompt strings live in <code>TaskManager.cs</code>.</p>
+
+  <h2 id="en-voice">5. How human voice becomes bird song</h2>
+  <pre>Microphone
+  → MicrophoneCapture (restart once after AudioSettings.Reset)
+  → VoiceAnalyzer (RMS + YIN)
+  → BirdVoiceMapper
+       Transform + synth (default): onset → BirdSongSynth.PlayChirp
+       Transform, synth off: BirdCallLibrary sample chirps
+       Assistive: AssistiveMonitor + mixer MicPitch / MicReverb</pre>
+  <h3>Pitch contour</h3>
+  <pre>birdHz = clamp(humanHz * synthPitchRatio, synthBirdMinHz, synthBirdMaxHz)</pre>
+  <p>Default ratio <strong>8</strong> (three octaves). 220 Hz → 1760 Hz; 440 Hz → 3520 Hz. Intervals stay the same.</p>
+  <h3>Rhythm</h3>
+  <p>Not a metronome. A chirp fires on voice onset after silence, or on a loudness dip-then-rise (two quick notes). ~45 ms debounce only. <code>synthChirpSeconds</code> (~0.08 s) is chirp <em>length</em>, not the gap between notes.</p>
+  <h3>Clips (not the user’s voice)</h3>
+  <table>
+    <tr><th>File</th><th>Use</th></tr>
+    <tr><td><code>bird_melody.wav</code></td><td>Companion / flock song</td></tr>
+    <tr><td><code>bird_pitch.wav</code></td><td>Fallback phrases</td></tr>
+    <tr><td><code>birds_forest.wav</code></td><td>Success sting</td></tr>
+    <tr><td><code>birds_reward.wav</code></td><td>Longer reward bed</td></tr>
+  </table>
+  <p>Played 2D. After Windows speaker restore, melody is replayed if it should still be playing. Tune in <code>AvianVoiceSettings</code>: <code>synthPitchRatio</code>, <code>voicedThreshold</code> (0.012), <code>yinThreshold</code>, <code>loudnessSmooth</code>.</p>
+
+  <h2 id="en-code">6. Code structure and how to edit</h2>
+  <p>Namespaces stay <code>AvianVoice.*</code>. Move <code>.cs</code> and <code>.cs.meta</code> together. Comments in English.</p>
+  <pre>Assets/AvianVoice/Scripts/
+  Audio/         mic, YIN, synth, melody
+  Core/          bootstrap, settings, input
+  Tasks/         six lab tasks + TaskManager
+  UI/            wish menu, scene prompt
+  Physiology/    guided breath
+  Data/          trial logs
+  Embodiment/Parrot/  body, wings, flight, beak
+  Embodiment/Mirror/  baroque glass
+  Embodiment/Pond/    water, fish, reflection
+  Embodiment/Flock/   Call Friends
+  Embodiment/Scene/   roles, XR poses
+  Embodiment/Pigeon/  legacy, not the lab parrot</pre>
+  <table>
+    <tr><th>If you change…</th><th>Open</th></tr>
+    <tr><td>Mic / chirp feel</td><td><code>MicrophoneCapture</code>, <code>VoiceAnalyzer</code>, <code>BirdVoiceMapper</code>, <code>BirdSongSynth</code></td></tr>
+    <tr><td>Companion song</td><td><code>Resources/BirdExperience/bird_melody.wav</code> or <code>BirdExperienceAudio</code></td></tr>
+    <tr><td>Wish copy / prompts</td><td><code>SceneWishMenu</code>, <code>TaskManager</code></td></tr>
+    <tr><td>One task’s rules</td><td><code>Tasks/*Task.cs</code></td></tr>
+    <tr><td>Teacher breath</td><td>Settings Teacher Breath, <code>BirdFriendDemonstrator</code></td></tr>
+    <tr><td>Chest / wings</td><td><code>ParrotBreathEmbodiment</code>, <code>ParrotBreathWingPose</code></td></tr>
+    <tr><td>Flight camera</td><td><code>ParrotFlightPresentation</code></td></tr>
+    <tr><td>Flight speed</td><td><code>FlightControlTask</code></td></tr>
+    <tr><td>Mirror / pond / flock</td><td><code>Embodiment/Mirror/</code>, <code>Pond/</code>, <code>Flock/</code></td></tr>
+  </table>
+  <p>Boot: <code>AvianAppBootstrap</code> → <code>AvianInSceneTaskBootstrap</code> → <code>BirdSceneRoles</code> → wish menu. Do not delete pigeon / old Task types without grepping editor menus.</p>
+
+  <h2 id="en-layers">7. Layers</h2>
+  <p>Player bird is layer 9 (<code>BirdMirror</code>). Flying hides that layer on game cameras and keeps UI layer 11. Reflection cameras render to a texture, so the pond still shows the bird.</p>
+  <p class="muted">Older markdown in this folder may still mention Space breathing. This page matches the October 2026 code.</p>
+</article>
+
+<article id="ja" class="lang" lang="ja">
+  <p class="lead">鳥の身体錯覚のための VR 研究プロトタイプ。ゲーム入力は声だけ。<code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code> を開く。</p>
+  <nav class="toc">
+    <a href="#ja-what">1. 概要</a>
+    <a href="#ja-run">2. 起動</a>
+    <a href="#ja-io">3. 入出力</a>
+    <a href="#ja-scenes">4. 6 場面</a>
+    <a href="#ja-voice">5. 声 → 鳥</a>
+    <a href="#ja-code">6. コード</a>
+    <a href="#ja-layers">7. レイヤー</a>
+  </nav>
+
+  <h2 id="ja-what">1. このプロジェクトは何か</h2>
+  <p><strong>Birdflow</strong> のプレイ可能モジュールは <strong>Avian Voice</strong>（<code>Assets/AvianVoice/</code>）です。CHI 2027 向けに、鳥の身体錯覚、声だけの入力、教師タイムラインによる胸部、歌うときだけ相棒オウム、を扱います。</p>
+  <p>プレイヤーは <code>PlayerParrot</code>。相棒は <code>FriendParrot</code>（歌う場面以外は非表示）。RoleMarker の球はプレイ要素ではありません。</p>
+
+  <h2 id="ja-run">2. 起動方法</h2>
+  <p>Unity 6000.3.4f1 / URP / OpenXR。ラボシーンを Play。マイク許可。Windows ではスピーカー復帰のためオーディオを Reset し、キャプチャを一度やり直します。<strong>I want …</strong> / <strong>M</strong> / キー 1–6 で場面切替。<strong>C</strong> はチート。デスクトップは右クリック視点、WASD（飛行中は無効）、高度は E/Q。</p>
+
+  <h2 id="ja-io">3. 入力と出力</h2>
+  <p><strong>入力:</strong> マイク（主）、願いメニュー、1–6、C、飛行の E/Q。呼吸キーはない。<code>BreathSimulator</code> は教師パターンをコピーする。</p>
+  <p><strong>出力:</strong> Transform 時は音程の輪郭を保った短い合成 chirp。体験音は <code>Resources/BirdExperience/</code>。鏡は 1/2/4/6、池の反射は 3/5。ログは <code>avian_trials.jsonl</code>。</p>
+
+  <h2 id="ja-scenes">4. 6 つの場面</h2>
+  <div class="card">
+    <p><strong>1 Meet</strong> — 鏡の自分を見る。呼吸課題なし。約 6 秒。</p>
+    <p><strong>2 Breath Sync</strong> — 教師タイムラインでプレイヤー鳥が呼吸。A（4/4×3）のあと B（6/6×2）。</p>
+    <p><strong>3 Flying</strong> — 自動滑空。声で上昇、沈黙で降下。池に映る。本体はヘッドセットから隠す。</p>
+    <p><strong>4 Singing</strong> — 相棒が <code>bird_melody.wav</code> を歌う。330→392→440→494 Hz を保持。</p>
+    <p><strong>5 Call Friends</strong> — メロディを歌い返し、1→3→群れ。</p>
+    <p><strong>6 Reflection</strong> — 水辺で休み、スコア。</p>
+  </div>
+  <p>推奨順は 1→6。願いカードで飛ばしてよい。文言は <code>TaskManager.cs</code> と <code>SceneWishMenu.cs</code>。</p>
+
+  <h2 id="ja-voice">5. 人の声 → 鳥の声</h2>
+  <pre>マイク → MicrophoneCapture → VoiceAnalyzer (YIN)
+  → BirdVoiceMapper → BirdSongSynth.PlayChirp</pre>
+  <p><strong>音程:</strong> <code>birdHz = clamp(humanHz × 8, 1600, 5500)</code>。メロディの形はそのまま。</p>
+  <p><strong>リズム:</strong> 固定拍子ではない。無音後の起音、または音量の谷→山で次の一声。デバウンス約 45 ms。<code>synthChirpSeconds</code> は一声の長さ（約 0.08 秒）。</p>
+  <p><code>bird_melody.wav</code> が相棒の歌。<code>birds_forest.wav</code> が成功音。2D 再生。</p>
+
+  <h2 id="ja-code">6. コードの場所</h2>
+  <p>名前空間は <code>AvianVoice.*</code>。<code>.cs</code> と <code>.cs.meta</code> はセット。コメントは英語。</p>
+  <table>
+    <tr><th>変えたいこと</th><th>ファイル</th></tr>
+    <tr><td>マイク・chirp</td><td><code>Audio/MicrophoneCapture.cs</code> など</td></tr>
+    <tr><td>相棒の歌</td><td><code>bird_melody.wav</code> / <code>BirdExperienceAudio.cs</code></td></tr>
+    <tr><td>場面の文言</td><td><code>SceneWishMenu.cs</code>, <code>TaskManager.cs</code></td></tr>
+    <tr><td>タスク規則</td><td><code>Tasks/*Task.cs</code></td></tr>
+    <tr><td>胸・翼</td><td><code>ParrotBreathEmbodiment.cs</code></td></tr>
+    <tr><td>飛行</td><td><code>ParrotFlightPresentation.cs</code>, <code>FlightControlTask.cs</code></td></tr>
+  </table>
+  <p>起動: <code>AvianAppBootstrap</code> → <code>AvianInSceneTaskBootstrap</code> → <code>BirdSceneRoles</code>。</p>
+
+  <h2 id="ja-layers">7. レイヤー</h2>
+  <p>プレイヤー鳥はレイヤー 9。飛行中ゲームカメラはこのレイヤーを隠し、UI（11）は残す。反射カメラはテクスチャへ描くので池に姿が見える。</p>
+</article>
+
+<article id="zh" class="lang" lang="zh-Hans">
+  <p class="lead">面向鸟身幻觉的 VR 研究原型。玩法输入只有嗓音。打开 <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>。</p>
+  <nav class="toc">
+    <a href="#zh-what">1. 项目</a>
+    <a href="#zh-run">2. 运行</a>
+    <a href="#zh-io">3. 输入输出</a>
+    <a href="#zh-scenes">4. 六个场景</a>
+    <a href="#zh-voice">5. 人声→鸟鸣</a>
+    <a href="#zh-code">6. 代码</a>
+    <a href="#zh-layers">7. 图层</a>
+  </nav>
+
+  <h2 id="zh-what">1. 项目是什么</h2>
+  <p><strong>Birdflow</strong> 的可玩模块是 <strong>Avian Voice</strong>（<code>Assets/AvianVoice/</code>），服务 CHI 2027 相关工作：鸟身幻觉、嗓音作为唯一玩法输入、教师时间轴驱动胸部。没有 Space 呼吸键。伙伴鹦鹉只在唱歌场景出现。</p>
+  <p>玩家：<code>PlayerParrot</code>。伙伴：<code>FriendParrot</code>。不要把 RoleMarker 小球当玩法。</p>
+
+  <h2 id="zh-run">2. 怎么运行</h2>
+  <p>Unity 6000.3.4f1 / URP / OpenXR。Play 实验室场景，允许麦克风。Windows 会 Reset 音频设备以恢复扬声器，再重启一次采集。用 <strong>I want …</strong> / <strong>M</strong> / 数字键 1–6 换场景。<strong>C</strong> 作弊。桌面右键环顾，WASD（飞行时关闭），高度 E/Q。<code>showHudPanels</code> 为 false 时不显示调试 HUD，许愿菜单仍在。</p>
+
+  <h2 id="zh-io">3. 输入与输出</h2>
+  <p><strong>输入：</strong>麦克风（主）、许愿菜单、1–6、C、飞行 E/Q。没有呼吸按键。<code>BreathSimulator</code> 只复制教师节奏。</p>
+  <p><strong>输出：</strong>默认 Transform 为跟音高轮廓走的短促合成鸟鸣。体验音频在 <code>Resources/BirdExperience/</code>。镜子：1/2/4/6。池塘反射：3/5。日志：<code>avian_trials.jsonl</code>。</p>
+
+  <h2 id="zh-scenes">4. 六个场景与 user flow</h2>
+  <div class="card">
+    <p><strong>1 遇见</strong>（<code>meet</code>）— 看镜子里的自己，不必呼吸，约 6 秒。<code>MeetBirdTask.cs</code></p>
+    <p><strong>2 呼吸</strong>（<code>breath_sync</code>）— 看玩家鸟按教师节奏呼吸。A（4/4×3）再 B（6/6×2）。<code>BreathSyncTask.cs</code></p>
+    <p><strong>3 飞行</strong>（<code>flying</code>）— 自动向前。大声或更高则升，安静则降。水面倒影；本体对头显隐藏。<code>FlightControlTask.cs</code>、<code>ParrotFlightPresentation.cs</code></p>
+    <p><strong>4 唱歌</strong>（<code>singing</code>）— 伙伴播 <code>bird_melody.wav</code>。保持 330→392→440→494 Hz。<code>SingingBranchTask.cs</code></p>
+    <p><strong>5 召朋友</strong>（<code>call_friends</code>）— 听旋律唱回去，1→3→鸟群。<code>CallFriendsTask.cs</code></p>
+    <p><strong>6 回望</strong>（<code>reflection</code>）— 水边休息，看分数。<code>ReflectionTask.cs</code></p>
+  </div>
+  <p>推荐顺序 1→6，也可用许愿卡跳转。文案在 <code>TaskManager.cs</code> 与 <code>SceneWishMenu.cs</code>。</p>
+
+  <h2 id="zh-voice">5. 人声如何变成鸟叫</h2>
+  <pre>麦克风 → MicrophoneCapture → VoiceAnalyzer（YIN）
+  → BirdVoiceMapper → BirdSongSynth.PlayChirp</pre>
+  <p><strong>音调：</strong><code>鸟鸣 Hz = clamp(人声 Hz × 8, 1600, 5500)</code>。音程关系不变，整体抬到鸟的频段。</p>
+  <p><strong>节奏：</strong>不是节拍器。从静音起音，或响度先落再升（连唱两下）时立刻叫。约 45 ms 防抖。<code>synthChirpSeconds</code> 是一声的时长（约 0.08 秒）。</p>
+  <p>伙伴的歌是 <code>bird_melody.wav</code>。成功提示 <code>birds_forest.wav</code>。全部 2D。调参在 <code>AvianVoiceSettings</code>。</p>
+
+  <h2 id="zh-code">6. 代码结构与怎么改</h2>
+  <p>命名空间仍是 <code>AvianVoice.*</code>。移动脚本必须带着 <code>.meta</code>。注释用英文。</p>
+  <table>
+    <tr><th>想改什么</th><th>打开</th></tr>
+    <tr><td>麦 / 鸟鸣</td><td><code>Audio/MicrophoneCapture.cs</code>、<code>VoiceAnalyzer.cs</code>、<code>BirdVoiceMapper.cs</code>、<code>BirdSongSynth.cs</code></td></tr>
+    <tr><td>伙伴的歌</td><td><code>bird_melody.wav</code> 或 <code>BirdExperienceAudio.cs</code></td></tr>
+    <tr><td>场景文案</td><td><code>SceneWishMenu.cs</code>、<code>TaskManager.cs</code></td></tr>
+    <tr><td>某一关规则</td><td>对应 <code>Tasks/*Task.cs</code></td></tr>
+    <tr><td>胸和翅膀</td><td><code>ParrotBreathEmbodiment.cs</code></td></tr>
+    <tr><td>飞行</td><td><code>ParrotFlightPresentation.cs</code>、<code>FlightControlTask.cs</code></td></tr>
+    <tr><td>镜 / 池 / 群</td><td><code>Embodiment/Mirror/</code>、<code>Pond/</code>、<code>Flock/</code></td></tr>
+  </table>
+  <p>启动链：<code>AvianAppBootstrap</code> → <code>AvianInSceneTaskBootstrap</code> → <code>BirdSceneRoles</code>。不要在未 grep 的情况下删除旧鸽子 / Task 类型。</p>
+
+  <h2 id="zh-layers">7. 图层</h2>
+  <p>玩家鸟在第 9 层 <code>BirdMirror</code>。飞行时主摄像机去掉该层、保留 UI 第 11 层。反射相机画到纹理，所以水面仍有倒影。</p>
+  <p class="muted">同目录下旧的中文 md 可能仍写 Space 呼吸；以本文和当前代码为准。</p>
+</article>
+
+    <footer>Birdflow / Avian Voice team guide · also <code>TEAM_GUIDE.md</code> in this folder.</footer>
+  </main>
+  <script>
+    const buttons = document.querySelectorAll(".langs button");
+    const langs = { en: document.getElementById("en"), ja: document.getElementById("ja"), zh: document.getElementById("zh") };
+    function setLang(id) {
+      Object.keys(langs).forEach((k) => langs[k].classList.toggle("on", k === id));
+      buttons.forEach((b) => b.setAttribute("aria-pressed", b.dataset.set === id ? "true" : "false"));
+      document.documentElement.lang = id === "zh" ? "zh-Hans" : id;
+      try { localStorage.setItem("avian-team-lang", id); } catch (e) {}
+    }
+    buttons.forEach((b) => b.addEventListener("click", () => setLang(b.dataset.set)));
+    try {
+      const saved = localStorage.getItem("avian-team-lang");
+      if (saved && langs[saved]) setLang(saved);
+    } catch (e) {}
+  </script>
+</body>
+</html>

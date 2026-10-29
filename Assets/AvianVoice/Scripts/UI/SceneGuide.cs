@@ -27,20 +27,46 @@ namespace AvianVoice.UI
 
         public static void Ensure(Transform parent)
         {
-            if (parent == null)
+            var target = parent;
+            if (Camera.main != null)
+                target = Camera.main.transform;
+            if (target == null)
                 return;
 
-            var existing = parent.GetComponentInChildren<SceneGuide>(true);
-            if (existing == null)
+            SceneGuide keep = null;
+            var found = Object.FindObjectsByType<SceneGuide>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (var i = 0; i < found.Length; i++)
             {
-                var go = new GameObject("SceneGuideHost");
-                go.transform.SetParent(parent, false);
-                go.transform.localPosition = Vector3.zero;
-                go.transform.localRotation = Quaternion.identity;
-                existing = go.AddComponent<SceneGuide>();
+                var guide = found[i];
+                if (guide == null)
+                    continue;
+                if (keep == null)
+                {
+                    keep = guide;
+                    continue;
+                }
+
+                Object.Destroy(guide.gameObject);
             }
 
-            existing.EnsureBuilt();
+            if (keep == null)
+            {
+                var go = new GameObject("SceneGuideHost");
+                go.transform.SetParent(target, false);
+                go.transform.localPosition = Vector3.zero;
+                go.transform.localRotation = Quaternion.identity;
+                keep = go.AddComponent<SceneGuide>();
+            }
+            else if (keep.transform.parent != target)
+            {
+                keep.transform.SetParent(target, false);
+                keep.transform.localPosition = Vector3.zero;
+                keep.transform.localRotation = Quaternion.identity;
+            }
+
+            keep.gameObject.SetActive(true);
+            instance = keep;
+            keep.EnsureBuilt();
         }
 
         public static void SetPhase(string line)

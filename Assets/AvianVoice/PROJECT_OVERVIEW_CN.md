@@ -39,10 +39,30 @@
 | 目录 / 资源 | 作用 |
 |-------------|------|
 | `Assets/AvianVoice/` | 核心：脚本、场景、设置、音频、编辑器菜单 |
+| `Assets/AvianVoice/Scripts/` | **改代码从这里找**（按功能分子目录，见下表与 [Scripts/README.md](Scripts/README.md)） |
 | `Assets/ForestVision/` | 森林环境资产；`Sample1.unity` 可作任务场景布景来源 |
 | `Assets/Parrot/` | 鹦鹉模型与动画；任务中作为世界中的参考鸟/伴飞鸟 |
 | `Assets/VRTemplateAssets/`、`Assets/Samples/XR Interaction Toolkit/` | VR 模板与 **XR Origin Hands** 等预制体 |
 | `Assets/Scenes/BasicScene.unity` | Avian 场景的基础模板（地面 + 光照） |
+
+**脚本按功能（`Assets/AvianVoice/Scripts/`）**
+
+| 目录 | 改这里当… |
+|------|-----------|
+| `Audio/` | 麦克风、音高、鸟鸣合成 |
+| `Core/` | 启动接线、设置、输入 |
+| `Tasks/` | 实验室六任务 |
+| `UI/` | 愿望菜单、HUD、引导文案 |
+| `Physiology/` | 呼吸时间轴 |
+| `Embodiment/Parrot/` | 玩家/伙伴鹦鹉身体、翅膀、发声反馈 |
+| `Embodiment/Mirror/` | 镜子 |
+| `Embodiment/Pond/` | 池塘、鱼、水面反射 |
+| `Embodiment/Flock/` | Call Friends 鸟群 |
+| `Embodiment/Scene/` | 角色、灯光、XR 起始位姿 |
+| `Embodiment/Pigeon/` | 旧鸽子 FPV（不是实验室鹦鹉） |
+| `Data/` | 试验日志 |
+
+C# 命名空间未改（仍是 `AvianVoice.Embodiment` 等），只整理了文件夹。脚本必须与对应 `.meta` 一起移动，否则场景引用会断。
 
 运行时，名称以 `Avian` 或 `Task_` 开头的场景会由 **`AvianVoiceSceneAutoLoad`** 与 **`AvianLabRuntimeSetup`** 自动挂载麦克风、语音分析、鸟身控制、HUD、任务管理等组件（场景文件本身通常不预置完整 XR Rig，需首次手动拖入 Prefab 并保存）。
 

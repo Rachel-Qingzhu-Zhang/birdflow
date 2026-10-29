@@ -158,7 +158,8 @@ namespace AvianVoice.Core
             }
 
             var toggle = head.GetComponentInChildren<VoiceModeToggle>(true);
-            CreateTaskModePanel(head);
+            if (settings == null || settings.showHudPanels)
+                CreateTaskModePanel(head);
             SceneWishMenu.Ensure(head);
             EnsureTaskKeyboardSwitcher(xrOrigin);
             if (bootstrap != null)
@@ -169,7 +170,8 @@ namespace AvianVoice.Core
         {
             var hud = CreateHud(head);
             var toggle = CreateModeToggle(head);
-            CreateTaskModePanel(head);
+            if (settings == null || settings.showHudPanels)
+                CreateTaskModePanel(head);
             SceneWishMenu.Ensure(head);
             EnsureTaskKeyboardSwitcher(xrOrigin);
             var bootstrap = xrOrigin.GetComponent<AvianAppBootstrap>();

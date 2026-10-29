@@ -16,12 +16,10 @@ namespace AvianVoice.UI
 
         public static void SetAllVisible(bool visible)
         {
-            var xr = GameObject.Find("XR Origin Hands (XR Rig)") ?? GameObject.Find("XR Origin");
-            if (xr == null)
-                return;
-
-            foreach (var canvas in xr.GetComponentsInChildren<Canvas>(true))
+            var canvases = Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (var i = 0; i < canvases.Length; i++)
             {
+                var canvas = canvases[i];
                 if (canvas == null || !IsHudCanvas(canvas.gameObject))
                     continue;
                 canvas.gameObject.SetActive(visible);

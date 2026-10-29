@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using AvianVoice.Core;
 using AvianVoice.Data;
+using AvianVoice.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -286,6 +287,9 @@ namespace AvianVoice.Tasks
             if (tasks.Length == 0)
                 return;
             OnTaskChanged?.Invoke(tasks[currentIndex].displayName, tasks[currentIndex].instruction);
+            var head = Camera.main != null ? Camera.main.transform : null;
+            if (head != null)
+                SceneWishMenu.Ensure(head);
         }
     }
 }

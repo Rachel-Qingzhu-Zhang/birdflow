@@ -45,20 +45,23 @@ MonoBehaviour:
   transformVolumeMin: 0.15
   transformVolumeMax: 1
   useSynthTransform: 1
+  synthPitchRatio: 8
+  synthChirpSeconds: 0.08
+  synthChirpGapSeconds: 0.05
   synthHumanMinHz: 90
   synthHumanMaxHz: 900
-  synthBirdMinHz: 1800
-  synthBirdMaxHz: 6000
+  synthBirdMinHz: 1600
+  synthBirdMaxHz: 5500
   synthTrillRateMin: 18
   synthTrillRateMax: 28
-  synthTrillDepthSemitones: 1.2
-  synthOnsetGlideSemitones: 5
-  synthOnsetGlideSeconds: 0.12
-  synthAttackSeconds: 0.02
-  synthReleaseSeconds: 0.12
+  synthTrillDepthSemitones: 0.6
+  synthOnsetGlideSemitones: 2.5
+  synthOnsetGlideSeconds: 0.04
+  synthAttackSeconds: 0.008
+  synthReleaseSeconds: 0.09
   synthHarmonic2: 0.18
   synthNoise: 0.06
-  synthVolume: 0.5
+  synthVolume: 0.65
   synthPitchSmoothSeconds: 0.04
   transformBlockOverlap: 1
   paramSmooth: 10

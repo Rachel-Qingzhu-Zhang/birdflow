@@ -23,6 +23,7 @@ namespace AvianVoice.Audio
         float lastFrameLoudness;
         float lastTriggerAttemptTime = -1f;
         bool requireOnsetAfterSilence = true;
+        bool synthSawDip;
         bool loggedAssistiveMixerWarning;
 
         public VoiceMapMode Mode => mode;
@@ -131,16 +132,38 @@ namespace AvianVoice.Audio
 
         void UpdateSynth(VoiceFrame v)
         {
-            var hasLevel = v.loudness >= 0.08f;
-            var voiced = hasLevel && (v.voiced > 0.5f || v.pitchHz > 0f);
-            if (voiced && v.pitchHz > 0f)
+            var loud = v.loudness;
+            var voiced = loud >= 0.05f && (v.voiced > 0.5f || v.pitchHz > 0f);
+            if (v.pitchHz > 0f)
                 lastSynthPitchHz = v.pitchHz;
-            else if (voiced && lastSynthPitchHz <= 0f)
-                lastSynthPitchHz = settings != null ? settings.referencePitchHz : 220f;
-            else if (!voiced)
-                lastSynthPitchHz = 0f;
+            else if (lastSynthPitchHz <= 0f)
+                lastSynthPitchHz = settings.referencePitchHz;
 
-            synth.SetVoice(voiced, lastSynthPitchHz, v.loudness);
+            if (!voiced)
+            {
+                requireOnsetAfterSilence = true;
+                synthSawDip = false;
+                lastFrameLoudness = loud;
+                return;
+            }
+
+            if (loud + 0.02f < lastFrameLoudness)
+                synthSawDip = true;
+
+            // Fire on the singer's attacks, not on a metronome. Tiny debounce only.
+            const float debounce = 0.045f;
+            var ready = lastTriggerAttemptTime < 0f || Time.time - lastTriggerAttemptTime >= debounce;
+            var attack = loud >= lastFrameLoudness + 0.03f;
+            var onset = ready && (requireOnsetAfterSilence || (synthSawDip && attack));
+            if (onset)
+            {
+                synth.PlayChirp(lastSynthPitchHz, loud);
+                lastTriggerAttemptTime = Time.time;
+                requireOnsetAfterSilence = false;
+                synthSawDip = false;
+            }
+
+            lastFrameLoudness = loud;
         }
 
         bool ShouldTriggerTransformCall(VoiceFrame v)

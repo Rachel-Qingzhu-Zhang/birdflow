@@ -4,9 +4,8 @@ using UnityEngine;
 namespace AvianVoice.Audio
 {
     /// <summary>
-    /// Real-time bird whistle synthesizer driven by the singer's pitch and loudness.
-    /// Human pitch is mapped log-linearly into the bird range; the tone gets a fast trill,
-    /// an upward onset glide, a soft 2nd harmonic and a little breathy noise.
+    /// Discrete bird chirps driven by the singer's pitch. Human Hz is multiplied by
+    /// synthPitchRatio so the melody contour stays the same, then clamped to bird range.
     /// Parameters are written on the main thread and read on the audio thread.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
@@ -31,6 +30,7 @@ namespace AvianVoice.Audio
         volatile float noiseLevel = 0.06f;
         volatile float volume = 0.5f;
         volatile float pitchSmoothSeconds = 0.04f;
+        volatile int chirpFramesLeft;
 
         // Audio thread state.
         int sampleRate = 48000;
@@ -44,7 +44,7 @@ namespace AvianVoice.Audio
         float svfBand;
         uint noiseState = 0x9E3779B9u;
 
-        public bool IsSounding => targetGate > 0.5f;
+        public bool IsSounding => chirpFramesLeft > 0 || envelope > 0.02f;
 
         public static BirdSongSynth Ensure(Transform parent, AudioSource template, AvianVoiceSettings voiceSettings)
         {
@@ -84,16 +84,16 @@ namespace AvianVoice.Audio
             return synth;
         }
 
-        /// <summary>Log-linear map: human [minHz, maxHz] onto bird [minHz, maxHz].</summary>
+        /// <summary>Same melody contour: bird Hz = human Hz * ratio, then clamped.</summary>
         public static float MapHumanToBirdHz(float humanHz, AvianVoiceSettings s)
         {
+            var ratio = s != null ? Mathf.Max(1f, s.synthPitchRatio) : 8f;
+            var min = s != null ? Mathf.Max(200f, s.synthBirdMinHz) : 1600f;
+            var max = s != null ? Mathf.Max(min + 1f, s.synthBirdMaxHz) : 5500f;
             var hMin = s != null ? Mathf.Max(20f, s.synthHumanMinHz) : 90f;
             var hMax = s != null ? Mathf.Max(hMin + 1f, s.synthHumanMaxHz) : 900f;
-            var bMin = s != null ? Mathf.Max(100f, s.synthBirdMinHz) : 1800f;
-            var bMax = s != null ? Mathf.Max(bMin + 1f, s.synthBirdMaxHz) : 6000f;
             var h = Mathf.Clamp(humanHz, hMin, hMax);
-            var t = Mathf.Log(h / hMin) / Mathf.Log(hMax / hMin);
-            return bMin * Mathf.Pow(bMax / bMin, t);
+            return Mathf.Clamp(h * ratio, min, max);
         }
 
         public void Configure(AvianVoiceSettings voiceSettings)
@@ -102,28 +102,28 @@ namespace AvianVoice.Audio
             PushSettings();
         }
 
-        /// <summary>Call every frame with the latest voice analysis.</summary>
-        public void SetVoice(bool voiced, float humanPitchHz, float loudness)
+        public void PlayChirp(float humanPitchHz, float loudness)
         {
-            if (voiced && humanPitchHz > 0f)
-            {
-                targetHz = MapHumanToBirdHz(humanPitchHz, settings);
-                var loud = Mathf.Clamp01(loudness);
-                targetLevel = Mathf.Lerp(0.35f, 1f, loud);
-                var minRate = settings != null ? settings.synthTrillRateMin : 18f;
-                var maxRate = settings != null ? settings.synthTrillRateMax : 28f;
-                trillRate = Mathf.Lerp(minRate, maxRate, loud);
-                targetGate = 1f;
-            }
-            else
-            {
-                targetGate = 0f;
-            }
+            if (humanPitchHz <= 0f)
+                return;
 
+            targetHz = MapHumanToBirdHz(humanPitchHz, settings);
+            var loud = Mathf.Clamp01(loudness);
+            targetLevel = Mathf.Lerp(0.5f, 1f, loud);
+            var minRate = settings != null ? settings.synthTrillRateMin : 18f;
+            var maxRate = settings != null ? settings.synthTrillRateMax : 28f;
+            trillRate = Mathf.Lerp(minRate, maxRate, loud);
+            var hold = settings != null ? Mathf.Max(0.05f, settings.synthChirpSeconds) : 0.14f;
+            chirpFramesLeft = Mathf.Max(1, Mathf.RoundToInt(hold * sampleRate));
+            targetGate = 1f;
             EnsurePlaying();
         }
 
-        public void Silence() => targetGate = 0f;
+        public void Silence()
+        {
+            targetGate = 0f;
+            chirpFramesLeft = 0;
+        }
 
         void Awake()
         {
@@ -152,6 +152,7 @@ namespace AvianVoice.Audio
         void OnDisable()
         {
             targetGate = 0f;
+            chirpFramesLeft = 0;
         }
 
         void Update()
@@ -191,7 +192,8 @@ namespace AvianVoice.Audio
 
             var fs = (float)sampleRate;
             var dt = 1f / fs;
-            var gateOpen = targetGate > 0.5f;
+            var framesLeft = chirpFramesLeft;
+            var gateOpen = framesLeft > 0;
             var goalHz = targetHz;
             var level = targetLevel;
             var rate = trillRate;
@@ -209,20 +211,21 @@ namespace AvianVoice.Audio
             if (gateOpen && !gateWasOpen)
             {
                 glideRemaining = glideTime;
-                // Start a fresh note at its target pitch when the previous one has faded.
                 if (envelope < 0.05f)
                     currentHz = goalHz;
             }
 
             gateWasOpen = gateOpen;
-            var envTarget = gateOpen ? level : 0f;
-
             var frames = data.Length / channels;
             for (var n = 0; n < frames; n++)
             {
+                var open = framesLeft > 0;
+                if (framesLeft > 0)
+                    framesLeft--;
+                var envTarget = open ? level : 0f;
                 envelope += (envTarget - envelope) * (envTarget > envelope ? attackCoeff : releaseCoeff);
 
-                if (envelope < 0.0001f && !gateOpen)
+                if (envelope < 0.0001f && !open)
                 {
                     for (var c = 0; c < channels; c++)
                         data[n * channels + c] = 0f;
@@ -268,6 +271,8 @@ namespace AvianVoice.Audio
                 for (var c = 0; c < channels; c++)
                     data[n * channels + c] = sample;
             }
+
+            chirpFramesLeft = framesLeft;
         }
 
         float NextNoise()

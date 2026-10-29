@@ -163,7 +163,8 @@ namespace AvianVoice.Embodiment
                 position.y = water.y + flyingHeightAboveWater;
 
             var euler = rotation.eulerAngles;
-            rotation = Quaternion.Euler(flyingPitchDegrees, euler.y, 0f);
+            // Keep the origin upright so CharacterController.Move can glide. Look-down is on the camera.
+            rotation = Quaternion.Euler(0f, euler.y, 0f);
         }
 
         public void ApplyPose(Vector3 worldPosition, Quaternion worldRotation)
@@ -173,9 +174,37 @@ namespace AvianVoice.Embodiment
                 cc.enabled = false;
 
             transform.SetPositionAndRotation(worldPosition, worldRotation);
+            ApplyFlyingCameraLookDown();
 
             if (cc != null)
                 cc.enabled = true;
+        }
+
+        void ApplyFlyingCameraLookDown()
+        {
+            if (!TaskActivityIsFlying())
+                return;
+
+            Camera cam = null;
+            foreach (var candidate in GetComponentsInChildren<Camera>(true))
+            {
+                if (candidate != null && candidate.targetTexture == null)
+                {
+                    cam = candidate;
+                    break;
+                }
+            }
+
+            if (cam == null)
+                return;
+
+            cam.transform.localRotation = Quaternion.Euler(flyingPitchDegrees, 0f, 0f);
+        }
+
+        static bool TaskActivityIsFlying()
+        {
+            return AvianVoice.Tasks.TaskActivity.IsActive("flying")
+                   || AvianVoice.Tasks.TaskActivity.IsActive("flight");
         }
 
         public TaskPose GetTaskPose(string taskId)

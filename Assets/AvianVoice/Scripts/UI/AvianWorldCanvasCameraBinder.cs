@@ -7,19 +7,16 @@ namespace AvianVoice.UI
     /// </summary>
     public class AvianWorldCanvasCameraBinder : MonoBehaviour
     {
-        void Start()
+        void LateUpdate()
         {
             var canvas = GetComponent<Canvas>();
             if (canvas == null || canvas.renderMode != RenderMode.WorldSpace)
                 return;
 
-            if (canvas.worldCamera != null)
-                return;
-
             var cam = Camera.main;
             if (cam == null)
-                cam = FindAnyObjectByType<Camera>();
-            if (cam != null)
+                return;
+            if (canvas.worldCamera != cam)
                 canvas.worldCamera = cam;
         }
     }

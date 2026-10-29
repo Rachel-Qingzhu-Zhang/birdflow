@@ -4,8 +4,8 @@ using UnityEngine;
 namespace AvianVoice.Embodiment
 {
     /// <summary>
-    /// Flight FPV: player parrot follows behind/below the headset in world space (not parented to camera).
-    /// Glide pose is frozen; rig pins stop fly-root drift.
+    /// Flight FPV: player parrot follows the headset in world space (not parented to camera).
+    /// Pack fly clip poses the wings; Main/COM pins stop fly-root drift.
     /// </summary>
     [DefaultExecutionOrder(10050)]
     public class ParrotFlightPresentation : MonoBehaviour
@@ -14,10 +14,10 @@ namespace AvianVoice.Embodiment
         bool worldSpaceFollow = true;
 
         [SerializeField]
-        float followDistanceBehind = 0.62f;
+        float followDistanceBehind = 1.15f;
 
         [SerializeField]
-        float followDropBelowEye = 0.55f;
+        float followDropBelowEye = 0.32f;
 
         [SerializeField]
         float followUniformScale = 0.95f;
@@ -27,10 +27,10 @@ namespace AvianVoice.Embodiment
         bool useBeakAnchoredFollow = true;
 
         [SerializeField]
-        float eyeAheadOfBeak = 0f;
+        float eyeAheadOfBeak = -0.95f;
 
         [SerializeField]
-        float eyeBelowBeak = 0.08f;
+        float eyeBelowBeak = -0.12f;
 
         [SerializeField]
         float bodyObstructionPushBack = 0.28f;
@@ -67,13 +67,7 @@ namespace AvianVoice.Embodiment
         Vector3 rootToBeakLocal;
         Transform beakBone;
         SkinnedMeshRenderer bodyRenderer;
-        Camera hiddenFromCamera;
-        int savedCullingMask;
-        Transform leftFlightWing;
-        Transform rightFlightWing;
-        Quaternion leftFlightWingRest = Quaternion.identity;
-        Quaternion rightFlightWingRest = Quaternion.identity;
-        bool flightWingsReady;
+        readonly System.Collections.Generic.List<(Camera cam, int mask)> hiddenCameras = new();
 
         void Awake()
         {
@@ -82,18 +76,12 @@ namespace AvianVoice.Embodiment
             rigPin = GetComponent<ParrotMainCtrlPin>() ?? gameObject.AddComponent<ParrotMainCtrlPin>();
         }
 
-        void OnEnable()
-        {
-            Application.onBeforeRender += ApplyFlightWings;
-        }
-
         public void BeginFlightPresentation()
         {
             if (flightActive)
                 return;
 
             flightActive = true;
-            CacheFlightWingRest();
             beakAnchorCaptured = false;
             beakBone = null;
             savedWorldScale = transform.localScale;
@@ -115,7 +103,8 @@ namespace AvianVoice.Embodiment
             if (animator != null)
             {
                 ParrotEmbodimentWiring.RestorePackAnimatorForFlight(animator);
-                savedAnimatorSpeed = animator.speed;
+                animator.speed = 1f;
+                savedAnimatorSpeed = 1f;
                 animator.applyRootMotion = false;
                 animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             }
@@ -131,7 +120,6 @@ namespace AvianVoice.Embodiment
                 return;
 
             flightActive = false;
-            flightWingsReady = false;
             rigPin.SetPinEnabled(false);
             RoleMarker.SetAllMarkersVisible(true);
             RestoreMainCameraMask();
@@ -159,7 +147,6 @@ namespace AvianVoice.Embodiment
             if (flightAnchor == null)
                 TryResolveFlightAnchor();
 
-            ApplyFlightWings();
             if (flightAnchor == null)
                 return;
 
@@ -167,7 +154,6 @@ namespace AvianVoice.Embodiment
             {
                 DetachFromCameraIfNeeded();
                 ApplyWorldFollowPose();
-                ApplyFlightWings();
                 return;
             }
 
@@ -182,36 +168,7 @@ namespace AvianVoice.Embodiment
 
         void OnDisable()
         {
-            Application.onBeforeRender -= ApplyFlightWings;
             RestoreMainCameraMask();
-        }
-
-        void CacheFlightWingRest()
-        {
-            flightWingsReady = false;
-            if (!ParrotEmbodimentWiring.TryResolve(transform, out var refs))
-                return;
-
-            leftFlightWing = refs.leftWing;
-            rightFlightWing = refs.rightWing;
-            if (leftFlightWing != null)
-                leftFlightWingRest = leftFlightWing.localRotation;
-            if (rightFlightWing != null)
-                rightFlightWingRest = rightFlightWing.localRotation;
-            flightWingsReady = leftFlightWing != null && rightFlightWing != null;
-        }
-
-        void ApplyFlightWings()
-        {
-            if (!flightActive || !flightWingsReady)
-                return;
-
-            ParrotBreathWingPose.ApplyFlight(
-                leftFlightWing,
-                rightFlightWing,
-                leftFlightWingRest,
-                rightFlightWingRest,
-                Time.time);
         }
 
         void HideSelfFromMainCamera()
@@ -219,23 +176,32 @@ namespace AvianVoice.Embodiment
             if (!hideSelfFromMainCamera)
                 return;
 
-            var cam = Camera.main;
-            if (cam == null)
-                return;
-
             RestoreMainCameraMask();
-            hiddenFromCamera = cam;
-            savedCullingMask = cam.cullingMask;
-            cam.cullingMask &= ~(1 << gameObject.layer);
+            var cameras = Camera.allCameras;
+            for (var i = 0; i < cameras.Length; i++)
+            {
+                var cam = cameras[i];
+                if (cam == null || cam.targetTexture != null)
+                    continue;
+                if (cam.name.IndexOf("Reflection", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+
+                hiddenCameras.Add((cam, cam.cullingMask));
+                cam.cullingMask &= ~(1 << BirdSceneRoles.MirrorLayer);
+                cam.cullingMask |= 1 << BirdSceneRoles.UiLayer;
+            }
         }
 
         void RestoreMainCameraMask()
         {
-            if (hiddenFromCamera == null)
-                return;
+            for (var i = 0; i < hiddenCameras.Count; i++)
+            {
+                var snap = hiddenCameras[i];
+                if (snap.cam != null)
+                    snap.cam.cullingMask = snap.mask;
+            }
 
-            hiddenFromCamera.cullingMask = savedCullingMask;
-            hiddenFromCamera = null;
+            hiddenCameras.Clear();
         }
 
         void TryResolveFlightAnchor()
