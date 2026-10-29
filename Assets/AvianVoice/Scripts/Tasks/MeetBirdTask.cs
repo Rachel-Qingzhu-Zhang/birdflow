@@ -1,20 +1,21 @@
 using AvianVoice.Audio;
 using AvianVoice.Core;
-using AvianVoice.Data;
 using AvianVoice.Embodiment;
-using AvianVoice.Physiology;
 using AvianVoice.UI;
 using UnityEngine;
 
 namespace AvianVoice.Tasks
 {
+    /// <summary>
+    /// Meet Your Bird: look at your bird self in the mirror. No breath exercise.
+    /// Completes after a short look, then the player can move on.
+    /// </summary>
     public class MeetBirdTask : MonoBehaviour
     {
-        [SerializeField]
-        TaskManager taskManager;
+        const float LookSeconds = 6f;
 
         [SerializeField]
-        BreathSimulator breath;
+        TaskManager taskManager;
 
         [SerializeField]
         BirdFriendDemonstrator demonstrator;
@@ -23,34 +24,15 @@ namespace AvianVoice.Tasks
         SuccessChirpBurst successChirp;
 
         [SerializeField]
-        float syncThreshold = 0.8f;
-
-        [SerializeField]
-        float holdSeconds = 10f;
-
-        [SerializeField]
         bool enableDebugCheat = true;
 
-        ParrotMatchVisuals friendVisuals;
-        ParrotMatchVisuals playerVisuals;
         TaskFlowUI taskUi;
-        SessionRecorder recorder;
-        float syncHold;
-        float score;
+        float elapsed;
         bool completed;
 
         void Start()
         {
-            if (taskManager == null)
-                taskManager = FindAnyObjectByType<TaskManager>();
-            if (breath == null)
-                breath = FindAnyObjectByType<BreathSimulator>();
-            if (demonstrator == null)
-                demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            if (successChirp == null)
-                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
-            recorder = FindAnyObjectByType<SessionRecorder>();
-            EnsureFriendVisuals();
+            ResolveReferences();
         }
 
         void OnEnable()
@@ -59,27 +41,15 @@ namespace AvianVoice.Tasks
                 return;
 
             completed = false;
-            syncHold = 0f;
-            score = 0f;
-            if (breath == null)
-                breath = FindAnyObjectByType<BreathSimulator>();
-            if (demonstrator == null)
-                demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            breath?.ResetDepth();
-            demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.Intro4x4);
-            demonstrator?.RestartPattern();
-            if (demonstrator != null)
-                breath?.SetGuidedCycle(demonstrator.InhaleDuration, demonstrator.ExhaleDuration);
-            EnsurePlayerVisuals();
-            SetHud("Orange bird teaches: watch chest + listen. Match 4s in / 4s out with Space.");
-            Debug.Log("[AvianVoice] Meet Your Bird: sync breath with friend for 10s above 80%.");
+            elapsed = 0f;
+            ResolveReferences();
+            demonstrator?.SetTeachingActive(false);
+            Debug.Log("[AvianVoice] Meet Your Bird: look at your bird self. Breathing stays in the next scene.");
         }
 
         void OnDisable()
         {
-            friendVisuals?.ApplyMatch(0f);
-            playerVisuals?.ApplyMatch(0f);
-            breath?.ClearGuidedCycle();
+            demonstrator?.SetTeachingActive(true);
             BirdExperienceAudio.Ensure()?.StopAll();
         }
 
@@ -91,76 +61,41 @@ namespace AvianVoice.Tasks
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
                 if (!completed)
-                    CompleteSuccess(1f);
+                    Complete();
                 else
                     BirdExperienceAudio.Ensure()?.PlayForestReward();
                 Debug.Log("[AvianVoice] Meet cheat.");
                 return;
             }
 
-            if (breath == null || demonstrator == null)
+            if (completed)
                 return;
 
-            var sync = BreathSyncEvaluator.Evaluate(breath.Current, demonstrator);
-            score = Mathf.Lerp(score, sync, Time.deltaTime * 2f);
-            taskManager?.ReportScore(score);
-            recorder?.SetBreathSyncContext(sync, "intro_4x4");
-            SessionScoreCache.RecordSynchronization(sync);
-            SessionScoreCache.RecordBreathing(sync);
-            friendVisuals?.ApplyMatch(Mathf.Max(sync, breath.Current.depth >= 0.45f ? breath.Current.depth * 0.8f : 0f));
-            EnsurePlayerVisuals();
-            playerVisuals?.ApplyMatch(breath.Current.depth >= 0.45f ? breath.Current.depth : 0f);
-            if (sync >= syncThreshold)
-                BirdExperienceAudio.Ensure()?.PlayBreathReward();
-
-            if (sync >= syncThreshold)
-                syncHold += Time.deltaTime;
-            else
-                syncHold = 0f;
-
-            if (syncHold >= holdSeconds)
-            {
-                CompleteSuccess(score);
-                return;
-            }
-
-            var teaching = demonstrator.FormatTeachingLine();
-            SetHud($"{teaching}  |  sync {sync * 100f:0}% — hold {Mathf.Max(0f, holdSeconds - syncHold):0.0}s");
+            elapsed += Time.deltaTime;
+            if (elapsed >= LookSeconds)
+                Complete();
         }
 
-        void CompleteSuccess(float finalScore)
+        void Complete()
         {
             completed = true;
-            score = finalScore;
-            taskManager?.ReportScore(score);
-            friendVisuals?.PulsePerfect();
+            taskManager?.ReportScore(1f);
             if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
                 successChirp?.PlaySuccessBurst();
-            SetHud("Success! You met your bird self.");
+            SetStatus("You met your bird self.");
         }
 
-        void EnsureFriendVisuals()
+        void ResolveReferences()
         {
-            if (friendVisuals != null)
-                return;
-            var friend = BirdSceneRoles.Friend;
-            var host = friend != null ? friend.gameObject : gameObject;
-            friendVisuals = host.GetComponent<ParrotMatchVisuals>() ?? host.AddComponent<ParrotMatchVisuals>();
-            friendVisuals.BindFromScene();
+            if (taskManager == null)
+                taskManager = FindAnyObjectByType<TaskManager>();
+            if (demonstrator == null)
+                demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
+            if (successChirp == null)
+                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
         }
 
-        void EnsurePlayerVisuals()
-        {
-            if (playerVisuals != null)
-                return;
-            var player = BirdSceneRoles.Player;
-            if (player == null || player == BirdSceneRoles.Friend)
-                return;
-            playerVisuals = player.GetComponent<ParrotMatchVisuals>() ?? player.gameObject.AddComponent<ParrotMatchVisuals>();
-            playerVisuals.BindFromScene();
-        }
-
-        void SetHud(string message)
+        void SetStatus(string message)
         {
             if (taskUi == null)
                 taskUi = FindAnyObjectByType<TaskFlowUI>();

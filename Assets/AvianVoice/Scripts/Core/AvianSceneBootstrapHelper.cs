@@ -48,8 +48,61 @@ namespace AvianVoice.Core
             }
 
             ReparentBirdUnderHeadAnchor(active);
-            EnsureSingleAudioListener(active);
+            EnsureHearing();
             DisableNonXrCameras(active);
+        }
+
+        /// <summary>
+        /// One listener on the camera the player actually sees. Reflection cameras
+        /// created with a Camera component also receive a listener, and two listeners
+        /// silence the whole scene on Windows.
+        /// </summary>
+        public static void EnsureHearing()
+        {
+            var viewer = ResolveViewerCamera();
+            if (viewer == null)
+                return;
+
+            var keep = viewer.GetComponent<AudioListener>();
+            if (keep == null)
+                keep = viewer.gameObject.AddComponent<AudioListener>();
+            keep.enabled = true;
+
+            var listeners = Object.FindObjectsByType<AudioListener>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (var i = 0; i < listeners.Length; i++)
+            {
+                var listener = listeners[i];
+                if (listener == null || listener == keep)
+                    continue;
+                Object.Destroy(listener);
+            }
+
+            AudioListener.volume = 1f;
+            AudioListener.pause = false;
+        }
+
+        static Camera ResolveViewerCamera()
+        {
+            var main = Camera.main;
+            if (main != null && main.enabled && main.gameObject.activeInHierarchy && main.targetTexture == null)
+                return main;
+
+            Camera best = null;
+            var bestDepth = float.NegativeInfinity;
+            var cameras = Object.FindObjectsByType<Camera>(FindObjectsSortMode.None);
+            for (var i = 0; i < cameras.Length; i++)
+            {
+                var cam = cameras[i];
+                if (cam == null || !cam.enabled || !cam.gameObject.activeInHierarchy || cam.targetTexture != null)
+                    continue;
+                if (cam.depth < bestDepth)
+                    continue;
+                bestDepth = cam.depth;
+                best = cam;
+            }
+
+            return best;
         }
 
         static void ReparentBirdUnderHeadAnchor(Transform activeOrigin)
@@ -105,23 +158,5 @@ namespace AvianVoice.Core
             }
         }
 
-        static void EnsureSingleAudioListener(Transform xrOrigin)
-        {
-            var listeners = Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None);
-            Transform xrCamera = null;
-            var camOffset = xrOrigin.Find("Camera Offset");
-            if (camOffset != null)
-                xrCamera = camOffset.Find("Main Camera");
-            if (xrCamera == null)
-                xrCamera = xrOrigin.GetComponentInChildren<Camera>()?.transform;
-
-            foreach (var listener in listeners)
-            {
-                if (xrCamera != null && listener.transform == xrCamera)
-                    listener.enabled = true;
-                else
-                    listener.enabled = false;
-            }
-        }
     }
 }

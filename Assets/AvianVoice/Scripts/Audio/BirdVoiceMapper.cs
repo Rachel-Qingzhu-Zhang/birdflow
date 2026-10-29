@@ -15,6 +15,8 @@ namespace AvianVoice.Audio
         AudioSource transformSource;
         AudioSource assistiveMonitorSource;
         BirdCallLibrary library;
+        BirdSongSynth synth;
+        float lastSynthPitchHz;
 
         VoiceMapMode mode = VoiceMapMode.Transform;
         float lastAssistiveUpdate;
@@ -75,6 +77,18 @@ namespace AvianVoice.Audio
 
             var v = analyzer.Current;
 
+            if (mode == VoiceMapMode.Transform && settings.useSynthTransform)
+                EnsureSynth();
+
+            if (mode == VoiceMapMode.Transform && UseSynth)
+            {
+                UpdateSynth(v);
+                lastFrameLoudness = v.loudness;
+                return;
+            }
+
+            synth?.Silence();
+
             if (mode == VoiceMapMode.Assistive)
             {
                 if (v.voiced < 0.5f)
@@ -99,20 +113,34 @@ namespace AvianVoice.Audio
             requireOnsetAfterSilence = false;
 
             var pitchHz = v.pitchHz > 0f ? v.pitchHz : settings.referencePitchHz;
-            var loudness = v.loudness;
-            if (AvianVoice.Tasks.TaskActivity.IsActive("singing"))
-                loudness = ApplySingingRichness(loudness);
-            library?.PlayNearest(transformSource, pitchHz, loudness, settings);
+            library?.PlayNearest(transformSource, pitchHz, v.loudness, settings);
             lastTriggerAttemptTime = Time.time;
             lastFrameLoudness = v.loudness;
         }
 
-        float ApplySingingRichness(float loudness)
+        bool UseSynth => settings.useSynthTransform && synth != null;
+
+        void EnsureSynth()
         {
-            var breathSim = FindAnyObjectByType<AvianVoice.Physiology.BreathSimulator>();
-            if (breathSim != null && breathSim.Current.depth >= 0.7f)
-                return Mathf.Clamp01(loudness * 1.35f + 0.06f);
-            return loudness;
+            if (synth != null)
+                return;
+
+            var parent = transformSource != null ? transformSource.transform : transform;
+            synth = BirdSongSynth.Ensure(parent, transformSource, settings);
+        }
+
+        void UpdateSynth(VoiceFrame v)
+        {
+            var hasLevel = v.loudness >= 0.08f;
+            var voiced = hasLevel && (v.voiced > 0.5f || v.pitchHz > 0f);
+            if (voiced && v.pitchHz > 0f)
+                lastSynthPitchHz = v.pitchHz;
+            else if (voiced && lastSynthPitchHz <= 0f)
+                lastSynthPitchHz = settings != null ? settings.referencePitchHz : 220f;
+            else if (!voiced)
+                lastSynthPitchHz = 0f;
+
+            synth.SetVoice(voiced, lastSynthPitchHz, v.loudness);
         }
 
         bool ShouldTriggerTransformCall(VoiceFrame v)

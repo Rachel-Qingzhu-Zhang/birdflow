@@ -12,6 +12,8 @@ namespace AvianVoice.Core
         public float loudness;
         public float voiced;
         public float latencyMs;
+        /// <summary>YIN periodicity confidence of the raw estimate (0-1).</summary>
+        public float pitchConfidence;
     }
 
     public struct BreathFrame

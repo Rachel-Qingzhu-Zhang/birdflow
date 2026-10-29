@@ -1,0 +1,11 @@
+Model Information:
+* title:	Mirror baroque
+* source:	https://sketchfab.com/3d-models/mirror-baroque-ee2abf39913346789d34a15a414b355f
+* author:	Wazahole (https://sketchfab.com/Wazahole)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Mirror baroque" (https://sketchfab.com/3d-models/mirror-baroque-ee2abf39913346789d34a15a414b355f) by Wazahole (https://sketchfab.com/Wazahole) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

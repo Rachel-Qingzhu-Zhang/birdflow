@@ -10,21 +10,6 @@ namespace AvianVoice.Core
     /// </summary>
     public static class AvianInput
     {
-        public static bool IsSpaceHeld()
-        {
-#if ENABLE_INPUT_SYSTEM
-            var keyboard = Keyboard.current;
-            if (keyboard != null)
-                return keyboard.spaceKey.isPressed;
-
-            // Only when no keyboard device (common under XR focus): use LMB as inhale.
-            var mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.isPressed)
-                return true;
-#endif
-            return Input.GetKey(KeyCode.Space);
-        }
-
         public static bool WasTPressedThisFrame()
         {
 #if ENABLE_INPUT_SYSTEM
@@ -72,6 +57,16 @@ namespace AvianVoice.Core
                 9 => Input.GetKeyDown(KeyCode.Alpha9),
                 _ => false
             };
+        }
+
+        /// <summary>Open or close the wish / scene menu (M).</summary>
+        public static bool WasWishMenuPressedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null && Keyboard.current.mKey.wasPressedThisFrame)
+                return true;
+#endif
+            return Input.GetKeyDown(KeyCode.M);
         }
 
         public static bool WasNextTaskPressedThisFrame()

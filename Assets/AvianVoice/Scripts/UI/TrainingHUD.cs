@@ -37,7 +37,7 @@ namespace AvianVoice.UI
             breath = breathSimulator;
 
             if (breathHintText != null)
-                breathHintText.text = "Hold Space (or LMB) = Inhale";
+                breathHintText.text = "Breathe along with your bird";
         }
 
         void Update()

@@ -10,6 +10,7 @@ namespace AvianVoice.Embodiment
         public static void PrepareInstance(Transform bird, Transform templateBird)
         {
             ParrotEmbodimentWiring.DisableConflictingParrotDemoScript(bird);
+            ParrotEmbodimentWiring.HideRigControlMeshes(bird);
             StripFriendOnlyComponents(bird);
             StripRoleMarkerSpheres(bird);
 
@@ -53,6 +54,13 @@ namespace AvianVoice.Embodiment
                 Object.Destroy(cue);
             foreach (var visuals in bird.GetComponents<ParrotMatchVisuals>())
                 Object.Destroy(visuals);
+            foreach (var flight in bird.GetComponents<ParrotFlightPresentation>())
+                Object.Destroy(flight);
+            foreach (var child in bird.GetComponentsInChildren<Transform>(true))
+            {
+                if (child != bird && child.name == "PitchMatchPulseLight")
+                    Object.Destroy(child.gameObject);
+            }
         }
 
         public static void StripRoleMarkerSpheres(Transform root)

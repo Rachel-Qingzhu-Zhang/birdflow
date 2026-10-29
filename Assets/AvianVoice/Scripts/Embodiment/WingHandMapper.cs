@@ -71,6 +71,12 @@ namespace AvianVoice.Embodiment
             if (settings == null || !settings.wingMappingEnabled)
                 return;
 
+            // Pack parrot wings are posed by ParrotBreathEmbodiment / the flight animator.
+            // Hand or simulated Euler-Z mapping twists this rig because both humerus bones
+            // share the same world-space local Z.
+            if (UsesParrotWingRig())
+                return;
+
             var dt = Time.deltaTime;
             var smooth = 1f - Mathf.Exp(-settings.paramSmooth * dt);
             smoothedBreathDepth = Mathf.Lerp(smoothedBreathDepth, breathFrame.depth, smooth);

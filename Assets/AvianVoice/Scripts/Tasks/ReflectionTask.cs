@@ -82,7 +82,7 @@ namespace AvianVoice.Tasks
                 }
 
                 ShowScores();
-                SetHud(BuildHudText(true));
+                SetHud(BuildScoreText());
                 Debug.Log("[AvianVoice] Reflection cheat: scores and question shown.");
                 return;
             }
@@ -96,7 +96,7 @@ namespace AvianVoice.Tasks
                 successChirp?.PlaySuccessBurst();
             }
 
-            SetHud(BuildHudText(timer > fadeDuration));
+            SetHud(BuildScoreText());
         }
 
         void UpdateBreathSync()
@@ -118,23 +118,6 @@ namespace AvianVoice.Tasks
                  SessionScoreCache.SynchronizationScore) / 3f);
         }
 
-        string BuildHudText(bool showQuestionnaire)
-        {
-            var scores = BuildScoreText();
-            var teaching = demonstrator != null
-                ? demonstrator.FormatTeachingLine()
-                : string.Empty;
-            var syncLine = $"sync {liveSync * 100f:0}%";
-            var body = string.IsNullOrEmpty(teaching)
-                ? $"{scores}\n{syncLine}"
-                : $"{scores}\n{teaching}  |  {syncLine}";
-
-            if (!showQuestionnaire)
-                return body;
-
-            return body + "\nHow did it feel to become a bird? (placeholder — press N for next task)";
-        }
-
         static string BuildScoreText()
         {
             return
@@ -147,8 +130,8 @@ namespace AvianVoice.Tasks
         {
             if (friendVisuals != null)
                 return;
-            var friend = BirdSceneRoles.Friend;
-            var host = friend != null ? friend.gameObject : gameObject;
+            var bird = BirdSceneRoles.Friend != null ? BirdSceneRoles.Friend : BirdSceneRoles.Player;
+            var host = bird != null ? bird.gameObject : gameObject;
             friendVisuals = host.GetComponent<ParrotMatchVisuals>() ?? host.AddComponent<ParrotMatchVisuals>();
             friendVisuals.BindFromScene();
         }

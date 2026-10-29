@@ -77,6 +77,8 @@ namespace AvianVoice.Embodiment
         GameObject mirrorQuad;
         MirrorRenderer fragilem17Renderer;
         Transform worldMirrorRoot;
+        MeshRenderer baroqueGlassRenderer;
+        bool usingBaroqueGlass;
         ReflectionFillLighting reflectionFillLighting;
         bool built;
         bool mirrorVisible;
@@ -127,6 +129,27 @@ namespace AvianVoice.Embodiment
 
         void EnsureFragilem17Bound()
         {
+            if (usingBaroqueGlass)
+            {
+                var glassReady = baroqueGlassRenderer != null
+                                 && IsFragilem17MirrorMaterial(baroqueGlassRenderer.sharedMaterial)
+                                 && baroqueGlassRenderer.GetComponent<MirrorSurface>() != null
+                                 && fragilem17Renderer != null;
+                if (!glassReady
+                    && BaroqueMirrorGlass.TryBind(
+                        worldMirrorRoot,
+                        CreateFragilem17Settings(),
+                        out var boundRenderer,
+                        out var glass))
+                {
+                    fragilem17Renderer = boundRenderer;
+                    baroqueGlassRenderer = glass;
+                }
+
+                BaroqueMirrorGlass.HideFlatPanels(worldMirrorRoot);
+                return;
+            }
+
             if (mirrorQuad == null)
                 return;
 
@@ -151,6 +174,15 @@ namespace AvianVoice.Embodiment
 
         void SetMirrorVisualsEnabled(bool active)
         {
+            BaroqueMirrorGlass.SetModelVisible(active);
+
+            if (usingBaroqueGlass)
+            {
+                BaroqueMirrorGlass.SetGlassVisible(baroqueGlassRenderer, active);
+                BaroqueMirrorGlass.HideFlatPanels(worldMirrorRoot);
+                return;
+            }
+
             if (mirrorQuad != null)
             {
                 var quadRenderer = mirrorQuad.GetComponent<MeshRenderer>();
@@ -282,7 +314,14 @@ namespace AvianVoice.Embodiment
                     CreateWorldMirrorVisuals(worldMirrorRoot, createNewVisuals: true);
             }
 
-            fragilem17Renderer = ConfigureFragilem17OnQuad(mirrorQuad);
+            usingBaroqueGlass = BaroqueMirrorGlass.TryBind(
+                worldMirrorRoot,
+                CreateFragilem17Settings(),
+                out fragilem17Renderer,
+                out baroqueGlassRenderer);
+            if (!usingBaroqueGlass)
+                fragilem17Renderer = ConfigureFragilem17OnQuad(mirrorQuad);
+
             SetMirrorDisplayLayers(worldMirrorRoot);
 
             if (mirrorQuad != null)
@@ -294,10 +333,14 @@ namespace AvianVoice.Embodiment
 
             if (manualSceneMirror)
             {
-                NormalizeMirrorRootScale(worldMirrorRoot, mirrorQuad != null ? mirrorQuad.transform : null);
-                Debug.Log(
-                    "[AvianVoice] Mirror uses Fragilem17 at scene transform " +
-                    worldMirrorRoot.position + ".");
+                if (!usingBaroqueGlass)
+                {
+                    NormalizeMirrorRootScale(worldMirrorRoot, mirrorQuad != null ? mirrorQuad.transform : null);
+                    Debug.Log(
+                        "[AvianVoice] Mirror uses Fragilem17 at scene transform " +
+                        worldMirrorRoot.position + ".");
+                }
+
                 return;
             }
 
@@ -378,11 +421,8 @@ namespace AvianVoice.Embodiment
             fragilem17Renderer = ConfigureFragilem17OnQuad(mirrorQuad);
         }
 
-        MirrorRenderer ConfigureFragilem17OnQuad(GameObject quad)
+        Fragilem17MirrorBridge.Settings CreateFragilem17Settings(GameObject quad = null)
         {
-            if (quad == null)
-                return null;
-
             var settings = Fragilem17MirrorBridge.CreateDefaultSettings();
             settings.TextureSize = textureSize;
             settings.MirrorPanelSize = worldMirrorSize;
@@ -400,7 +440,15 @@ namespace AvianVoice.Embodiment
                 settings.MirrorPanelSize = new Vector2(Mathf.Abs(scale.x), Mathf.Abs(scale.y));
             }
 
-            return Fragilem17MirrorBridge.ConfigureMirrorQuad(quad, settings);
+            return settings;
+        }
+
+        MirrorRenderer ConfigureFragilem17OnQuad(GameObject quad)
+        {
+            if (quad == null)
+                return null;
+
+            return Fragilem17MirrorBridge.ConfigureMirrorQuad(quad, CreateFragilem17Settings(quad));
         }
 
         void ConfigureMirrorVisuals(Transform root)

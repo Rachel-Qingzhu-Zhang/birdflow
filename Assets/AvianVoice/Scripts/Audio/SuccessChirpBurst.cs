@@ -36,7 +36,9 @@ namespace AvianVoice.Audio
                     source = gameObject.AddComponent<AudioSource>();
             }
             source.playOnAwake = false;
-            source.spatialBlend = 0.5f;
+            source.spatialBlend = 0f;
+            source.spatialize = false;
+            source.volume = 1f;
         }
 
         public void PlaySuccessBurst()

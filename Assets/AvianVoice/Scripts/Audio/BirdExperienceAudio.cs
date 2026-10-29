@@ -13,6 +13,7 @@ namespace AvianVoice.Audio
 
         AudioSource referenceSource;
         AudioSource feedbackSource;
+        AudioSource cueSource;
         AudioClip pitchClip;
         AudioClip melodyClip;
         AudioClip breathRewardClip;
@@ -22,6 +23,18 @@ namespace AvianVoice.Audio
 
         public bool HasPitchClip => pitchClip != null;
         public bool HasMelodyClip => melodyClip != null;
+        public bool IsReferencePlaying => referenceSource != null && referenceSource.isPlaying;
+
+        public float ReferenceSecondsRemaining
+        {
+            get
+            {
+                if (referenceSource == null || !referenceSource.isPlaying || referenceSource.clip == null)
+                    return 0f;
+                var pitch = Mathf.Max(0.01f, referenceSource.pitch);
+                return Mathf.Max(0f, (referenceSource.clip.length - referenceSource.time) / pitch);
+            }
+        }
 
         public static BirdExperienceAudio Ensure()
         {
@@ -43,25 +56,96 @@ namespace AvianVoice.Audio
             melodyClip?.LoadAudioData();
             breathRewardClip?.LoadAudioData();
             forestRewardClip?.LoadAudioData();
-            referenceSource = CreateSource("BirdReference");
-            feedbackSource = CreateSource("BirdFeedback");
+        }
+
+        void Start()
+        {
+            EnsureSources();
+        }
+
+        void EnsureSources()
+        {
+            referenceSource = EnsureOne(referenceSource, "BirdReference");
+            feedbackSource = EnsureOne(feedbackSource, "BirdFeedback");
+            cueSource = EnsureOne(cueSource, "BirdCue");
+        }
+
+        AudioSource EnsureOne(AudioSource current, string childName)
+        {
+            if (current != null)
+                return current;
+
+            var created = CreateSource(childName);
+            Configure(created);
+            return created;
+        }
+
+        void PlaceReferenceNear(Transform bird)
+        {
+            if (referenceSource == null)
+                return;
+
+            if (referenceSource.transform.parent != transform)
+                referenceSource.transform.SetParent(transform, true);
+
+            if (bird != null)
+                referenceSource.transform.position = bird.position + Vector3.up * 0.25f;
+
+            referenceSource.spatialBlend = 0f;
+            referenceSource.spatialize = false;
+            referenceSource.dopplerLevel = 0f;
+            referenceSource.volume = 1f;
+        }
+
+        public AudioSource CueSource
+        {
+            get
+            {
+                EnsureSources();
+                if (cueSource != null)
+                {
+                    cueSource.spatialBlend = 0f;
+                    cueSource.spatialize = false;
+                    cueSource.volume = 1f;
+                }
+
+                return cueSource;
+            }
         }
 
         public void PlayPitchStep(int step, int stepCount, float pitchRatio)
         {
-            if (pitchClip == null)
+            PlayPitchStepNear(null, step, stepCount, pitchRatio);
+        }
+
+        /// <summary>
+        /// Plays one phrase of the pitch clip from the singing bird so it is heard beside the listener.
+        /// </summary>
+        public void PlayPitchStepNear(Transform bird, int step, int stepCount, float pitchRatio)
+        {
+            EnsureSources();
+            if (pitchClip == null || referenceSource == null)
                 return;
 
+            PlaceReferenceNear(bird);
             if (pitchClip.length > 2.8f && stepCount > 1)
                 PlaySlice(pitchClip, step, stepCount);
             else
-                PlayOneShot(referenceSource, pitchClip, 0.9f, Mathf.Clamp(pitchRatio, 0.5f, 1.8f));
+                PlayOneShot(referenceSource, pitchClip, 1f, Mathf.Clamp(pitchRatio, 0.5f, 1.8f));
         }
 
         public void PlayMelody(bool restart)
         {
+            PlayMelodyNear(null, restart);
+        }
+
+        public void PlayMelodyNear(Transform bird, bool restart)
+        {
+            EnsureSources();
             if (melodyClip == null || referenceSource == null)
                 return;
+
+            PlaceReferenceNear(bird);
 
             if (!restart && referenceSource.isPlaying && referenceSource.clip == melodyClip)
                 return;
@@ -83,6 +167,7 @@ namespace AvianVoice.Audio
         /// <summary>Longer tree-birds bed while a breath pattern is actually matched.</summary>
         public void PlayBreathReward()
         {
+            EnsureSources();
             if (breathRewardClip == null || feedbackSource == null)
                 return;
 
@@ -99,6 +184,7 @@ namespace AvianVoice.Audio
         /// <summary>Short forest sting for a completed step. Does not replace scene 6's chirp burst.</summary>
         public bool PlayForestReward()
         {
+            EnsureSources();
             if (forestRewardClip == null || feedbackSource == null)
                 return false;
 
@@ -136,10 +222,10 @@ namespace AvianVoice.Audio
             var start = Mathf.Clamp(step, 0, stepCount - 1) * slice;
             referenceSource.clip = clip;
             referenceSource.pitch = 1f;
-            referenceSource.volume = 0.9f;
+            referenceSource.volume = 1f;
             referenceSource.loop = false;
-            referenceSource.Play();
             referenceSource.time = Mathf.Clamp(start, 0f, Mathf.Max(0f, clip.length - 0.05f));
+            referenceSource.Play();
             sliceRoutine = StartCoroutine(StopReferenceAfter(slice * 0.92f));
         }
 
@@ -172,11 +258,23 @@ namespace AvianVoice.Audio
                 go.transform.SetParent(transform, false);
             }
 
-            var source = go.GetComponent<AudioSource>() ?? go.AddComponent<AudioSource>();
-            source.playOnAwake = false;
-            source.spatialBlend = 0.15f;
-            source.loop = false;
+            var source = go.GetComponent<AudioSource>();
+            if (source == null)
+                source = go.AddComponent<AudioSource>();
             return source;
+        }
+
+        static void Configure(AudioSource source)
+        {
+            if (source == null)
+                return;
+
+            source.playOnAwake = false;
+            source.spatialBlend = 0f;
+            source.spatialize = false;
+            source.volume = 1f;
+            source.loop = false;
+            source.dopplerLevel = 0f;
         }
     }
 }

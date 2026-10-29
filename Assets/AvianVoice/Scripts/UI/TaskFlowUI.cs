@@ -19,6 +19,8 @@ namespace AvianVoice.UI
         Button nextTaskButton;
 
         TaskManager taskManager;
+        string liveStatus = "";
+        float lastScore;
 
         public void Bind(TaskManager manager)
         {
@@ -44,7 +46,11 @@ namespace AvianVoice.UI
             OnScore(0f);
         }
 
-        void OnScore(float score) => SetScore(score);
+        void OnScore(float score)
+        {
+            lastScore = score;
+            PaintStatus();
+        }
 
         void OnDestroy()
         {
@@ -56,23 +62,35 @@ namespace AvianVoice.UI
 
         public void SetScore(float score)
         {
-            if (scoreText != null)
-                scoreText.text = $"Score: {score:0}";
+            lastScore = score;
+            PaintStatus();
         }
 
         void Refresh(string taskName, string instruction)
         {
+            liveStatus = "";
             if (titleText != null)
                 titleText.text = taskName;
             if (instructionText != null)
                 instructionText.text = instruction;
+            PaintStatus();
         }
 
-        /// <summary>Live task progress (pitch/song phases) without changing the task title.</summary>
+        /// <summary>Live progress under the guide. Does not replace the two-sentence guide.</summary>
         public void SetProgressInstruction(string message)
         {
-            if (!string.IsNullOrEmpty(message) && instructionText != null)
-                instructionText.text = message;
+            liveStatus = message ?? "";
+            PaintStatus();
+        }
+
+        void PaintStatus()
+        {
+            if (scoreText == null)
+                return;
+
+            scoreText.text = string.IsNullOrEmpty(liveStatus)
+                ? $"Score: {lastScore:0}"
+                : liveStatus;
         }
     }
 }

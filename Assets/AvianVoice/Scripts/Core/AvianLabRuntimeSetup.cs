@@ -116,25 +116,19 @@ namespace AvianVoice.Core
                            xrOrigin.AddComponent<PlatformRuntimePermissions>();
             }
 
-            Debug.Log("[AvianVoice] Lab ready on '" + xrOrigin.name + "'. Speak into mic, hold Space=breath, T=voice mode. Look for HUD near hands.");
+            Debug.Log("[AvianVoice] Lab ready on '" + xrOrigin.name + "'. Speak or sing into the mic, T=voice mode. Look for HUD near hands.");
             ApplyHudVisibility(settings);
         }
 
         static bool SceneHasRoleParrots()
         {
-            var hasFriend = false;
-            var hasPlayer = false;
             foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (t == null)
-                    continue;
-                if (t.name == BirdSceneRoles.FriendName)
-                    hasFriend = true;
-                else if (t.name == BirdSceneRoles.PlayerName)
-                    hasPlayer = true;
+                if (t != null && t.name == BirdSceneRoles.PlayerName)
+                    return true;
             }
 
-            return hasFriend && hasPlayer;
+            return false;
         }
 
         static void StripPlaceholderIfRoleBirdsPresent(Transform head)
@@ -165,6 +159,7 @@ namespace AvianVoice.Core
 
             var toggle = head.GetComponentInChildren<VoiceModeToggle>(true);
             CreateTaskModePanel(head);
+            SceneWishMenu.Ensure(head);
             EnsureTaskKeyboardSwitcher(xrOrigin);
             if (bootstrap != null)
                 bootstrap.AttachUi(hud, toggle);
@@ -175,6 +170,7 @@ namespace AvianVoice.Core
             var hud = CreateHud(head);
             var toggle = CreateModeToggle(head);
             CreateTaskModePanel(head);
+            SceneWishMenu.Ensure(head);
             EnsureTaskKeyboardSwitcher(xrOrigin);
             var bootstrap = xrOrigin.GetComponent<AvianAppBootstrap>();
             if (bootstrap != null)
@@ -292,24 +288,28 @@ namespace AvianVoice.Core
             var title = CreateText(
                 canvasGo.transform,
                 "TaskTitle",
-                new Vector2(0f, 28f),
+                new Vector2(0f, 68f),
                 "Avian Lab",
                 AvianHudLayout.TaskTitleSize,
                 AvianHudLayout.TaskTitleFontSize);
             var instruction = CreateText(
                 canvasGo.transform,
                 "TaskInstruction",
-                new Vector2(0f, -8f),
+                new Vector2(0f, 22f),
                 "1-6 switch task | N next | C cheat",
                 AvianHudLayout.TaskInstructionSize,
                 AvianHudLayout.TaskBodyFontSize);
+            instruction.horizontalOverflow = HorizontalWrapMode.Wrap;
+            instruction.verticalOverflow = VerticalWrapMode.Overflow;
             var score = CreateText(
                 canvasGo.transform,
                 "TaskScore",
-                new Vector2(0f, -38f),
+                new Vector2(0f, -46f),
                 "Score: 0",
                 AvianHudLayout.TaskScoreSize,
                 AvianHudLayout.TaskBodyFontSize);
+            score.horizontalOverflow = HorizontalWrapMode.Wrap;
+            score.verticalOverflow = VerticalWrapMode.Overflow;
 
             var flowUi = canvasGo.AddComponent<TaskFlowUI>();
             var binder = canvasGo.AddComponent<TaskFlowUIRuntimeBinder>();

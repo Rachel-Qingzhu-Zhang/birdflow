@@ -321,23 +321,23 @@ namespace AvianVoice.Core
             if (parrotRoot == null)
                 return;
 
-            if (NeedsParrotEmbodimentRewire() &&
+            if (NeedsParrotEmbodimentRewire(parrotRoot) &&
                 ParrotEmbodimentWiring.TryResolve(parrotRoot, out var refs))
             {
                 leftWingBone = refs.leftWing;
                 rightWingBone = refs.rightWing;
                 chestTransform = refs.chest;
                 secondaryChestTransform = refs.secondaryChest;
-                if (refs.neck != null && (beakTransform == null || IsParrotControlBone(beakTransform)))
+                if (refs.neck != null && (beakTransform == null || IsParrotControlBone(beakTransform) || !IsUnder(beakTransform, parrotRoot)))
                 {
                     var headBone = refs.neck.Find("parrot_Head_bone");
                     if (headBone != null)
                         beakTransform = headBone;
                 }
-                if (birdAnimator == null)
+                if (birdAnimator == null || !IsUnder(birdAnimator.transform, parrotRoot))
                     birdAnimator = refs.animator;
             }
-            else if (NeedsParrotEmbodimentRewire())
+            else if (NeedsParrotEmbodimentRewire(parrotRoot))
             {
                 Debug.LogWarning("[AvianVoice] Parrot found but breath bones could not be resolved on '" + parrotRoot.name + "'.");
             }
@@ -390,7 +390,7 @@ namespace AvianVoice.Core
 
         static void WireSceneRoleParrotComponents(Transform parrotRoot)
         {
-            if (parrotRoot.name == BirdSceneRoles.FriendName || parrotRoot.name == "Parrot")
+            if (parrotRoot.name == BirdSceneRoles.FriendName)
             {
                 var playerBreath = parrotRoot.GetComponent<ParrotBreathEmbodiment>();
                 if (playerBreath != null)
@@ -405,9 +405,13 @@ namespace AvianVoice.Core
             pin.SetPinEnabled(true);
         }
 
-        bool NeedsParrotEmbodimentRewire()
+        bool NeedsParrotEmbodimentRewire(Transform parrotRoot)
         {
             if (leftWingBone == null || rightWingBone == null || chestTransform == null)
+                return true;
+
+            if (parrotRoot != null &&
+                (!IsUnder(leftWingBone, parrotRoot) || !IsUnder(rightWingBone, parrotRoot) || !IsUnder(chestTransform, parrotRoot)))
                 return true;
 
             if (IsParrotControlBone(chestTransform) || IsParrotControlBone(beakTransform))
@@ -419,6 +423,13 @@ namespace AvianVoice.Core
             return secondaryChestTransform == null;
         }
 
+        static bool IsUnder(Transform bone, Transform root)
+        {
+            if (bone == null || root == null)
+                return false;
+            return bone == root || bone.IsChildOf(root);
+        }
+
         static bool IsParrotControlBone(Transform bone)
         {
             return bone != null && bone.name.EndsWith("_ctrl");
@@ -426,19 +437,19 @@ namespace AvianVoice.Core
 
         static Transform FindActiveParrotInScene()
         {
-            Transform friend = null;
+            Transform player = null;
             Transform legacy = null;
             foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
                 if (!t.gameObject.activeInHierarchy)
                     continue;
-                if (t.name == BirdSceneRoles.FriendName)
-                    friend = t;
+                if (t.name == BirdSceneRoles.PlayerName)
+                    player = t;
                 else if (t.name == "Parrot")
                     legacy = t;
             }
 
-            return friend != null ? friend : legacy;
+            return player != null ? player : legacy;
         }
 
         static Transform FindCameraOffsetInHierarchy(Transform root)

@@ -55,7 +55,7 @@ namespace AvianVoice.Editor
             WireBootstrapOnXrRig();
             ApplyParrotSceneOverrides();
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-            Debug.Log("[AvianVoice] Avian Lab setup applied. Save scene (Ctrl+S), then Play and hold Space.");
+            Debug.Log("[AvianVoice] Avian Lab setup applied. Save scene (Ctrl+S), then Play.");
         }
 
         const string ParrotPrefabPath = "Assets/Parrot/Prefabs/Parrot.prefab";
@@ -439,7 +439,7 @@ namespace AvianVoice.Editor
             EditorSceneManager.MarkSceneDirty(scene);
 
             Debug.Log("[AvianVoice] Pigeon FPV body wired on '" + handsOrigin.name +
-                      "'. Save scene (Ctrl+S), then Play and hold Space for breath.");
+                      "'. Save scene (Ctrl+S), then Play.");
         }
 
         [MenuItem("Avian Voice/Restore Parrot Body In Open Scene")]

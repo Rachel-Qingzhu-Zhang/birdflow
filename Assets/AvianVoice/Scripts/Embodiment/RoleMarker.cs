@@ -65,29 +65,21 @@ namespace AvianVoice.Embodiment
         }
 
         /// <summary>
-        /// Perch tasks (1/2/6) show markers; flight/pond tasks hide them.
+        /// Single-bird experience: role spheres are disabled for every task.
         /// </summary>
         public static void SetMarkersForTask(string taskId)
         {
-            var show = taskId is "meet" or "breath_sync" or "reflection" or "lab";
             EnsureMarkersExist();
-            SetAllMarkersVisible(show);
         }
 
+        /// <summary>Removes any role marker left in the scene.</summary>
         public static void EnsureMarkersExist()
         {
-            AttachIfNeeded(BirdSceneRoles.Friend, Role.Friend);
-            AttachIfNeeded(BirdSceneRoles.Player, Role.Player);
-        }
-
-        static void AttachIfNeeded(Transform bird, Role birdRole)
-        {
-            if (bird == null)
-                return;
-
-            var marker = bird.GetComponent<RoleMarker>() ?? bird.gameObject.AddComponent<RoleMarker>();
-            marker.Configure(birdRole);
-            marker.SetMarkerVisible(true);
+            foreach (var marker in Object.FindObjectsByType<RoleMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (marker != null)
+                    Destroy(marker);
+            }
         }
 
         void LateUpdate()

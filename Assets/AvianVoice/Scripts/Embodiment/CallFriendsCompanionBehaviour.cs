@@ -254,10 +254,9 @@ namespace AvianVoice.Embodiment
             if (chirpSource == null)
                 chirpSource = gameObject.AddComponent<AudioSource>();
             chirpSource.playOnAwake = false;
-            chirpSource.spatialBlend = 0.75f;
-            chirpSource.volume = 0.85f;
-            chirpSource.minDistance = 0.5f;
-            chirpSource.maxDistance = 36f;
+            chirpSource.spatialBlend = 0f;
+            chirpSource.spatialize = false;
+            chirpSource.volume = 1f;
         }
 
         void PlayChirpEcho()

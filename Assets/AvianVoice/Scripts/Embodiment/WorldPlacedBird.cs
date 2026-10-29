@@ -275,7 +275,13 @@ namespace AvianVoice.Embodiment
         void EnableAllRenderers()
         {
             foreach (var r in GetComponentsInChildren<Renderer>(true))
+            {
+                if (r == null || ParrotEmbodimentWiring.IsRigControlObject(r.gameObject))
+                    continue;
                 r.enabled = true;
+            }
+
+            ParrotEmbodimentWiring.HideRigControlMeshes(transform);
         }
 
         void DisableCharacterController()
@@ -322,12 +328,18 @@ namespace AvianVoice.Embodiment
 
         public static Transform FindParrotInScene()
         {
+            if (BirdSceneRoles.Player != null)
+                return BirdSceneRoles.Player;
+
+            Transform legacy = null;
             foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (t.name == BirdSceneRoles.FriendName || t.name == "Parrot")
+                if (t.name == BirdSceneRoles.PlayerName)
                     return t;
+                if (t.name == "Parrot")
+                    legacy = t;
             }
-            return null;
+            return legacy;
         }
 
         static void SetLayerRecursive(GameObject go, int layer)

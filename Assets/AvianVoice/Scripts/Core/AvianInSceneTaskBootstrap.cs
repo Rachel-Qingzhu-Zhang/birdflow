@@ -30,6 +30,7 @@ namespace AvianVoice.Core
             AvianLabSceneLayout.ApplyRuntimeLayout();
             AvianHudLayerSetup.ApplyToXrRig();
             ApplyHudVisibility();
+            EnsureWishMenu(xrOrigin);
             BirdSceneRoles.EnsureSetup();
             SuppressAlternateBirdBodies();
             RoleMarker.EnsureMarkersExist();
@@ -39,10 +40,10 @@ namespace AvianVoice.Core
             var taskRoot = GameObject.Find("TaskRoot") ?? new GameObject("TaskRoot");
             if (taskRoot.GetComponent<BirdSceneRolesLayout>() == null)
                 taskRoot.AddComponent<BirdSceneRolesLayout>();
-            if (BirdSceneRoles.Friend != null)
+            if (BirdSceneRoles.Player != null)
             {
-                taskRoot.transform.position = BirdSceneRoles.Friend.position;
-                taskRoot.transform.rotation = BirdSceneRoles.Friend.rotation;
+                taskRoot.transform.position = BirdSceneRoles.Player.position;
+                taskRoot.transform.rotation = BirdSceneRoles.Player.rotation;
             }
 
             var demonstrator = taskRoot.GetComponent<BirdFriendDemonstrator>() ?? taskRoot.AddComponent<BirdFriendDemonstrator>();
@@ -86,7 +87,29 @@ namespace AvianVoice.Core
                 callFriends,
                 reflection);
 
-            Debug.Log("[AvianVoice] Birdy 6-task mode ready. Keys 1-6 switch tasks, Space=breath, C=cheat.");
+            Debug.Log("[AvianVoice] Birdy 6-task mode ready. Wish panel or M switches scenes, voice is the only input, C=cheat.");
+        }
+
+        static void EnsureWishMenu(GameObject xrOrigin)
+        {
+            if (xrOrigin == null)
+                return;
+
+            var head = xrOrigin.transform.Find("Camera Offset");
+            if (head == null)
+            {
+                foreach (var t in xrOrigin.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == "Camera Offset")
+                    {
+                        head = t;
+                        break;
+                    }
+                }
+            }
+
+            SceneWishMenu.Ensure(head != null ? head : xrOrigin.transform);
+            AvianHudLayerSetup.ApplyToXrRig();
         }
 
         static GameObject FindXrOrigin()
@@ -161,11 +184,11 @@ namespace AvianVoice.Core
         }
 
         /// <summary>
-        /// Keep Lab embodiment on FriendParrot/PlayerParrot: hide pigeon FPV and cube placeholders.
+        /// Keep Lab embodiment on PlayerParrot: hide pigeon FPV and cube placeholders.
         /// </summary>
         static void SuppressAlternateBirdBodies()
         {
-            if (BirdSceneRoles.Friend == null || BirdSceneRoles.Player == null)
+            if (BirdSceneRoles.Player == null)
                 return;
 
             foreach (var pigeon in Object.FindObjectsByType<PigeonFpvSetup>(FindObjectsInactive.Include, FindObjectsSortMode.None))

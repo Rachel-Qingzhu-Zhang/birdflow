@@ -3,8 +3,8 @@ using UnityEngine;
 namespace AvianVoice.Embodiment
 {
     /// <summary>
-    /// Wires two scene-placed parrots (FriendParrot + PlayerParrot) for Birdy tasks.
-    /// Does not duplicate or reposition birds — use the scene objects you place in the Editor.
+    /// Wires the single scene-placed PlayerParrot for Birdy tasks. A second parrot, if present, is hidden
+    /// and Friend stays null. Does not duplicate or reposition birds.
     /// </summary>
     public static class BirdSceneRoles
     {
@@ -20,18 +20,6 @@ namespace AvianVoice.Embodiment
 
         public static bool TryGetFlockOrbitCenter(out Vector3 center)
         {
-            if (Friend != null && Player != null)
-            {
-                center = Vector3.Lerp(Friend.position, Player.position, 0.5f);
-                return true;
-            }
-
-            if (Friend != null)
-            {
-                center = Friend.position;
-                return true;
-            }
-
             if (Player != null)
             {
                 center = Player.position;
@@ -43,6 +31,7 @@ namespace AvianVoice.Embodiment
         }
 
         static bool birdsConfigured;
+        static bool friendConfigured;
 
         public static void ResetSession()
         {
@@ -60,10 +49,8 @@ namespace AvianVoice.Embodiment
                 ConfigureBirdComponents();
 
             StripBodyCueSpheres();
-            EnsureRoleMarkers();
             FinalizeScenePlacement();
 
-            CommitPoses(Friend);
             CommitPoses(Player);
 
             LogLayoutDiagnostics();
@@ -90,53 +77,49 @@ namespace AvianVoice.Embodiment
             if (Player == null)
                 Player = FindBirdTransform(PlayerName);
 
-            if (Friend == null)
+            if (Player == null)
             {
                 var legacy = FindLegacyParrot();
                 if (legacy != null)
                 {
-                    legacy.name = FriendName;
-                    Friend = legacy;
-                    EnsureSceneRoleComponent(Friend, BirdSceneRole.RoleKind.Friend);
+                    legacy.name = PlayerName;
+                    Player = legacy;
+                    EnsureSceneRoleComponent(Player, BirdSceneRole.RoleKind.Player);
                 }
             }
 
-            if (Friend == null || Player == null)
+            if (Player == null && Friend != null)
             {
-                Debug.LogError(
-                    "[AvianVoice] BirdSceneRoles: need TWO parrots in Avian_Lab. " +
-                    "Menu: Avian Voice > Place Two Parrots On Perch, then adjust positions and Save scene.");
+                Player = Friend;
+                Friend = null;
+            }
+
+            if (Player == null)
+            {
+                Debug.LogError("[AvianVoice] BirdSceneRoles: Avian_Lab needs one parrot named PlayerParrot.");
                 return false;
             }
 
-            if (Friend == Player)
-            {
-                Debug.LogError("[AvianVoice] BirdSceneRoles: friend and player cannot be the same object.");
-                return false;
-            }
+            // Friend stays in the scene but hidden until a task asks for it.
+            if (Friend != null && Friend != Player)
+                Friend.gameObject.SetActive(false);
 
-            Friend.gameObject.SetActive(true);
             Player.gameObject.SetActive(true);
             return true;
         }
 
         static void LogLayoutDiagnostics()
         {
-            var friendSmr = GetBodyRenderer(Friend);
             var playerSmr = GetBodyRenderer(Player);
-            var friendBounds = friendSmr != null ? friendSmr.bounds.size : Vector3.zero;
             var playerBounds = playerSmr != null ? playerSmr.bounds.size : Vector3.zero;
 
             Debug.Log(
-                "[AvianVoice] BirdSceneRoles: scene parrots ready. " +
-                $"distance={Vector3.Distance(Friend.position, Player.position):0.00}m, " +
-                $"friendBounds={friendBounds}, playerBounds={playerBounds}. " +
-                $"Friend '{Friend.name}'@{Friend.position} Player '{Player.name}'@{Player.position}");
+                "[AvianVoice] BirdSceneRoles: single parrot ready. " +
+                $"Player '{Player.name}'@{Player.position} bounds={playerBounds}");
         }
 
         static void ConfigureBirdComponents()
         {
-            SetupBird(Friend, RoleMarker.Role.Friend);
             SetupBird(Player, RoleMarker.Role.Player);
             birdsConfigured = true;
         }
@@ -154,6 +137,7 @@ namespace AvianVoice.Embodiment
             }
 
             ParrotEmbodimentWiring.DisableConflictingParrotDemoScript(bird);
+            ParrotEmbodimentWiring.HideRigControlMeshes(bird);
 
             if (role == RoleMarker.Role.Friend)
             {
@@ -180,7 +164,6 @@ namespace AvianVoice.Embodiment
 
         static void StripBodyCueSpheres()
         {
-            StripBodyCueSpheres(Friend);
             StripBodyCueSpheres(Player);
         }
 
@@ -191,47 +174,70 @@ namespace AvianVoice.Embodiment
 
             foreach (var child in bird.GetComponentsInChildren<Transform>(true))
             {
-                if (child.name == "FriendBreathCue")
+                if (child.name is "FriendBreathCue" or "PlayerMarker" or "FriendMarker")
                     Object.Destroy(child.gameObject);
             }
-        }
 
-        static void EnsureRoleMarkers()
-        {
-            AttachMarker(Friend, RoleMarker.Role.Friend);
-            AttachMarker(Player, RoleMarker.Role.Player);
-        }
-
-        static void AttachMarker(Transform bird, RoleMarker.Role role)
-        {
-            if (bird == null)
-                return;
-
-            var marker = bird.GetComponent<RoleMarker>() ?? bird.gameObject.AddComponent<RoleMarker>();
-            marker.Configure(role);
+            foreach (var marker in bird.GetComponents<RoleMarker>())
+                Object.Destroy(marker);
+            foreach (var cue in bird.GetComponents<FriendTeachingCue>())
+                Object.Destroy(cue);
         }
 
         static void FinalizeScenePlacement()
         {
-            RefreshPinPoses(Friend);
             RefreshPinPoses(Player);
-            SetLayerRecursive(Friend.gameObject, MirrorLayer);
             SetLayerRecursive(Player.gameObject, MirrorLayer);
-            // Markers stay on Default so the main camera always sees them.
-            foreach (var marker in Object.FindObjectsByType<RoleMarker>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            EnsurePlayerBirdVisible();
+            LabBirdSceneLighting.Ensure();
+        }
+
+        public static void SetFriendVisible(bool visible)
+        {
+            if (!ResolveSceneBirds() && Friend == null)
+                return;
+            if (Friend == null || Friend == Player)
+                return;
+
+            if (!visible)
             {
-                if (marker == null)
-                    continue;
-                foreach (var child in marker.GetComponentsInChildren<Transform>(true))
-                {
-                    if (child.name is "PlayerMarker" or "FriendMarker")
-                        child.gameObject.layer = 0;
-                }
+                Friend.GetComponent<FriendBreathVisual>()?.ClearPerformancePose();
+                Friend.gameObject.SetActive(false);
+                return;
             }
 
-            EnsurePlayerBirdVisible();
-            RoleMarker.EnsureMarkersExist();
-            LabBirdSceneLighting.Ensure();
+            Friend.gameObject.SetActive(true);
+            if (!friendConfigured)
+            {
+                SetupBird(Friend, RoleMarker.Role.Friend);
+                foreach (var cue in Friend.GetComponents<FriendTeachingCue>())
+                    Object.Destroy(cue);
+                friendConfigured = true;
+            }
+
+            SetLayerRecursive(Friend.gameObject, MirrorLayer);
+            ParrotEmbodimentWiring.HideRigControlMeshes(Friend);
+            PlaceFriendBesidePlayer();
+            Friend.GetComponent<WorldPlacedBird>()?.CommitWorldPose();
+        }
+
+        static void PlaceFriendBesidePlayer()
+        {
+            if (Friend == null || Player == null)
+                return;
+
+            var flat = Friend.position - Player.position;
+            flat.y = 0f;
+            if (flat.sqrMagnitude > 0.2f && flat.sqrMagnitude < 1.4f)
+                return;
+
+            var right = Player.right;
+            right.y = 0f;
+            if (right.sqrMagnitude < 0.01f)
+                right = Vector3.right;
+            right.Normalize();
+            Friend.SetPositionAndRotation(Player.position + right * 0.72f, Player.rotation);
+            Friend.GetComponent<WorldPlacedBird>()?.SaveWorldPose();
         }
 
         public static void EnsurePlayerBirdVisible()
@@ -240,11 +246,14 @@ namespace AvianVoice.Embodiment
                 return;
 
             Player.gameObject.SetActive(true);
+            ParrotEmbodimentWiring.HideRigControlMeshes(Player);
             foreach (var renderer in Player.GetComponentsInChildren<Renderer>(true))
             {
                 if (renderer == null)
                     continue;
                 if (renderer.gameObject.name is "PlayerMarker" or "FriendMarker")
+                    continue;
+                if (ParrotEmbodimentWiring.IsRigControlObject(renderer.gameObject))
                     continue;
 
                 renderer.enabled = true;
@@ -267,6 +276,8 @@ namespace AvianVoice.Embodiment
                     }
                 }
             }
+
+            ParrotEmbodimentWiring.HideRigControlMeshes(Player);
         }
 
         static void RefreshPinPoses(Transform bird)

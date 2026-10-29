@@ -110,6 +110,36 @@ namespace AvianVoice.Embodiment
             EnsureAnimatorGate(animator.transform).DisableIdleAnimation();
         }
 
+        /// <summary>
+        /// Foot / IK handles in the pack FBX ship with white box meshes. Keep the skinned body only.
+        /// </summary>
+        public static void HideRigControlMeshes(Transform birdRoot)
+        {
+            if (birdRoot == null)
+                return;
+
+            foreach (var renderer in birdRoot.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (renderer == null || IsSkinned(renderer))
+                    continue;
+                if (!IsRigControlObject(renderer.gameObject))
+                    continue;
+                renderer.enabled = false;
+                renderer.forceRenderingOff = true;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+        }
+
+        public static bool IsRigControlObject(GameObject go)
+        {
+            if (go == null)
+                return false;
+            var n = go.name;
+            return n.EndsWith("_ctrl") || n.EndsWith("_hlp") || n.EndsWith("_loc");
+        }
+
+        static bool IsSkinned(Renderer renderer) => renderer is SkinnedMeshRenderer;
+
         public static void DisableConflictingParrotDemoScript(Transform birdRoot)
         {
             if (birdRoot == null)

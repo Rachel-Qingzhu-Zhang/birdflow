@@ -14,14 +14,20 @@ namespace AvianVoice.Core
         {
             var existing = parent.Find(childName);
             if (existing != null && existing.TryGetComponent<AudioSource>(out var source))
+            {
+                source.spatialBlend = 0f;
+                source.spatialize = false;
+                source.volume = 1f;
                 return source;
+            }
 
             var go = new GameObject(childName);
             go.transform.SetParent(parent, false);
             var created = go.AddComponent<AudioSource>();
             created.playOnAwake = false;
-            created.spatialBlend = 1f;
-            created.volume = 0.8f;
+            created.spatialBlend = 0f;
+            created.spatialize = false;
+            created.volume = 1f;
             return created;
         }
     }

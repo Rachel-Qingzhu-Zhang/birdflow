@@ -52,6 +52,25 @@ namespace AvianVoice.Embodiment
         [SerializeField]
         bool skipAutoSceneLayout;
 
+        [Header("Flying start (task 3, rig origin relative to the pond surface)")]
+        [Tooltip("Rig origin height above the water when entering Flying. Lower = closer to the reflection.")]
+        [SerializeField]
+        float flyingHeightAboveWater = 1.3f;
+
+        [Tooltip("A captured flying pose outside [min, max] is snapped to flyingHeightAboveWater.")]
+        [SerializeField]
+        float flyingMinHeightAboveWater = 0.6f;
+
+        [SerializeField]
+        float flyingMaxHeightAboveWater = 2.4f;
+
+        [Tooltip("Rig pitch on enter (degrees, positive looks down).")]
+        [SerializeField]
+        float flyingPitchDegrees = 18f;
+
+        [SerializeField]
+        float flyingBackFromPondCenter = 3.5f;
+
         [SerializeField]
         Color gizmoColor = new(0.2f, 0.85f, 1f, 0.85f);
 
@@ -129,7 +148,7 @@ namespace AvianVoice.Embodiment
             ApplyPose(position, rotation);
         }
 
-        static void ClampFlyingPoseNearPond(ref Vector3 position, ref Quaternion rotation)
+        void ClampFlyingPoseNearPond(ref Vector3 position, ref Quaternion rotation)
         {
             var pond = UnityEngine.Object.FindAnyObjectByType<PondWaterReflection>();
             if (pond == null)
@@ -137,17 +156,14 @@ namespace AvianVoice.Embodiment
 
             var water = pond.transform.position;
             // Keep flyer close to the surface: reflection of an FPV bird scales ~1/(2H).
-            const float targetHeightAboveWater = 2.15f;
-            const float maxHeightAboveWater = 3.25f;
-
             position.x = water.x;
-            position.z = water.z - 3.5f;
-            if (position.y - water.y > maxHeightAboveWater || position.y - water.y < 1.2f)
-                position.y = water.y + targetHeightAboveWater;
+            position.z = water.z - flyingBackFromPondCenter;
+            var height = position.y - water.y;
+            if (height > flyingMaxHeightAboveWater || height < flyingMinHeightAboveWater)
+                position.y = water.y + flyingHeightAboveWater;
 
-            // Stronger downward look so the pond fills the view on enter.
             var euler = rotation.eulerAngles;
-            rotation = Quaternion.Euler(38f, euler.y, 0f);
+            rotation = Quaternion.Euler(flyingPitchDegrees, euler.y, 0f);
         }
 
         public void ApplyPose(Vector3 worldPosition, Quaternion worldRotation)

@@ -1,9 +1,11 @@
+using AvianVoice.Core;
 using UnityEngine;
 
 namespace AvianVoice.Embodiment
 {
     /// <summary>
-    /// Independent breathing timeline for the bird friend (not tied to player BreathSimulator).
+    /// Teacher breathing timeline. It drives the bird's breath (via BreathSimulator Guided source).
+    /// Durations and depth range come from the AvianVoiceSettings asset, Teacher Breath section.
     /// </summary>
     public class BirdFriendDemonstrator : MonoBehaviour
     {
@@ -20,6 +22,9 @@ namespace AvianVoice.Embodiment
         [SerializeField]
         bool autoRun = true;
 
+        [SerializeField]
+        AvianVoiceSettings settings;
+
         float phaseTime;
         float inhaleDuration = 4f;
         float exhaleDuration = 4f;
@@ -27,10 +32,27 @@ namespace AvianVoice.Embodiment
         bool lastInhaling = true;
 
         public float CurrentDepth { get; private set; }
+
+        bool idleMotion;
+        float idleTime;
         public bool IsInhaling => inhaling;
         public BreathPattern ActivePattern => pattern;
         public float InhaleDuration => inhaleDuration;
         public float ExhaleDuration => exhaleDuration;
+
+        /// <summary>Full inhale + exhale cycles finished since the last SetPattern / RestartPattern.</summary>
+        public int CompletedCycles { get; private set; }
+
+        /// <summary>0-1 progress through the current cycle.</summary>
+        public float CycleProgress
+        {
+            get
+            {
+                var total = Mathf.Max(0.01f, inhaleDuration + exhaleDuration);
+                var elapsed = inhaling ? phaseTime : inhaleDuration + phaseTime;
+                return Mathf.Clamp01(elapsed / total);
+            }
+        }
 
         public float SecondsLeftInPhase
         {
@@ -41,29 +63,41 @@ namespace AvianVoice.Embodiment
             }
         }
 
-        public string FormatTeachingLine(string youAction = null)
+        public string FormatTeachingLine()
         {
             var phase = inhaling ? "INHALE" : "EXHALE";
             var arrow = inhaling ? "↑" : "↓";
-            var you = youAction ?? (inhaling ? "hold Space" : "release Space");
-            return $"Friend: {phase} {arrow} ({SecondsLeftInPhase:0.0}s)  |  You: {you}";
+            return $"Bird: {phase} {arrow} ({SecondsLeftInPhase:0.0}s) — breathe along";
+        }
+
+        public void SetTeachingActive(bool active)
+        {
+            autoRun = active;
+            idleMotion = !active;
         }
 
         public void SetPattern(BreathPattern newPattern)
         {
+            autoRun = true;
+            idleMotion = false;
             pattern = newPattern;
             ApplyPatternDurations();
             phaseTime = 0f;
             inhaling = true;
             lastInhaling = inhaling;
+            CompletedCycles = 0;
         }
 
         public void RestartPattern()
         {
+            autoRun = true;
+            idleMotion = false;
+            ApplyPatternDurations();
             phaseTime = 0f;
             inhaling = true;
             lastInhaling = true;
-            CurrentDepth = 0f;
+            CompletedCycles = 0;
+            CurrentDepth = DepthAt(0f);
             OnPhaseChanged?.Invoke(inhaling);
         }
 
@@ -74,10 +108,22 @@ namespace AvianVoice.Embodiment
 
         void Update()
         {
-            if (!autoRun)
+            if (autoRun)
+            {
+                AdvanceBreath(Time.deltaTime);
                 return;
+            }
 
-            AdvanceBreath(Time.deltaTime);
+            if (idleMotion)
+                AdvanceIdle(Time.deltaTime);
+        }
+
+        void AdvanceIdle(float deltaTime)
+        {
+            idleTime += deltaTime;
+            var wave = 0.5f + 0.5f * Mathf.Sin(idleTime * 0.85f);
+            CurrentDepth = Mathf.Lerp(DepthAt(0.05f), DepthAt(0.2f), wave);
+            inhaling = wave > 0.55f;
         }
 
         public void AdvanceBreath(float deltaTime)
@@ -85,13 +131,17 @@ namespace AvianVoice.Embodiment
             var duration = inhaling ? inhaleDuration : exhaleDuration;
             phaseTime += deltaTime;
             var t = Mathf.Clamp01(phaseTime / Mathf.Max(duration, 0.01f));
-            CurrentDepth = inhaling ? t : 1f - t;
+            CurrentDepth = DepthAt(inhaling ? t : 1f - t);
 
             if (phaseTime < duration)
                 return;
 
             phaseTime = 0f;
             inhaling = !inhaling;
+            if (inhaling)
+                CompletedCycles++;
+            // Pick up Inspector edits at each phase boundary.
+            ApplyPatternDurations();
             if (inhaling != lastInhaling)
             {
                 lastInhaling = inhaling;
@@ -101,26 +151,45 @@ namespace AvianVoice.Embodiment
 
         public event System.Action<bool> OnPhaseChanged;
 
-        public float GetTargetDepth()
+        public float GetTargetDepth() => CurrentDepth;
+
+        float DepthAt(float normalized)
         {
-            var duration = inhaling ? inhaleDuration : exhaleDuration;
-            var t = Mathf.Clamp01(phaseTime / Mathf.Max(duration, 0.01f));
-            return inhaling ? t : 1f - t;
+            ResolveSettings();
+            var min = settings != null ? settings.breathDepthMin : 0f;
+            var max = settings != null ? settings.breathDepthMax : 1f;
+            if (max < min)
+                max = min;
+            return Mathf.Lerp(min, max, Mathf.Clamp01(normalized));
+        }
+
+        void ResolveSettings()
+        {
+            if (settings == null)
+                settings = AvianVoiceSettings.FindLoaded();
         }
 
         void ApplyPatternDurations()
         {
+            ResolveSettings();
             switch (pattern)
             {
                 case BreathPattern.PatternB6x6:
-                    inhaleDuration = 6f;
-                    exhaleDuration = 6f;
+                    inhaleDuration = settings != null ? settings.patternBInhaleSeconds : 6f;
+                    exhaleDuration = settings != null ? settings.patternBExhaleSeconds : 6f;
+                    break;
+                case BreathPattern.PatternA4x4:
+                    inhaleDuration = settings != null ? settings.patternAInhaleSeconds : 4f;
+                    exhaleDuration = settings != null ? settings.patternAExhaleSeconds : 4f;
                     break;
                 default:
-                    inhaleDuration = 4f;
-                    exhaleDuration = 4f;
+                    inhaleDuration = settings != null ? settings.introInhaleSeconds : 4f;
+                    exhaleDuration = settings != null ? settings.introExhaleSeconds : 4f;
                     break;
             }
+
+            inhaleDuration = Mathf.Max(0.3f, inhaleDuration);
+            exhaleDuration = Mathf.Max(0.3f, exhaleDuration);
         }
     }
 }

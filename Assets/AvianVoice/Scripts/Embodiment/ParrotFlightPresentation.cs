@@ -14,7 +14,7 @@ namespace AvianVoice.Embodiment
         bool worldSpaceFollow = true;
 
         [SerializeField]
-        float followDistanceBehind = 0.55f;
+        float followDistanceBehind = 0.62f;
 
         [SerializeField]
         float followDropBelowEye = 0.55f;
@@ -27,13 +27,19 @@ namespace AvianVoice.Embodiment
         bool useBeakAnchoredFollow = true;
 
         [SerializeField]
-        float eyeAheadOfBeak = 0.1f;
+        float eyeAheadOfBeak = 0f;
 
         [SerializeField]
         float eyeBelowBeak = 0.08f;
 
         [SerializeField]
         float bodyObstructionPushBack = 0.28f;
+
+        [Header("Self visibility")]
+        [Tooltip("Hide the player's bird from the headset view during flight so looking down shows the pond. " +
+                 "The pond reflection camera uses its own mask and still renders the bird.")]
+        [SerializeField]
+        bool hideSelfFromMainCamera = true;
 
         [Header("Legacy camera-parent mode (off by default)")]
         [SerializeField]
@@ -54,12 +60,20 @@ namespace AvianVoice.Embodiment
         Transform flightAnchor;
         Coroutine flightRoutine;
         bool flightActive;
+        public bool IsFlying => flightActive;
         bool beakAnchorCaptured;
         float savedAnimatorSpeed = 1f;
         Vector3 savedWorldScale = Vector3.one;
         Vector3 rootToBeakLocal;
         Transform beakBone;
         SkinnedMeshRenderer bodyRenderer;
+        Camera hiddenFromCamera;
+        int savedCullingMask;
+        Transform leftFlightWing;
+        Transform rightFlightWing;
+        Quaternion leftFlightWingRest = Quaternion.identity;
+        Quaternion rightFlightWingRest = Quaternion.identity;
+        bool flightWingsReady;
 
         void Awake()
         {
@@ -68,12 +82,18 @@ namespace AvianVoice.Embodiment
             rigPin = GetComponent<ParrotMainCtrlPin>() ?? gameObject.AddComponent<ParrotMainCtrlPin>();
         }
 
+        void OnEnable()
+        {
+            Application.onBeforeRender += ApplyFlightWings;
+        }
+
         public void BeginFlightPresentation()
         {
             if (flightActive)
                 return;
 
             flightActive = true;
+            CacheFlightWingRest();
             beakAnchorCaptured = false;
             beakBone = null;
             savedWorldScale = transform.localScale;
@@ -83,6 +103,7 @@ namespace AvianVoice.Embodiment
             // Role marker spheres sit on the head and fill the FPV FOV during flight.
             RoleMarker.SetMarkersVisibleOnBird(transform, false);
             RoleMarker.SetAllMarkersVisible(false);
+            HideSelfFromMainCamera();
 
             worldGuard?.SaveWorldPose();
             if (!worldSpaceFollow)
@@ -110,8 +131,10 @@ namespace AvianVoice.Embodiment
                 return;
 
             flightActive = false;
+            flightWingsReady = false;
             rigPin.SetPinEnabled(false);
             RoleMarker.SetAllMarkersVisible(true);
+            RestoreMainCameraMask();
 
             if (animator != null)
                 animator.speed = savedAnimatorSpeed;
@@ -136,6 +159,7 @@ namespace AvianVoice.Embodiment
             if (flightAnchor == null)
                 TryResolveFlightAnchor();
 
+            ApplyFlightWings();
             if (flightAnchor == null)
                 return;
 
@@ -143,6 +167,7 @@ namespace AvianVoice.Embodiment
             {
                 DetachFromCameraIfNeeded();
                 ApplyWorldFollowPose();
+                ApplyFlightWings();
                 return;
             }
 
@@ -153,6 +178,64 @@ namespace AvianVoice.Embodiment
             }
 
             ApplyAnchorLocalPose();
+        }
+
+        void OnDisable()
+        {
+            Application.onBeforeRender -= ApplyFlightWings;
+            RestoreMainCameraMask();
+        }
+
+        void CacheFlightWingRest()
+        {
+            flightWingsReady = false;
+            if (!ParrotEmbodimentWiring.TryResolve(transform, out var refs))
+                return;
+
+            leftFlightWing = refs.leftWing;
+            rightFlightWing = refs.rightWing;
+            if (leftFlightWing != null)
+                leftFlightWingRest = leftFlightWing.localRotation;
+            if (rightFlightWing != null)
+                rightFlightWingRest = rightFlightWing.localRotation;
+            flightWingsReady = leftFlightWing != null && rightFlightWing != null;
+        }
+
+        void ApplyFlightWings()
+        {
+            if (!flightActive || !flightWingsReady)
+                return;
+
+            ParrotBreathWingPose.ApplyFlight(
+                leftFlightWing,
+                rightFlightWing,
+                leftFlightWingRest,
+                rightFlightWingRest,
+                Time.time);
+        }
+
+        void HideSelfFromMainCamera()
+        {
+            if (!hideSelfFromMainCamera)
+                return;
+
+            var cam = Camera.main;
+            if (cam == null)
+                return;
+
+            RestoreMainCameraMask();
+            hiddenFromCamera = cam;
+            savedCullingMask = cam.cullingMask;
+            cam.cullingMask &= ~(1 << gameObject.layer);
+        }
+
+        void RestoreMainCameraMask()
+        {
+            if (hiddenFromCamera == null)
+                return;
+
+            hiddenFromCamera.cullingMask = savedCullingMask;
+            hiddenFromCamera = null;
         }
 
         void TryResolveFlightAnchor()
@@ -243,7 +326,9 @@ namespace AvianVoice.Embodiment
 
         void ResolveCameraBodyObstruction(Vector3 eye, Vector3 forward)
         {
-            if (bodyRenderer == null)
+            // The bird is already hidden from the headset; pushing it back would slide the
+            // reflection so looking down only shows the head.
+            if (hideSelfFromMainCamera || bodyRenderer == null)
                 return;
 
             bodyRenderer.updateWhenOffscreen = true;
@@ -271,12 +356,12 @@ namespace AvianVoice.Embodiment
             yield return new WaitForSeconds(takeoffDuration);
 
             SetBool("takeoff", false);
-            SetBool("fly", false);
-            SetBool("glide", true);
+            SetBool("glide", false);
+            SetBool("fly", true);
 
             if (animator != null)
             {
-                animator.Play("glide", 0, 0f);
+                animator.Play("fly", 0, 0f);
                 yield return null;
                 // Keep the clip running. Main/COM pins stop root drift; wings can still glide or flap.
                 animator.speed = savedAnimatorSpeed > 0.05f ? savedAnimatorSpeed : 1f;

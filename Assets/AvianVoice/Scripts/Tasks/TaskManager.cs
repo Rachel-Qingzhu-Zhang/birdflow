@@ -26,6 +26,13 @@ namespace AvianVoice.Tasks
             public bool unlocked = true;
         }
 
+        const string MeetInstruction = "This is your bird self in the mirror. Look at it — no need to breathe yet.";
+        const string BreathSyncInstruction = "Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.";
+        const string FlyingInstruction = "The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.";
+        const string SingingInstruction = "Your bird sings a note. Hold that pitch with your voice until the melody is done.";
+        const string CallFriendsInstruction = "Sing the melody to call birds in. One bird comes first, then three, then the flock.";
+        const string ReflectionInstruction = "Rest by the water and look over your scores. How did it feel to become a bird?";
+
         [SerializeField]
         TaskSwitchMode switchMode = TaskSwitchMode.InScene;
 
@@ -36,42 +43,42 @@ namespace AvianVoice.Tasks
             {
                 taskId = "meet",
                 displayName = "Meet Your Bird",
-                instruction = "Space=inhale, release=exhale. Follow the bird friend (4s in / 4s out).",
+                instruction = MeetInstruction,
                 sceneName = ""
             },
             new()
             {
                 taskId = "breath_sync",
                 displayName = "Breath Sync",
-                instruction = "Match Pattern A (4/4) then Pattern B (6/6) with the bird friend.",
+                instruction = BreathSyncInstruction,
                 sceneName = ""
             },
             new()
             {
                 taskId = "flying",
                 displayName = "Flying",
-                instruction = "Hold Space to climb, release to glide down. E/Q still nudge height.",
+                instruction = FlyingInstruction,
                 sceneName = ""
             },
             new()
             {
                 taskId = "singing",
                 displayName = "Singing Branch",
-                instruction = "Hold pitch while breathing. Deep inhale = richer bird song.",
+                instruction = SingingInstruction,
                 sceneName = ""
             },
             new()
             {
                 taskId = "call_friends",
                 displayName = "Call Friends",
-                instruction = "Sing the melody with steady breath to summon nearby birds.",
+                instruction = CallFriendsInstruction,
                 sceneName = ""
             },
             new()
             {
                 taskId = "reflection",
                 displayName = "Reflection",
-                instruction = "Review scores. How did it feel to become a bird?",
+                instruction = ReflectionInstruction,
                 sceneName = ""
             }
         };
@@ -89,6 +96,7 @@ namespace AvianVoice.Tasks
         public string CurrentTaskName => tasks.Length > 0 ? tasks[currentIndex].displayName : "None";
         public string CurrentInstruction => tasks.Length > 0 ? tasks[currentIndex].instruction : "";
         public string CurrentTaskId => tasks.Length > 0 ? tasks[currentIndex].taskId : "";
+        public int CurrentIndex => currentIndex;
         public int TaskCount => tasks.Length;
 
         void Start()
@@ -115,7 +123,12 @@ namespace AvianVoice.Tasks
             BindBehaviour("singing", singingTask);
             BindBehaviour("call_friends", callFriendsTask);
             BindBehaviour("reflection", reflectionTask);
-            SetInstruction("flying", "Hold Space to climb, release to glide down. E/Q still nudge height.");
+            SetInstruction("meet", MeetInstruction);
+            SetInstruction("breath_sync", BreathSyncInstruction);
+            SetInstruction("flying", FlyingInstruction);
+            SetInstruction("singing", SingingInstruction);
+            SetInstruction("call_friends", CallFriendsInstruction);
+            SetInstruction("reflection", ReflectionInstruction);
             ApplyCurrentTask();
         }
 
@@ -221,13 +234,13 @@ namespace AvianVoice.Tasks
             if (mirror == null)
                 return;
 
-            var showMirror = taskId is "meet" or "breath_sync" or "reflection";
+            var showMirror = taskId is "meet" or "breath_sync" or "singing" or "reflection";
             mirror.SetMirrorActive(showMirror);
         }
 
         static void UpdatePondWaterForTask(string taskId)
         {
-            var showPondReflection = taskId is "flying" or "singing" or "call_friends";
+            var showPondReflection = taskId is "flying" or "call_friends";
             Embodiment.PondWaterReflection.SetAllReflectionActive(showPondReflection);
         }
 

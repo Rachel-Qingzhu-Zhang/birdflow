@@ -19,8 +19,22 @@ namespace AvianVoice.Core
         [Tooltip("Override Unity DSP buffer size at startup (0 = use Platform Profile only). 128–256 = lower latency.")]
         public int dspBufferSizeOverride = 256;
         [Tooltip("Raw mic RMS required before a frame counts as voiced. Above room noise and fan hum.")]
-        public float voicedThreshold = 0.06f;
+        public float voicedThreshold = 0.012f;
         public float loudnessGain = 8f;
+
+        [Header("Pitch Tracking (YIN)")]
+        [Tooltip("YIN absolute threshold. Lower = stricter periodicity, fewer octave errors.")]
+        [Range(0.05f, 0.5f)]
+        public float yinThreshold = 0.15f;
+        [Tooltip("Below this confidence the last good pitch is held instead of updated.")]
+        [Range(0f, 1f)]
+        public float pitchMinConfidence = 0.55f;
+        [Tooltip("How long a held pitch survives low-confidence frames before dropping to 0.")]
+        public float pitchHoldSeconds = 0.2f;
+        [Tooltip("Pitch smoothing time constant in seconds (applied in semitones).")]
+        public float pitchSmoothingSeconds = 0.04f;
+        [Tooltip("Jumps larger than this (semitones) snap immediately as a new note.")]
+        public float pitchSnapSemitones = 3f;
 
         [Header("Voice Mapping")]
         public float referencePitchHz = 200f;
@@ -55,6 +69,35 @@ namespace AvianVoice.Core
         [Tooltip("Skip new PlayOneShot while source is already playing (prevents stacking).")]
         public bool transformBlockOverlap = true;
 
+        [Header("Bird Song Synth (Transform mode)")]
+        [Tooltip("Real-time synthesized bird whistle that follows your pitch. Off = play sample chirps instead.")]
+        public bool useSynthTransform = true;
+        [Tooltip("Human pitch range mapped log-linearly onto the bird range.")]
+        public float synthHumanMinHz = 90f;
+        public float synthHumanMaxHz = 900f;
+        public float synthBirdMinHz = 1800f;
+        public float synthBirdMaxHz = 6000f;
+        [Tooltip("Trill (frequency wobble) rate range in Hz. Louder voice = faster trill.")]
+        public float synthTrillRateMin = 18f;
+        public float synthTrillRateMax = 28f;
+        [Tooltip("Trill depth in semitones.")]
+        public float synthTrillDepthSemitones = 1.2f;
+        [Tooltip("Upward glide at note onset, in semitones below the target.")]
+        public float synthOnsetGlideSemitones = 5f;
+        public float synthOnsetGlideSeconds = 0.12f;
+        public float synthAttackSeconds = 0.02f;
+        public float synthReleaseSeconds = 0.12f;
+        [Tooltip("2nd harmonic level relative to the fundamental.")]
+        [Range(0f, 1f)]
+        public float synthHarmonic2 = 0.18f;
+        [Tooltip("Breathy band-limited noise level.")]
+        [Range(0f, 1f)]
+        public float synthNoise = 0.06f;
+        [Range(0f, 1f)]
+        public float synthVolume = 0.5f;
+        [Tooltip("Pitch glide time constant between voice frames (seconds).")]
+        public float synthPitchSmoothSeconds = 0.04f;
+
         [Header("Body")]
         public float paramSmooth = 10f;
         public float wingRotationScale = 1f;
@@ -67,7 +110,7 @@ namespace AvianVoice.Core
         public float breathNeckPitchMax = 14f;
 
         [Header("Meditation Breath")]
-        [Tooltip("When true, Space breath drives wing spread (desktop + VR). Otherwise wings only follow hands / auto flap.")]
+        [Tooltip("When true, the teacher breath drives wing spread. Otherwise wings only follow hands / auto flap.")]
         public bool breathDrivesWings = true;
         [Tooltip("Max wing spread angle (degrees) at full inhale.")]
         public float wingBreathSpreadMax = 32f;
@@ -78,9 +121,34 @@ namespace AvianVoice.Core
         [Tooltip("Optional second chest bone scale (e.g. rib cage). Leave unassigned in bootstrap.")]
         public float secondaryChestScaleMax = 0.08f;
 
-        [Header("Breath")]
-        public float inhaleSpeed = 0.85f;
-        public float exhaleSpeed = 0.65f;
+        [Header("Teacher Breath (drives the bird; no breath input)")]
+        [Tooltip("Meet task: seconds for a full inhale (0 to max depth).")]
+        public float introInhaleSeconds = 4f;
+        public float introExhaleSeconds = 4f;
+        [Tooltip("Breath Sync first pattern and the default pattern for later tasks.")]
+        public float patternAInhaleSeconds = 4f;
+        public float patternAExhaleSeconds = 4f;
+        [Tooltip("Breath Sync second, slower pattern.")]
+        public float patternBInhaleSeconds = 6f;
+        public float patternBExhaleSeconds = 6f;
+        [Tooltip("Breath depth at the end of an exhale (0-1).")]
+        [Range(0f, 1f)]
+        public float breathDepthMin = 0f;
+        [Tooltip("Breath depth at the top of an inhale (0-1). Lower = smaller breathing amplitude.")]
+        [Range(0f, 1f)]
+        public float breathDepthMax = 1f;
+        [Tooltip("Upper chest bone growth at full depth (0.4 = +40%).")]
+        public float chestInhaleScale = 0.40f;
+        [Tooltip("Belly / mid chest bone growth at full depth.")]
+        public float bellyInhaleScale = 0.28f;
+        [Tooltip("1 = linear. >1 keeps the chest calm until late in the inhale.")]
+        public float breathCurvePower = 1f;
+        [Tooltip("Breath cycles to watch in Meet before it completes.")]
+        public int meetCycles = 3;
+        [Tooltip("Breath cycles of Pattern A in Breath Sync before switching to Pattern B.")]
+        public int patternACycles = 3;
+        [Tooltip("Breath cycles of Pattern B before Breath Sync completes.")]
+        public int patternBCycles = 2;
 
         [Header("Experiment")]
         public bool mirrorEnabled = true;
@@ -88,5 +156,25 @@ namespace AvianVoice.Core
         [Tooltip("When false, hides TaskFlowUI, TrainingHUD, and voice mode panels.")]
         public bool showHudPanels = false;
         public float recorderSampleHz = 30f;
+
+        static AvianVoiceSettings cached;
+
+        /// <summary>The loaded AvianVoiceSettings asset, if any object in the scene references it.</summary>
+        public static AvianVoiceSettings FindLoaded()
+        {
+            if (cached != null)
+                return cached;
+
+            foreach (var asset in Resources.FindObjectsOfTypeAll<AvianVoiceSettings>())
+            {
+                if (asset != null && asset.name.Contains("AvianVoiceSettings"))
+                {
+                    cached = asset;
+                    break;
+                }
+            }
+
+            return cached;
+        }
     }
 }

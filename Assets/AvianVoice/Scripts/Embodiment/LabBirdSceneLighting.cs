@@ -220,6 +220,8 @@ namespace AvianVoice.Embodiment
                     continue;
                 if (renderer.gameObject.name is "PlayerMarker" or "FriendMarker")
                     continue;
+                if (ParrotEmbodimentWiring.IsRigControlObject(renderer.gameObject))
+                    continue;
                 // Never touch mirror panel / display-layer meshes.
                 if (renderer.gameObject.layer == BirdSceneRoles.MirrorDisplayLayer)
                     continue;
@@ -333,9 +335,6 @@ namespace AvianVoice.Embodiment
         {
             if (BirdSceneRoles.TryGetFlockOrbitCenter(out var center))
                 return center + Vector3.up * 0.4f;
-
-            if (BirdSceneRoles.Friend != null)
-                return BirdSceneRoles.Friend.position + Vector3.up * 0.45f;
 
             if (BirdSceneRoles.Player != null)
                 return BirdSceneRoles.Player.position + Vector3.up * 0.45f;

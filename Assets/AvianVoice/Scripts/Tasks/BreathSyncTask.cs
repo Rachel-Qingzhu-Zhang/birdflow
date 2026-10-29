@@ -2,12 +2,15 @@ using AvianVoice.Audio;
 using AvianVoice.Core;
 using AvianVoice.Data;
 using AvianVoice.Embodiment;
-using AvianVoice.Physiology;
 using AvianVoice.UI;
 using UnityEngine;
 
 namespace AvianVoice.Tasks
 {
+    /// <summary>
+    /// Breath Sync: follow the bird through Pattern A, then the slower Pattern B.
+    /// Each pattern advances after its configured cycle count (AvianVoiceSettings).
+    /// </summary>
     public class BreathSyncTask : MonoBehaviour
     {
         enum Phase
@@ -21,42 +24,24 @@ namespace AvianVoice.Tasks
         TaskManager taskManager;
 
         [SerializeField]
-        BreathSimulator breath;
-
-        [SerializeField]
         BirdFriendDemonstrator demonstrator;
 
         [SerializeField]
         SuccessChirpBurst successChirp;
 
         [SerializeField]
-        float syncThreshold = 0.8f;
-
-        [SerializeField]
-        float patternHoldSeconds = 8f;
-
-        [SerializeField]
         bool enableDebugCheat = true;
 
-        ParrotMatchVisuals friendVisuals;
+        AvianVoiceSettings settings;
+        ParrotMatchVisuals birdVisuals;
         TaskFlowUI taskUi;
         SessionRecorder recorder;
         Phase phase = Phase.PatternA;
-        float syncHold;
-        float score;
 
         void Start()
         {
-            if (taskManager == null)
-                taskManager = FindAnyObjectByType<TaskManager>();
-            if (breath == null)
-                breath = FindAnyObjectByType<BreathSimulator>();
-            if (demonstrator == null)
-                demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            if (successChirp == null)
-                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
-            recorder = FindAnyObjectByType<SessionRecorder>();
-            EnsureFriendVisuals();
+            ResolveReferences();
+            EnsureBirdVisuals();
         }
 
         void OnEnable()
@@ -65,24 +50,15 @@ namespace AvianVoice.Tasks
                 return;
 
             phase = Phase.PatternA;
-            syncHold = 0f;
-            score = 0f;
-            if (breath == null)
-                breath = FindAnyObjectByType<BreathSimulator>();
-            if (demonstrator == null)
-                demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            breath?.ResetDepth();
+            ResolveReferences();
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternA4x4);
             demonstrator?.RestartPattern();
-            if (demonstrator != null)
-                breath?.SetGuidedCycle(demonstrator.InhaleDuration, demonstrator.ExhaleDuration);
-            SetHud("Orange bird leads Pattern A (4s/4s). Copy its rhythm with Space.");
+            SetHud("Pattern A");
         }
 
         void OnDisable()
         {
-            friendVisuals?.ApplyMatch(0f);
-            breath?.ClearGuidedCycle();
+            birdVisuals?.ApplyMatch(0f);
             BirdExperienceAudio.Ensure()?.StopAll();
         }
 
@@ -94,74 +70,88 @@ namespace AvianVoice.Tasks
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
                 if (phase != Phase.Complete)
-                    AdvancePhase(1f);
+                    AdvancePhase();
                 else
                     BirdExperienceAudio.Ensure()?.PlayForestReward();
                 Debug.Log("[AvianVoice] Breath sync cheat. Phase=" + phase);
                 return;
             }
 
-            if (phase == Phase.Complete)
+            if (phase == Phase.Complete || demonstrator == null)
                 return;
 
-            if (breath == null || demonstrator == null)
-                return;
+            var required = RequiredCycles();
+            var progress = Mathf.Clamp01((demonstrator.CompletedCycles + demonstrator.CycleProgress) / required);
+            var overall = phase == Phase.PatternA ? progress * 0.5f : 0.5f + progress * 0.5f;
+            taskManager?.ReportScore(overall);
+            recorder?.SetBreathSyncContext(progress, phase == Phase.PatternA ? "A" : "B");
+            EnsureBirdVisuals();
+            birdVisuals?.ApplyMatch(demonstrator.CurrentDepth * 0.6f);
 
-            var sync = BreathSyncEvaluator.Evaluate(breath.Current, demonstrator);
-            score = Mathf.Lerp(score, sync, Time.deltaTime * 2f);
-            taskManager?.ReportScore(score);
-            recorder?.SetBreathSyncContext(sync, phase == Phase.PatternA ? "A_4x4" : "B_6x6");
-            SessionScoreCache.RecordSynchronization(sync);
-            SessionScoreCache.RecordBreathing(sync);
-            friendVisuals?.ApplyMatch(sync);
-            if (sync >= syncThreshold)
-                BirdExperienceAudio.Ensure()?.PlayBreathReward();
-
-            if (sync >= syncThreshold)
-                syncHold += Time.deltaTime;
-            else
-                syncHold = 0f;
-
-            if (syncHold >= patternHoldSeconds)
-                AdvancePhase(score);
-            else
+            if (demonstrator.CompletedCycles >= required)
             {
-                var teaching = demonstrator.FormatTeachingLine();
-                SetHud($"{phase} — {teaching}  |  sync {sync * 100f:0}% — hold {Mathf.Max(0f, patternHoldSeconds - syncHold):0.0}s");
+                AdvancePhase();
+                return;
             }
+
+            var label = phase == Phase.PatternA ? "Pattern A" : "Pattern B";
+            var breath = demonstrator.IsInhaling ? "inhale" : "exhale";
+            SetHud($"{label}: {breath} {demonstrator.SecondsLeftInPhase:0}s · cycle {demonstrator.CompletedCycles + 1}/{required}");
         }
 
-        void AdvancePhase(float finalScore)
+        void AdvancePhase()
         {
-            syncHold = 0f;
             if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
                 successChirp?.PlaySuccessBurst();
-            friendVisuals?.PulsePerfect();
+            birdVisuals?.PulsePerfect();
 
             if (phase == Phase.PatternA)
             {
                 phase = Phase.PatternB;
                 demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternB6x6);
                 demonstrator?.RestartPattern();
-                if (demonstrator != null)
-                    breath?.SetGuidedCycle(demonstrator.InhaleDuration, demonstrator.ExhaleDuration);
-                SetHud("Orange bird leads Pattern B (6s/6s). Watch + listen, then match.");
+                SetHud("Pattern B: slower breaths. Keep following your bird.");
                 return;
             }
 
             phase = Phase.Complete;
-            taskManager?.ReportScore(finalScore);
+            taskManager?.ReportScore(1f);
+            SessionScoreCache.RecordSynchronization(1f);
+            SessionScoreCache.RecordBreathing(1f);
             SetHud("Breath sync complete!");
         }
 
-        void EnsureFriendVisuals()
+        int RequiredCycles()
         {
-            if (friendVisuals != null)
+            var cycles = phase == Phase.PatternA
+                ? settings != null ? settings.patternACycles : 3
+                : settings != null ? settings.patternBCycles : 2;
+            return Mathf.Max(1, cycles);
+        }
+
+        void ResolveReferences()
+        {
+            if (taskManager == null)
+                taskManager = FindAnyObjectByType<TaskManager>();
+            if (demonstrator == null)
+                demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
+            if (successChirp == null)
+                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
+            if (recorder == null)
+                recorder = FindAnyObjectByType<SessionRecorder>();
+            if (settings == null)
+                settings = AvianVoiceSettings.FindLoaded();
+        }
+
+        void EnsureBirdVisuals()
+        {
+            if (birdVisuals != null)
                 return;
-            var friend = BirdSceneRoles.Friend;
-            var host = friend != null ? friend.gameObject : gameObject;
-            friendVisuals = host.GetComponent<ParrotMatchVisuals>() ?? host.AddComponent<ParrotMatchVisuals>();
-            friendVisuals.BindFromScene();
+            var bird = BirdSceneRoles.Player;
+            if (bird == null)
+                return;
+            birdVisuals = bird.GetComponent<ParrotMatchVisuals>() ?? bird.gameObject.AddComponent<ParrotMatchVisuals>();
+            birdVisuals.BindFromScene();
         }
 
         void SetHud(string message)

@@ -22,13 +22,24 @@ namespace AvianVoice.UI
         public static readonly int MetricsLabelFontSize = 14;
         public static readonly float MetricsBarSpacing = 52f;
 
-        public static readonly Vector2 TaskPanelCanvasSize = new(240f, 120f);
+        public static readonly Vector2 TaskPanelCanvasSize = new(320f, 176f);
         public static readonly float TaskPanelWorldScale = 0.0009f;
-        public static readonly Vector3 TaskPanelLocalPosition = new(0f, 0.18f, 0.55f);
-        public static readonly Vector2 TaskTitleSize = new(220f, 26f);
-        public static readonly Vector2 TaskInstructionSize = new(220f, 40f);
-        public static readonly Vector2 TaskScoreSize = new(220f, 22f);
+        public static readonly Vector3 TaskPanelLocalPosition = new(0f, 0.24f, 0.55f);
+        public static readonly Vector2 TaskTitleSize = new(300f, 24f);
+        public static readonly Vector2 TaskInstructionSize = new(300f, 56f);
+        public static readonly Vector2 TaskScoreSize = new(300f, 64f);
         public static readonly int TaskTitleFontSize = 14;
         public static readonly int TaskBodyFontSize = 12;
+
+        public static readonly Vector2 WishPanelCanvasSize = new(380f, 390f);
+        public static readonly float WishPanelWorldScale = 0.0009f;
+        public static readonly Vector3 WishPanelLocalPosition = new(-0.22f, -0.02f, 0.72f);
+        public static readonly Vector2 WishChipCanvasSize = new(168f, 48f);
+        public static readonly float WishChipWorldScale = 0.0009f;
+        public static readonly Vector3 WishChipLocalPosition = new(-0.30f, -0.18f, 0.58f);
+
+        public static readonly Vector2 GuideCanvasSize = new(460f, 96f);
+        public static readonly float GuideWorldScale = 0.0009f;
+        public static readonly Vector3 GuideLocalPosition = new(0f, 0.16f, 0.70f);
     }
 }
