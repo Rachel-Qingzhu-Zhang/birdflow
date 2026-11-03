@@ -34,9 +34,10 @@ namespace AvianVoice.Embodiment.Avatars
         [SerializeField]
         bool hideHumanHeadInFirstPerson = true;
 
-        [Tooltip("Put the human avatar on the BirdMirror layer so the mirror and pond reflections show it.")]
+        [Tooltip("Layer for the human avatar. HumanAvatar (12) is rendered by every camera, shows in the mirror and " +
+                 "pond reflections, and is skipped by the bird-tuned reflection fill lights that otherwise wash it out.")]
         [SerializeField]
-        bool humanAvatarOnMirrorLayer = true;
+        int humanAvatarLayer = BirdSceneRoles.HumanAvatarLayer;
 
         [Header("Tracking space")]
         [Tooltip("Assume body tracking and the XR Origin share the same floor-level tracking space. " +
@@ -52,6 +53,10 @@ namespace AvianVoice.Embodiment.Avatars
                  "The experimenter panel can change this at runtime.")]
         [SerializeField]
         bool participantControllersEnabled;
+
+        [Tooltip("Off (default): the rig's hand meshes, joints and interactor rays are hidden (tracking stays on).")]
+        [SerializeField]
+        bool participantHandsVisible;
 
         [Header("UI")]
         [SerializeField]
@@ -132,7 +137,12 @@ namespace AvianVoice.Embodiment.Avatars
                   .Append(" birdDriver=").Append(birdDriver != null && birdDriver.enabled);
             if (humanRoot != null)
                 sb.Append(" humanActive=").Append(humanRoot.activeSelf).Append(" humanPos=").Append(humanRoot.transform.position.ToString("F2"))
-                  .Append(" humanTracked=").Append(humanDriver != null && humanDriver.IsTracked);
+                  .Append(" humanTracked=").Append(humanDriver != null && humanDriver.IsTracked)
+                  .Append(" humanLayer=").Append(humanRoot.layer);
+            var handVisuals = GetComponent<ParticipantHandVisuals>();
+            sb.Append(" controllers=").Append(Core.ParticipantInputPolicy.ControllersEnabled)
+              .Append(" handsVisible=").Append(Core.ParticipantInputPolicy.HandsVisible)
+              .Append(" handRenderersHidden=").Append(handVisuals != null ? handVisuals.HiddenRendererCount : 0);
             return sb.ToString();
         }
 
@@ -153,7 +163,9 @@ namespace AvianVoice.Embodiment.Avatars
         void Start()
         {
             Core.ParticipantInputPolicy.ControllersEnabled = participantControllersEnabled;
+            Core.ParticipantInputPolicy.HandsVisible = participantHandsVisible;
             ResolveXrCamera();
+            EnsureHandVisuals();
             Backend = BodyTrackingBackendRegistry.Create(gameObject);
             if (Backend != null)
             {
@@ -402,6 +414,20 @@ namespace AvianVoice.Embodiment.Avatars
             TrackingSpace = cam != null ? (cam.transform.parent != null ? cam.transform.parent : cam.transform) : null;
         }
 
+        void EnsureHandVisuals()
+        {
+            var rigRoot = TrackingSpace;
+            while (rigRoot != null && rigRoot.parent != null && !rigRoot.name.Contains("XR Origin"))
+                rigRoot = rigRoot.parent;
+            if (rigRoot == null)
+                return;
+
+            var visuals = GetComponent<ParticipantHandVisuals>();
+            if (visuals == null)
+                visuals = gameObject.AddComponent<ParticipantHandVisuals>();
+            visuals.Configure(rigRoot);
+        }
+
         void ResolveBird()
         {
             birdRoot = BirdSceneRoles.Player;
@@ -456,8 +482,8 @@ namespace AvianVoice.Embodiment.Avatars
             if (animator.avatar == null || !animator.avatar.isHuman)
                 Debug.LogWarning("[AvianVoice] Human avatar is not imported as Humanoid; body tracking retargeting is disabled.");
 
-            if (humanAvatarOnMirrorLayer)
-                SetLayerRecursive(humanRoot, BirdSceneRoles.MirrorLayer);
+            if (humanAvatarLayer >= 0 && humanAvatarLayer < 32)
+                SetLayerRecursive(humanRoot, humanAvatarLayer);
 
             humanDriver = humanRoot.AddComponent<HumanFirstPersonDriver>();
             humanDriver.Configure(this, Backend, hideHumanHeadInFirstPerson);

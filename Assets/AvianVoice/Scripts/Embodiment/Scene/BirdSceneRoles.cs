@@ -15,6 +15,9 @@ namespace AvianVoice.Embodiment
         public const int MirrorDisplayLayer = 10;
         public const int UiLayer = 11;
 
+        /// <summary>Human avatar layer: rendered by every camera, skipped by the bird-tuned reflection fill lights.</summary>
+        public const int HumanAvatarLayer = 12;
+
         public static Transform Friend { get; private set; }
         public static Transform Player { get; private set; }
 

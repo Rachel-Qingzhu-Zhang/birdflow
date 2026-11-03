@@ -53,7 +53,28 @@ namespace AvianVoice.Editor
             importer.maxTextureSize = 2048;
         }
 
+        /// <summary>
+        /// The material description import writes its own values after OnPostprocessMaterial, so the final
+        /// fixes run here on the embedded materials of the finished model.
+        /// </summary>
+        void OnPostprocessModel(GameObject model)
+        {
+            if (!Applies || model == null)
+                return;
+
+            foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                foreach (var material in renderer.sharedMaterials)
+                    FixMaterial(material);
+            }
+        }
+
         void OnPostprocessMaterial(Material material)
+        {
+            FixMaterial(material);
+        }
+
+        void FixMaterial(Material material)
         {
             if (!Applies || material == null)
                 return;
@@ -97,8 +118,19 @@ namespace AvianVoice.Editor
                     material.SetFloat("_Cutoff", 0.4f);
                 if (material.HasProperty("_Cull"))
                     material.SetFloat("_Cull", 0f);
+                // Opaque blend state (the URP shader GUI normally sets these when the surface type changes).
+                if (material.HasProperty("_SrcBlend"))
+                    material.SetFloat("_SrcBlend", 1f);
+                if (material.HasProperty("_DstBlend"))
+                    material.SetFloat("_DstBlend", 0f);
+                if (material.HasProperty("_ZWrite"))
+                    material.SetFloat("_ZWrite", 1f);
+                if (material.HasProperty("_Blend"))
+                    material.SetFloat("_Blend", 0f);
                 material.EnableKeyword("_ALPHATEST_ON");
                 material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.DisableKeyword("_ALPHAMODULATE_ON");
                 material.SetOverrideTag("RenderType", "TransparentCutout");
                 material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
             }

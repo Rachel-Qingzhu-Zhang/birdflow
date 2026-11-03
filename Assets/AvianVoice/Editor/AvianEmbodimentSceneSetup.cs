@@ -62,6 +62,125 @@ namespace AvianVoice.Editor
                 Debug.LogWarning("[AvianVoice] No AvatarEmbodimentController in the running scene.");
         }
 
+        [MenuItem("Avian Voice/Embodiment/Debug/Load Task 3 Singing (Play Mode)")]
+        public static void DebugLoadSinging()
+        {
+            var manager = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.TaskManager>();
+            if (manager != null)
+                manager.LoadTaskById("singing");
+            else
+                Debug.LogWarning("[AvianVoice] No TaskManager in the running scene.");
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Replay Guide Note (Play Mode)")]
+        public static void DebugReplayGuideNote()
+        {
+            ReplayGuideNote();
+        }
+
+        /// <summary>Same as the participant pressing Space / R: the teacher bird sings the current note again.</summary>
+        public static bool ReplayGuideNote()
+        {
+            var singing = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.SingingBranchTask>();
+            if (singing == null || !singing.isActiveAndEnabled)
+            {
+                Debug.LogWarning("[AvianVoice] Singing task is not active; switch to scene 3 first.");
+                return false;
+            }
+
+            singing.ReplayMelody();
+            return true;
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Log Audio State (Play Mode)")]
+        public static void LogAudioState()
+        {
+            var sb = new System.Text.StringBuilder();
+            var config = AudioSettings.GetConfiguration();
+            sb.Append("[AvianVoice] Audio: listenerVolume=").Append(AudioListener.volume)
+              .Append(" paused=").Append(AudioListener.pause)
+              .Append(" listeners=").Append(UnityEngine.Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Length)
+              .Append(" sampleRate=").Append(config.sampleRate).Append(" dsp=").Append(config.dspBufferSize)
+              .Append(" speakerMode=").Append(config.speakerMode)
+              .Append(" driverCaps=").Append(AudioSettings.driverCapabilities)
+              .Append(" spatializer=").Append(AudioSettings.GetSpatializerPluginName());
+            var manager = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.TaskManager>();
+            sb.Append(" task=").Append(manager != null ? manager.CurrentTaskId : "none");
+            sb.Append(" masterRms=").Append(MeasureListenerRms().ToString("0.0000"));
+            foreach (var source in UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                sb.Append(" | ").Append(source.gameObject.name)
+                  .Append(" active=").Append(source.isActiveAndEnabled)
+                  .Append(" playing=").Append(source.isPlaying)
+                  .Append(" vol=").Append(source.volume.ToString("0.00"))
+                  .Append(" mute=").Append(source.mute)
+                  .Append(" spatial=").Append(source.spatialBlend.ToString("0.0"))
+                  .Append(" clip=").Append(source.clip != null ? source.clip.name : "procedural/none")
+                  .Append(" mixer=").Append(source.outputAudioMixerGroup != null ? source.outputAudioMixerGroup.name : "-");
+                if (source.isPlaying)
+                    sb.Append(" rms=").Append(MeasureSourceRms(source).ToString("0.0000"));
+            }
+
+            Debug.Log(sb.ToString());
+        }
+
+        static readonly float[] RmsBuffer = new float[1024];
+
+        /// <summary>RMS of the mixed output that reaches the AudioListener (0 = silence).</summary>
+        public static float MeasureListenerRms()
+        {
+            AudioListener.GetOutputData(RmsBuffer, 0);
+            return Rms(RmsBuffer);
+        }
+
+        static float MeasureSourceRms(AudioSource source)
+        {
+            source.GetOutputData(RmsBuffer, 0);
+            return Rms(RmsBuffer);
+        }
+
+        static float Rms(float[] samples)
+        {
+            double sum = 0;
+            for (var i = 0; i < samples.Length; i++)
+                sum += samples[i] * samples[i];
+            return Mathf.Sqrt((float)(sum / samples.Length));
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Inspect Human Avatar Materials")]
+        public static void InspectHumanAvatarMaterials()
+        {
+            var sb = new System.Text.StringBuilder("[AvianVoice] Human avatar materials:");
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(HumanAvatarAssetPath))
+            {
+                if (asset is not Material material)
+                    continue;
+
+                sb.Append(" | ").Append(material.name).Append(" shader=").Append(material.shader != null ? material.shader.name : "null");
+                foreach (var prop in new[] { "_BaseMap", "_BumpMap", "_MetallicGlossMap", "_SpecGlossMap", "_EmissionMap", "_OcclusionMap" })
+                {
+                    if (material.HasProperty(prop))
+                        sb.Append(' ').Append(prop).Append('=').Append(material.GetTexture(prop) != null ? material.GetTexture(prop).name : "null");
+                }
+
+                foreach (var prop in new[] { "_Smoothness", "_Metallic", "_Surface", "_AlphaClip", "_WorkflowMode", "_Cull" })
+                {
+                    if (material.HasProperty(prop))
+                        sb.Append(' ').Append(prop).Append('=').Append(material.GetFloat(prop).ToString("0.00"));
+                }
+
+                foreach (var prop in new[] { "_BaseColor", "_SpecColor", "_EmissionColor" })
+                {
+                    if (material.HasProperty(prop))
+                        sb.Append(' ').Append(prop).Append('=').Append(material.GetColor(prop));
+                }
+
+                sb.Append(" keywords=").Append(string.Join(",", material.shaderKeywords));
+            }
+
+            Debug.Log(sb.ToString());
+        }
+
         [MenuItem("Avian Voice/Embodiment/Open Avian_Lab_Embodiment")]
         public static void OpenScene()
         {

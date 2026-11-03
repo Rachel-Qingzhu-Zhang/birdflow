@@ -31,6 +31,8 @@ namespace AvianVoice.Editor
 
         double nextRepaint;
         Vector2 scroll;
+        float outputLevel;
+        float outputPeakHold;
 
         [MenuItem("Avian Voice/Experimenter Panel (実験者パネル)")]
         public static void Open()
@@ -53,10 +55,18 @@ namespace AvianVoice.Editor
 
         void Tick()
         {
-            if (!EditorApplication.isPlaying || EditorApplication.timeSinceStartup < nextRepaint)
+            if (!EditorApplication.isPlaying)
                 return;
 
-            nextRepaint = EditorApplication.timeSinceStartup + 0.25;
+            // Output meter: sampled every editor tick so short chirps are not missed between repaints.
+            var level = AvianEmbodimentSceneSetup.MeasureListenerRms();
+            outputLevel = Mathf.Max(level, outputLevel * 0.9f);
+            outputPeakHold = Mathf.Max(level, outputPeakHold * 0.995f);
+
+            if (EditorApplication.timeSinceStartup < nextRepaint)
+                return;
+
+            nextRepaint = EditorApplication.timeSinceStartup + 0.1;
             Repaint();
         }
 
@@ -138,6 +148,13 @@ namespace AvianVoice.Editor
             EditorGUILayout.LabelField("体トラッキング", tracking);
             EditorGUILayout.LabelField("被験者コントローラ", ParticipantInputPolicy.ControllersEnabled ? "有効" : "無効 (手・頭・声のみ)");
 
+            var meterRect = EditorGUILayout.GetControlRect(false, 16f);
+            var labelRect = new Rect(meterRect.x, meterRect.y, EditorGUIUtility.labelWidth, meterRect.height);
+            var barRect = new Rect(meterRect.x + EditorGUIUtility.labelWidth, meterRect.y, meterRect.width - EditorGUIUtility.labelWidth, meterRect.height);
+            EditorGUI.LabelField(labelRect, "音声出力 (PC 側)");
+            var normalized = Mathf.Clamp01(Mathf.Log10(1f + outputLevel * 30f));
+            EditorGUI.ProgressBar(barRect, normalized, outputPeakHold > 0.001f ? "音が出ています" : "無音");
+
             if (GUILayout.Button("詳細をコンソールに出す (Log Avatar State)"))
                 Debug.Log("[AvianVoice] Avatar state: " + controller.DescribeState());
         }
@@ -165,6 +182,13 @@ namespace AvianVoice.Editor
                         taskManager.StepTask(-1);
                     if (GUILayout.Button("次の場面 ▶"))
                         taskManager.StepTask(1);
+                }
+
+                var singingActive = taskManager != null && taskManager.CurrentTaskId == "singing";
+                using (new EditorGUI.DisabledScope(!singingActive))
+                {
+                    if (GUILayout.Button("♪ 教師の鳥に歌わせる (Space / R と同じ)", GUILayout.Height(26f)))
+                        AvianEmbodimentSceneSetup.ReplayGuideNote();
                 }
             }
         }
@@ -202,12 +226,21 @@ namespace AvianVoice.Editor
                 if (controllers != ParticipantInputPolicy.ControllersEnabled)
                     ParticipantInputPolicy.ControllersEnabled = controllers;
 
+                var hands = EditorGUILayout.ToggleLeft(
+                    "手のメッシュ・レイを表示する (トラッキングは常に有効)",
+                    ParticipantInputPolicy.HandsVisible);
+                if (hands != ParticipantInputPolicy.HandsVisible)
+                    ParticipantInputPolicy.HandsVisible = hands;
+
                 if (controller != null)
                 {
                     var hint = EditorGUILayout.ToggleLeft("視界下の状態カードを表示する", controller.HintVisible);
                     if (hint != controller.HintVisible)
                         controller.HintVisible = hint;
                 }
+
+                if (GUILayout.Button("音声の状態をコンソールに出す"))
+                    AvianEmbodimentSceneSetup.LogAudioState();
             }
 
             EditorGUILayout.HelpBox(

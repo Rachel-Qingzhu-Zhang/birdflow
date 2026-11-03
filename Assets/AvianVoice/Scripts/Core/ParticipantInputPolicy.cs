@@ -29,12 +29,36 @@ namespace AvianVoice.Core
 
         public static event Action<bool> Changed;
 
-        /// <summary>Scene start resets to the default (controllers allowed) unless a scene component sets it.</summary>
+        static bool handsVisible = true;
+
+        /// <summary>
+        /// True when the XR rig draws the tracked hands (hand mesh, joints, interactor rays). Tracking itself
+        /// stays on either way; the embodiment scene hides them because the avatar body shows the hands.
+        /// </summary>
+        public static bool HandsVisible
+        {
+            get => handsVisible;
+            set
+            {
+                if (handsVisible == value)
+                    return;
+
+                handsVisible = value;
+                Debug.Log("[AvianVoice] Participant hand visuals " + (value ? "shown" : "hidden") + ".");
+                HandsVisibleChanged?.Invoke(value);
+            }
+        }
+
+        public static event Action<bool> HandsVisibleChanged;
+
+        /// <summary>Scene start resets to the defaults unless a scene component sets them.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetOnLoad()
         {
             controllersEnabled = true;
+            handsVisible = true;
             Changed = null;
+            HandsVisibleChanged = null;
         }
     }
 }
