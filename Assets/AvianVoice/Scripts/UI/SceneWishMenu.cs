@@ -380,7 +380,7 @@ namespace AvianVoice.UI
         {
             var device = InputDevices.GetDeviceAtXRNode(node);
             var pressed = false;
-            if (device.isValid)
+            if (device.isValid && ParticipantInputPolicy.ControllersEnabled)
                 device.TryGetFeatureValue(CommonUsages.menuButton, out pressed);
             var edge = pressed && !held;
             held = pressed;

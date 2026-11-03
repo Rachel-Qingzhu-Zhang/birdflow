@@ -143,7 +143,7 @@ namespace AvianVoice.Core
         {
             var device = InputDevices.GetDeviceAtXRNode(node);
             var pressed = false;
-            if (device.isValid)
+            if (device.isValid && ParticipantInputPolicy.ControllersEnabled)
                 device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out pressed);
 
             var down = pressed && !held;

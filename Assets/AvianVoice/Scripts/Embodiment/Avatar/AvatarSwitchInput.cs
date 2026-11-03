@@ -20,7 +20,7 @@ namespace AvianVoice.Embodiment.Avatars
 
             var device = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
             var pressed = false;
-            if (device.isValid)
+            if (device.isValid && AvianVoice.Core.ParticipantInputPolicy.ControllersEnabled)
                 device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out pressed);
 
             var edge = pressed && !leftPrimaryHeld;

@@ -98,6 +98,9 @@ namespace AvianVoice.Embodiment
         static bool TryReadNode(XRNode node, out float x)
         {
             x = 0f;
+            if (!AvianVoice.Core.ParticipantInputPolicy.ControllersEnabled)
+                return false;
+
             var device = InputDevices.GetDeviceAtXRNode(node);
             if (!device.isValid)
                 return false;

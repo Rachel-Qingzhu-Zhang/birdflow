@@ -373,6 +373,9 @@ namespace AvianVoice.Tasks
         static bool TryReadNodeY(XRNode node, out float y)
         {
             y = 0f;
+            if (!AvianVoice.Core.ParticipantInputPolicy.ControllersEnabled)
+                return false;
+
             var device = InputDevices.GetDeviceAtXRNode(node);
             if (!device.isValid)
                 return false;

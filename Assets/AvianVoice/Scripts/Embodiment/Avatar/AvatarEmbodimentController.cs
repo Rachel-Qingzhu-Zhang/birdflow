@@ -47,6 +47,12 @@ namespace AvianVoice.Embodiment.Avatars
         [SerializeField]
         float sharedSpaceMaxHeadErrorMeters = 0.25f;
 
+        [Header("Participant input")]
+        [Tooltip("Off (default): the participant's XR controllers are ignored; scenes and avatars are driven from the PC. " +
+                 "The experimenter panel can change this at runtime.")]
+        [SerializeField]
+        bool participantControllersEnabled;
+
         [Header("UI")]
         [SerializeField]
         bool showSwitchHint = true;
@@ -130,8 +136,23 @@ namespace AvianVoice.Embodiment.Avatars
             return sb.ToString();
         }
 
+        /// <summary>Show or hide the head-locked status card (the experimenter panel toggles this).</summary>
+        public bool HintVisible
+        {
+            get => showSwitchHint;
+            set
+            {
+                showSwitchHint = value;
+                if (hintLabel != null)
+                    hintLabel.transform.parent.gameObject.SetActive(value);
+                else if (value && started)
+                    CreateHint();
+            }
+        }
+
         void Start()
         {
+            Core.ParticipantInputPolicy.ControllersEnabled = participantControllersEnabled;
             ResolveXrCamera();
             Backend = BodyTrackingBackendRegistry.Create(gameObject);
             if (Backend != null)
