@@ -6,16 +6,6 @@ namespace AvianVoice.UI
 {
     public class TaskModeKeyboardSwitcher : MonoBehaviour
     {
-        static readonly string[] TaskIds =
-        {
-            "meet",
-            "breath_sync",
-            "singing",
-            "flying",
-            "call_friends",
-            "reflection"
-        };
-
         TaskManager taskManager;
 
         void Start()
@@ -28,11 +18,12 @@ namespace AvianVoice.UI
             if (taskManager == null)
                 return;
 
-            for (var i = 0; i < TaskIds.Length; i++)
+            // Digits follow the session flow (1 = first task), so a four-scene study uses 1-4.
+            for (var i = 0; i < taskManager.TaskCount && i < 9; i++)
             {
                 if (AvianInput.WasDigitPressedThisFrame(i + 1))
                 {
-                    taskManager.LoadTaskById(TaskIds[i]);
+                    taskManager.SwitchToTaskIndex(i);
                     return;
                 }
             }

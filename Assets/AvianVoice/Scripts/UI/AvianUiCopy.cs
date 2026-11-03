@@ -24,7 +24,8 @@ namespace AvianVoice.UI
                 + "水辺で休み、ここまでの感覚を見てください。鳥になるのは、どんな感じでしたか。"
                 + "鏡の中の自分に会う鳥の呼吸を覚える水面の上を飛ぶ鳥として歌う仲間の鳥を呼ぶ水辺で休む"
                 + "この音を聴いてください。今度はこの音を歌ってください。この音を歌って仲間を呼んでください。"
-                + "仲間が向かっています。次の音を聴いてください。メロディができました。仲間が来ました。";
+                + "仲間が向かっています。次の音を聴いてください。メロディができました。仲間が来ました。"
+                + "次の音を待ってください。お疲れさまでした。そのまま休んでください。";
         }
 
         public static string Instruction(string taskId)
@@ -92,6 +93,12 @@ namespace AvianVoice.UI
                     break;
                 case "friends":
                     SceneGuide.SetPhase("Your friends are here.", "仲間が来ました。");
+                    break;
+                case "wait":
+                    SceneGuide.SetPhase("Wait for the next note.", "次の音を待ってください。");
+                    break;
+                case "finished":
+                    SceneGuide.SetPhase("All done. Rest now.", "お疲れさまでした。そのまま休んでください。");
                     break;
                 default:
                     SceneGuide.ClearPhase();

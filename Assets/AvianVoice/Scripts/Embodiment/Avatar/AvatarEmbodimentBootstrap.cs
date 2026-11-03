@@ -18,12 +18,19 @@ namespace AvianVoice.Embodiment.Avatars
             if (SceneManager.GetActiveScene().name != SceneName)
                 return;
 
-            if (Object.FindAnyObjectByType<AvatarEmbodimentController>(FindObjectsInactive.Include) != null)
-                return;
+            var existing = Object.FindAnyObjectByType<AvatarEmbodimentController>(FindObjectsInactive.Include);
+            var go = existing != null ? existing.gameObject : new GameObject(ControllerObjectName);
+            if (existing == null)
+            {
+                go.AddComponent<AvatarEmbodimentController>();
+                Debug.Log("[AvianVoice] Added AvatarEmbodimentController at runtime.");
+            }
 
-            var go = new GameObject(ControllerObjectName);
-            go.AddComponent<AvatarEmbodimentController>();
-            Debug.Log("[AvianVoice] Added AvatarEmbodimentController at runtime.");
+            if (Object.FindAnyObjectByType<Study.StudyFlowController>(FindObjectsInactive.Include) == null)
+            {
+                go.AddComponent<Study.StudyFlowController>();
+                Debug.Log("[AvianVoice] Added StudyFlowController at runtime.");
+            }
         }
     }
 }

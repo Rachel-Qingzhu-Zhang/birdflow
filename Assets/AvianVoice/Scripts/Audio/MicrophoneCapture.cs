@@ -27,6 +27,12 @@ namespace AvianVoice.Audio
 
         public bool IsCapturing { get; private set; }
 
+        /// <summary>Live microphone ring clip (null while not capturing). Readers track their own position.</summary>
+        public AudioClip Clip => clip;
+        public string DeviceName => deviceName;
+        /// <summary>Incremented every time capture (re)starts, so readers can detect a new clip.</summary>
+        public int ClipGeneration { get; private set; }
+
         public void Initialize(AvianVoiceSettings voiceSettings)
         {
             settings = voiceSettings;
@@ -80,7 +86,10 @@ namespace AvianVoice.Audio
             lastPushedAt = Time.unscaledTime;
             IsCapturing = clip != null;
             if (IsCapturing)
+            {
+                ClipGeneration++;
                 Debug.Log("[AvianVoice] Microphone: " + deviceName);
+            }
             if (IsCapturing && !speakersRestoreDone)
                 StartCoroutine(RestoreSpeakersAfterMicrophone());
         }

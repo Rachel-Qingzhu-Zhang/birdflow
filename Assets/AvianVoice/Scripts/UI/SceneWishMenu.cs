@@ -130,7 +130,10 @@ namespace AvianVoice.UI
         {
             AvianUiLanguage.Changed -= RefreshLanguage;
             if (taskManager != null)
+            {
                 taskManager.OnTaskChanged -= OnTaskChanged;
+                taskManager.OnFlowChanged -= RefreshActive;
+            }
         }
 
         void Update()
@@ -213,7 +216,10 @@ namespace AvianVoice.UI
                 return;
             taskManager = FindAnyObjectByType<TaskManager>();
             if (taskManager != null)
+            {
                 taskManager.OnTaskChanged += OnTaskChanged;
+                taskManager.OnFlowChanged += RefreshActive;
+            }
         }
 
         void OnTaskChanged(string taskName, string instruction) => RefreshActive();
@@ -224,8 +230,22 @@ namespace AvianVoice.UI
                 return;
 
             var current = taskManager != null ? taskManager.CurrentTaskId : "";
+            var flow = taskManager != null ? taskManager.TaskIds : null;
+            var y = 96f;
             for (var i = 0; i < rows.Length; i++)
             {
+                // Only the tasks in the session flow are offered; the rest are hidden and the list closes up.
+                var inFlow = flow == null || System.Array.IndexOf(flow, rows[i].taskId) >= 0;
+                if (rows[i].background != null)
+                {
+                    rows[i].background.gameObject.SetActive(inFlow);
+                    if (inFlow && rows[i].background.transform is RectTransform rowRect)
+                    {
+                        rowRect.anchoredPosition = new Vector2(0f, y);
+                        y -= 44f;
+                    }
+                }
+
                 var active = rows[i].taskId == current;
                 if (rows[i].background != null)
                     rows[i].background.color = active ? RowActive : RowIdle;

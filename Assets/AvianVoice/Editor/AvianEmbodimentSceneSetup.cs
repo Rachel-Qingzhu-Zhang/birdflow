@@ -81,6 +81,10 @@ namespace AvianVoice.Editor
         /// <summary>Same as the participant pressing Space / R: the teacher bird sings the current note again.</summary>
         public static bool ReplayGuideNote()
         {
+            var trials = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.SingingTrialTask>();
+            if (trials != null && trials.isActiveAndEnabled)
+                return trials.StartNextTrial("menu");
+
             var singing = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.SingingBranchTask>();
             if (singing == null || !singing.isActiveAndEnabled)
             {
@@ -245,15 +249,30 @@ namespace AvianVoice.Editor
 
         static bool EnsureController()
         {
+            var changed = false;
             var existing = UnityEngine.Object.FindAnyObjectByType<AvatarEmbodimentController>(FindObjectsInactive.Include);
+            GameObject go;
             if (existing != null)
-                return false;
+            {
+                go = existing.gameObject;
+            }
+            else
+            {
+                go = new GameObject(AvatarEmbodimentBootstrap.ControllerObjectName);
+                go.AddComponent<AvatarEmbodimentController>();
+                Undo.RegisterCreatedObjectUndo(go, "Add embodiment controller");
+                Debug.Log("[AvianVoice] Added AvatarEmbodimentController to the scene.");
+                changed = true;
+            }
 
-            var go = new GameObject(AvatarEmbodimentBootstrap.ControllerObjectName);
-            go.AddComponent<AvatarEmbodimentController>();
-            Undo.RegisterCreatedObjectUndo(go, "Add embodiment controller");
-            Debug.Log("[AvianVoice] Added AvatarEmbodimentController to the scene.");
-            return true;
+            if (UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.StudyFlowController>(FindObjectsInactive.Include) == null)
+            {
+                Undo.AddComponent<AvianVoice.Study.StudyFlowController>(go);
+                Debug.Log("[AvianVoice] Added StudyFlowController to the scene.");
+                changed = true;
+            }
+
+            return changed;
         }
 
         static void ConfigureMetaBodyTracking()

@@ -89,9 +89,12 @@ namespace AvianVoice.Tasks
 
         int currentIndex;
         bool isLoading;
+        string[] flowIds;
 
         public event Action<string, string> OnTaskChanged;
         public event Action<float> OnScoreUpdated;
+        /// <summary>Raised when <see cref="SetFlow"/> changes which tasks are in the session.</summary>
+        public event Action OnFlowChanged;
 
         public TaskSwitchMode SwitchMode => switchMode;
         public string CurrentTaskName => tasks.Length > 0 ? tasks[currentIndex].displayName : "None";
@@ -101,6 +104,86 @@ namespace AvianVoice.Tasks
         public string CurrentTaskId => tasks.Length > 0 ? tasks[currentIndex].taskId : "";
         public int CurrentIndex => currentIndex;
         public int TaskCount => tasks.Length;
+
+        /// <summary>Task ids in session order (the canonical six, or the subset given to <see cref="SetFlow"/>).</summary>
+        public string[] TaskIds
+        {
+            get
+            {
+                var ids = new string[tasks.Length];
+                for (var i = 0; i < tasks.Length; i++)
+                    ids[i] = tasks[i].taskId;
+                return ids;
+            }
+        }
+
+        /// <summary>
+        /// Restrict the session to the given task ids, in that order (for example a four-scene study).
+        /// Ids must be canonical ids; unknown ids are ignored. The current task is kept when it is in the flow.
+        /// </summary>
+        public void SetFlow(string[] taskIds)
+        {
+            if (taskIds == null || taskIds.Length == 0)
+                return;
+
+            var valid = new System.Collections.Generic.List<string>();
+            foreach (var id in taskIds)
+            {
+                if (Array.IndexOf(CanonicalOrder, id) >= 0 && !valid.Contains(id))
+                    valid.Add(id);
+            }
+
+            if (valid.Count == 0)
+                return;
+
+            var currentId = CurrentTaskId;
+            flowIds = valid.ToArray();
+            EnsureCanonicalOrder();
+            var index = IndexOfTaskId(currentId);
+            if (index >= 0)
+            {
+                currentIndex = index;
+            }
+            else
+            {
+                currentIndex = 0;
+                ApplyCurrentTask();
+            }
+
+            OnFlowChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Replace the behaviour that runs a task (for example a trial-based singing task instead of the
+        /// melody task). The previous behaviour is disabled; the new one is enabled if that task is current.
+        /// </summary>
+        public void BindTaskBehaviour(string taskId, MonoBehaviour behaviour)
+        {
+            var index = IndexOfTaskId(taskId);
+            if (index < 0)
+                return;
+
+            var previous = tasks[index].taskBehaviour;
+            if (previous != null && previous != behaviour)
+                previous.enabled = false;
+
+            tasks[index].taskBehaviour = behaviour;
+            if (behaviour == null)
+                return;
+
+            behaviour.enabled = index == currentIndex;
+        }
+
+        int IndexOfTaskId(string taskId)
+        {
+            for (var i = 0; i < tasks.Length; i++)
+            {
+                if (tasks[i].taskId == taskId)
+                    return i;
+            }
+
+            return -1;
+        }
 
         void Start()
         {
@@ -180,15 +263,16 @@ namespace AvianVoice.Tasks
 
         void EnsureCanonicalOrder()
         {
-            var next = new TaskEntry[CanonicalOrder.Length];
-            for (var i = 0; i < CanonicalOrder.Length; i++)
+            var order = flowIds ?? CanonicalOrder;
+            var next = new TaskEntry[order.Length];
+            for (var i = 0; i < order.Length; i++)
             {
                 TaskEntry found = null;
                 if (tasks != null)
                 {
                     for (var j = 0; j < tasks.Length; j++)
                     {
-                        if (tasks[j] != null && tasks[j].taskId == CanonicalOrder[i])
+                        if (tasks[j] != null && tasks[j].taskId == order[i])
                         {
                             found = tasks[j];
                             break;
@@ -196,7 +280,7 @@ namespace AvianVoice.Tasks
                     }
                 }
 
-                next[i] = found ?? new TaskEntry { taskId = CanonicalOrder[i], unlocked = true };
+                next[i] = found ?? new TaskEntry { taskId = order[i], unlocked = true };
             }
 
             tasks = next;
