@@ -21,9 +21,6 @@ namespace AvianVoice.Tasks
         BirdFriendDemonstrator demonstrator;
 
         [SerializeField]
-        SuccessChirpBurst successChirp;
-
-        [SerializeField]
         bool enableDebugCheat = true;
 
         TaskFlowUI taskUi;
@@ -43,6 +40,7 @@ namespace AvianVoice.Tasks
             completed = false;
             elapsed = 0f;
             ResolveReferences();
+            BirdVoiceMapper.Find()?.SetFollowVoice(false);
             demonstrator?.SetTeachingActive(false);
             Debug.Log("[AvianVoice] Meet Your Bird: look at your bird self. Breathing stays in the next scene.");
         }
@@ -50,7 +48,6 @@ namespace AvianVoice.Tasks
         void OnDisable()
         {
             demonstrator?.SetTeachingActive(true);
-            BirdExperienceAudio.Ensure()?.StopAll();
         }
 
         void Update()
@@ -62,8 +59,6 @@ namespace AvianVoice.Tasks
             {
                 if (!completed)
                     Complete();
-                else
-                    BirdExperienceAudio.Ensure()?.PlayForestReward();
                 Debug.Log("[AvianVoice] Meet cheat.");
                 return;
             }
@@ -80,8 +75,6 @@ namespace AvianVoice.Tasks
         {
             completed = true;
             taskManager?.ReportScore(1f);
-            if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
-                successChirp?.PlaySuccessBurst();
             SetStatus("You met your bird self.");
         }
 
@@ -91,8 +84,6 @@ namespace AvianVoice.Tasks
                 taskManager = FindAnyObjectByType<TaskManager>();
             if (demonstrator == null)
                 demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            if (successChirp == null)
-                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
         }
 
         void SetStatus(string message)

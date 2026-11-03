@@ -33,13 +33,17 @@ namespace AvianVoice.UI
 
         public static readonly Vector2 WishPanelCanvasSize = new(380f, 390f);
         public static readonly float WishPanelWorldScale = 0.0009f;
-        public static readonly Vector3 WishPanelLocalPosition = new(-0.22f, -0.02f, 0.72f);
+        public static readonly Vector3 WishPanelLocalPosition = new(0.38f, -0.04f, 0.78f);
         public static readonly Vector2 WishChipCanvasSize = new(168f, 48f);
         public static readonly float WishChipWorldScale = 0.0009f;
-        public static readonly Vector3 WishChipLocalPosition = new(0.16f, -0.04f, 0.56f);
+        public static readonly Vector3 WishChipLocalPosition = new(0.42f, 0.02f, 0.72f);
 
-        public static readonly Vector2 GuideCanvasSize = new(460f, 96f);
+        public static readonly Vector2 GuideCanvasSize = new(460f, 76f);
         public static readonly float GuideWorldScale = 0.0009f;
-        public static readonly Vector3 GuideLocalPosition = new(0f, 0.16f, 0.70f);
+        public static readonly Vector3 GuideLocalPosition = new(-0.34f, 0.19f, 0.78f);
+
+        public static readonly Vector2 ReplayChipCanvasSize = new(168f, 48f);
+        public static readonly float ReplayChipWorldScale = 0.0009f;
+        public static readonly Vector3 ReplayChipLocalPosition = new(-0.34f, 0.08f, 0.74f);
     }
 }

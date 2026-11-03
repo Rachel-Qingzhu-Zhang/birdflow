@@ -4,8 +4,8 @@ using UnityEngine;
 namespace AvianVoice.Audio
 {
     /// <summary>
-    /// Reference notes/melody and bird-sound rewards loaded from Resources/BirdExperience.
-    /// Scene 6 does not call this.
+    /// Legacy reference clips in Resources/BirdExperience. Tasks do not play these.
+    /// Forest and reward beds are not loaded, so they cannot be mistaken for a note to sing.
     /// </summary>
     public class BirdExperienceAudio : MonoBehaviour
     {
@@ -16,10 +16,7 @@ namespace AvianVoice.Audio
         AudioSource cueSource;
         AudioClip pitchClip;
         AudioClip melodyClip;
-        AudioClip breathRewardClip;
-        AudioClip forestRewardClip;
         Coroutine sliceRoutine;
-        float nextForestTime;
         bool replayMelodyAfterReset;
         Transform lastMelodyBird;
 
@@ -63,12 +60,8 @@ namespace AvianVoice.Audio
         {
             pitchClip = Resources.Load<AudioClip>(Folder + "/bird_pitch");
             melodyClip = Resources.Load<AudioClip>(Folder + "/bird_melody");
-            breathRewardClip = Resources.Load<AudioClip>(Folder + "/birds_reward");
-            forestRewardClip = Resources.Load<AudioClip>(Folder + "/birds_forest");
             pitchClip?.LoadAudioData();
             melodyClip?.LoadAudioData();
-            breathRewardClip?.LoadAudioData();
-            forestRewardClip?.LoadAudioData();
         }
 
         void OnAudioConfigurationChanged(bool deviceWasChanged)
@@ -204,38 +197,6 @@ namespace AvianVoice.Audio
                 PlaySlice(melodyClip, step, stepCount);
             else
                 PlayMelodyNear(bird, true);
-        }
-
-        /// <summary>Longer tree-birds bed while a breath pattern is actually matched.</summary>
-        public void PlayBreathReward()
-        {
-            EnsureSources();
-            if (breathRewardClip == null || feedbackSource == null)
-                return;
-
-            if (feedbackSource.isPlaying && feedbackSource.clip == breathRewardClip)
-                return;
-
-            feedbackSource.clip = breathRewardClip;
-            feedbackSource.pitch = 1f;
-            feedbackSource.volume = 0.42f;
-            feedbackSource.loop = false;
-            feedbackSource.Play();
-        }
-
-        /// <summary>Short forest sting for a completed step. Does not replace scene 6's chirp burst.</summary>
-        public bool PlayForestReward()
-        {
-            EnsureSources();
-            if (forestRewardClip == null || feedbackSource == null)
-                return false;
-
-            if (Time.time < nextForestTime)
-                return true;
-
-            nextForestTime = Time.time + 0.65f;
-            feedbackSource.PlayOneShot(forestRewardClip, 0.8f);
-            return true;
         }
 
         public void StopAll()

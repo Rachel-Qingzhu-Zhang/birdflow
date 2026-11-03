@@ -1,6 +1,7 @@
 using System.Collections;
 using AvianVoice.Core;
 using UnityEngine;
+using UnityEngine.XR;
 
 namespace AvianVoice.Audio
 {
@@ -78,6 +79,8 @@ namespace AvianVoice.Audio
             lastMicPosition = 0;
             lastPushedAt = Time.unscaledTime;
             IsCapturing = clip != null;
+            if (IsCapturing)
+                Debug.Log("[AvianVoice] Microphone: " + deviceName);
             if (IsCapturing && !speakersRestoreDone)
                 StartCoroutine(RestoreSpeakersAfterMicrophone());
         }
@@ -85,19 +88,48 @@ namespace AvianVoice.Audio
         static string PickDevice()
         {
             var devices = Microphone.devices;
+            var headsetSession = XRSettings.enabled && XRSettings.isDeviceActive;
+            string physical = null;
+            string headset = null;
+
             for (var i = 0; i < devices.Length; i++)
             {
                 var n = devices[i];
                 if (string.IsNullOrEmpty(n))
                     continue;
+
                 var lower = n.ToLowerInvariant();
-                if (lower.Contains("stereo mix") || lower.Contains("what u hear") || lower.Contains("loopback"))
+                if (IsLoopback(lower))
                     continue;
-                if (lower.Contains("headset") || lower.Contains("headphone") || lower.Contains("mic"))
-                    return n;
+
+                if (IsVirtualHeadset(lower))
+                {
+                    headset ??= n;
+                    continue;
+                }
+
+                physical ??= n;
             }
 
-            return devices[0];
+            if (headsetSession && headset != null)
+                return headset;
+
+            return physical ?? headset ?? devices[0];
+        }
+
+        static bool IsLoopback(string lower)
+        {
+            return lower.Contains("stereo mix")
+                || lower.Contains("what u hear")
+                || lower.Contains("loopback")
+                || lower.Contains("立体声混音");
+        }
+
+        static bool IsVirtualHeadset(string lower)
+        {
+            return lower.Contains("oculus")
+                || lower.Contains("virtual")
+                || lower.Contains("quest");
         }
 
         IEnumerator RestoreSpeakersAfterMicrophone()

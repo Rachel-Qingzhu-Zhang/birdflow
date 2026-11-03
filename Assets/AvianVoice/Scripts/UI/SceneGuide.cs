@@ -23,7 +23,8 @@ namespace AvianVoice.UI
         TaskManager taskManager;
         TextMeshProUGUI label;
         string taskLine = "";
-        string phaseLine = "";
+        string phaseEnglish = "";
+        string phaseJapanese = "";
 
         public static void Ensure(Transform parent)
         {
@@ -71,10 +72,16 @@ namespace AvianVoice.UI
 
         public static void SetPhase(string line)
         {
+            SetPhase(line, line);
+        }
+
+        public static void SetPhase(string english, string japanese)
+        {
             Resolve();
             if (instance == null)
                 return;
-            instance.phaseLine = line ?? "";
+            instance.phaseEnglish = english ?? "";
+            instance.phaseJapanese = japanese ?? english ?? "";
             instance.RefreshLabel();
         }
 
@@ -99,18 +106,22 @@ namespace AvianVoice.UI
         void OnEnable()
         {
             instance = this;
+            AvianUiLanguage.Changed -= OnLanguageChanged;
+            AvianUiLanguage.Changed += OnLanguageChanged;
             Bind();
             RefreshLabel();
         }
 
         void OnDisable()
         {
+            AvianUiLanguage.Changed -= OnLanguageChanged;
             if (taskManager != null)
                 taskManager.OnTaskChanged -= OnTaskChanged;
         }
 
         void Update()
         {
+            AvianUiLanguage.PollToggle();
             if (taskManager == null)
             {
                 Bind();
@@ -152,7 +163,7 @@ namespace AvianVoice.UI
             textGo.transform.SetParent(rect, false);
             var textRect = textGo.AddComponent<RectTransform>();
             textRect.anchoredPosition = Vector2.zero;
-            textRect.sizeDelta = new Vector2(430f, 78f);
+            textRect.sizeDelta = new Vector2(430f, 60f);
             label = textGo.AddComponent<TextMeshProUGUI>();
             label.fontSize = 18;
             label.color = Ivory;
@@ -160,9 +171,7 @@ namespace AvianVoice.UI
             label.enableWordWrapping = true;
             label.overflowMode = TextOverflowModes.Ellipsis;
             label.raycastTarget = false;
-            var font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-            if (font != null)
-                label.font = font;
+            AvianUiFont.Apply(label);
 
             SetLayerRecursive(gameObject, BirdSceneRoles.UiLayer);
             Bind();
@@ -183,7 +192,15 @@ namespace AvianVoice.UI
         void OnTaskChanged(string taskName, string instruction)
         {
             taskLine = instruction ?? "";
-            phaseLine = "";
+            phaseEnglish = "";
+            phaseJapanese = "";
+            RefreshLabel();
+        }
+
+        void OnLanguageChanged()
+        {
+            if (taskManager != null)
+                taskLine = taskManager.CurrentInstruction;
             RefreshLabel();
         }
 
@@ -191,8 +208,10 @@ namespace AvianVoice.UI
         {
             if (label == null)
                 return;
-            var line = string.IsNullOrEmpty(phaseLine) ? taskLine : phaseLine;
+            var phase = AvianUiLanguage.Pick(phaseEnglish, phaseJapanese);
+            var line = string.IsNullOrEmpty(phase) ? taskLine : phase;
             label.text = line ?? "";
+            AvianUiFont.Apply(label);
         }
 
         static void SetLayerRecursive(GameObject root, int layer)

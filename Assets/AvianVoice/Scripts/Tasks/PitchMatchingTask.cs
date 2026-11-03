@@ -74,6 +74,13 @@ namespace AvianVoice.Tasks
             if (!enabled || !TaskActivity.IsActive("pitch"))
                 return;
 
+            if (AvianInput.WasReplayPressedThisFrame())
+            {
+                timer = 0f;
+                PlayReference();
+                return;
+            }
+
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
                 score = 1f;

@@ -15,8 +15,8 @@ namespace AvianVoice.Embodiment
         {
             "meet",
             "breath_sync",
-            "flying",
             "singing",
+            "flying",
             "call_friends",
             "reflection"
         };
@@ -25,8 +25,8 @@ namespace AvianVoice.Embodiment
         {
             "1 Meet Your Bird",
             "2 Breath Sync",
-            "3 Flying",
-            "4 Singing Branch",
+            "3 Singing Branch",
+            "4 Flying",
             "5 Call Friends",
             "6 Reflection"
         };
@@ -52,7 +52,7 @@ namespace AvianVoice.Embodiment
         [SerializeField]
         bool skipAutoSceneLayout;
 
-        [Header("Flying start (task 3, rig origin relative to the pond surface)")]
+        [Header("Flying start (task 4, rig origin relative to the pond surface)")]
         [Tooltip("Rig origin height above the water when entering Flying. Lower = closer to the reflection.")]
         [SerializeField]
         float flyingHeightAboveWater = 1.3f;
@@ -222,27 +222,42 @@ namespace AvianVoice.Embodiment
 
         void EnsureTaskSlots()
         {
-            if (taskPoses != null && taskPoses.Length == TaskIds.Length)
+            if (SlotsMatchTaskIds())
                 return;
 
+            // Captures are stored by task id. Reordering tasks must not reuse another task's slot.
             var rebuilt = new TaskPose[TaskIds.Length];
             for (var i = 0; i < TaskIds.Length; i++)
             {
                 rebuilt[i].taskId = TaskIds[i];
-                if (taskPoses != null)
+                if (taskPoses == null)
+                    continue;
+
+                for (var j = 0; j < taskPoses.Length; j++)
                 {
-                    for (var j = 0; j < taskPoses.Length; j++)
-                    {
-                        if (taskPoses[j].taskId != TaskIds[i])
-                            continue;
-                        rebuilt[i] = taskPoses[j];
-                        rebuilt[i].taskId = TaskIds[i];
-                        break;
-                    }
+                    if (taskPoses[j].taskId != TaskIds[i])
+                        continue;
+                    rebuilt[i] = taskPoses[j];
+                    rebuilt[i].taskId = TaskIds[i];
+                    break;
                 }
             }
 
             taskPoses = rebuilt;
+        }
+
+        bool SlotsMatchTaskIds()
+        {
+            if (taskPoses == null || taskPoses.Length != TaskIds.Length)
+                return false;
+
+            for (var i = 0; i < TaskIds.Length; i++)
+            {
+                if (taskPoses[i].taskId != TaskIds[i])
+                    return false;
+            }
+
+            return true;
         }
 
         int IndexOfTask(string taskId)

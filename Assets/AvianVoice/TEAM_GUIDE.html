@@ -70,564 +70,555 @@
   <main>
 
 <article id="en" class="lang on" lang="en">
-  <p class="lead">Birdflow is an immersive visit in which you become a parrot in a forest. The camera is the bird’s eyes. A mirror shows your body. The pond carries your reflection in flight. When you speak or hum, you hear birdsong that follows your melody.</p>
-  <p>The whole visit is one Unity scene. Its name is <strong>Avian Lab</strong>, file <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>. Open that scene and press Play.</p>
+  <p class="lead">Birdflow is an immersive visit in which you become a parrot in a forest. The camera is the bird’s eyes. A mirror shows your body. The pond carries your reflection in flight. When it is your turn to sing, or when you are flying, you hear one birdsong synth that follows your pitch.</p>
+  <p>The whole visit is one Unity scene. Its name is <strong>Avian Lab</strong>, file <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>. Open that scene and press Play. Inside the visit, <strong>J</strong> switches the on-screen sentences between English and Japanese. This page’s 中文 button is only for the handbook.</p>
   <nav class="toc">
     <a href="#en-what">What it is</a>
     <a href="#en-lab">Avian Lab</a>
     <a href="#en-flow">The six moments</a>
     <a href="#en-desk">Desktop</a>
     <a href="#en-vr">Headset</a>
-    <a href="#en-sound">Voice to birdsong</a>
+    <a href="#en-sound">Voice and the four notes</a>
     <a href="#en-code">Where to edit</a>
   </nav>
 
   <h2 id="en-what">What Birdflow is</h2>
-  <p>You see yourself, breathe with the bird, glide low over the water, sing beside a companion, call other birds in, and rest at the water. Content for the visit is in <code>Assets/AvianVoice/</code>. The parrot model is in <code>Assets/Parrot/</code>. Forest and pond are already placed in Avian Lab.</p>
+  <p>You see yourself, breathe with the bird, sing one note at a time beside a companion, glide low over the water, call other birds in with the same four notes, and rest at the water. Content lives in <code>Assets/AvianVoice/</code>. The parrot model is in <code>Assets/Parrot/</code>. Forest and pond are already placed in Avian Lab.</p>
+  <p>Singing used to be scene 4 and flying scene 3. They are swapped: <strong>3 is sing with the friend, 4 is fly over the water</strong>. Each scene still uses its own saved place. Singing stands at the mirror with <code>FriendParrot</code>. Flying moves to the pond. The microphone does not chirp during meet, breath, or rest, so those scenes stay quiet.</p>
 
   <h2 id="en-lab">Avian Lab</h2>
-  <p>The six scenes all run inside Avian Lab. Press 1–6, or open <strong>I want …</strong>. A first visit goes from 1 to 6.</p>
+  <p>The six scenes all run inside Avian Lab. Press 1–6, or open <strong>I want …</strong> (Japanese: 場面 …). Left arrow steps to the previous scene. Right arrow, or N, steps to the next. A first visit goes from 1 to 6.</p>
 
   <h2 id="en-flow">The six scenes</h2>
   <nav class="scenes" aria-label="Scenes">
     <a href="#en-s1">1 Meet</a>
     <a href="#en-s2">2 Breath</a>
-    <a href="#en-s3">3 Fly</a>
-    <a href="#en-s4">4 Sing</a>
+    <a href="#en-s3">3 Sing</a>
+    <a href="#en-s4">4 Fly</a>
     <a href="#en-s5">5 Call</a>
     <a href="#en-s6">6 Rest</a>
   </nav>
 
   <section class="scene" id="en-s1">
     <h3>Scene 1 — Meet yourself</h3>
-    <p class="io"><b>Input</b>　Where you look, and the microphone. At a desk, hold the right mouse button toward the mirror. In a headset, turn your head. Speak or hum, and one chirp follows your pitch.</p>
+    <p class="io"><b>Input</b>　Where you look. At a desk, hold the right mouse button toward the mirror. In a headset, turn your head. Speaking does not make a bird sound here.</p>
     <p class="io"><b>Task</b>　See your bird body in the mirror and stay for about 6 seconds.</p>
-    <p>Menu line: “I want to meet my bird self.” You stand at the mirror. It shows your parrot, <code>PlayerParrot</code>. The prompt says: “This is your bird self in the mirror. Look at it — no need to breathe yet.”</p>
+    <p>Menu line: “I want to meet my bird self.” / 「鏡の中の自分に会う」. You stand at the mirror pose (the same place as breath, singing, calling friends, and rest). The mirror shows <code>PlayerParrot</code>. The friend bird stays hidden.</p>
     <table>
-      <tr><th>When</th><th>Feedback in view</th><th>Audio</th></tr>
-      <tr><td>On enter</td><td>Prompt: “This is your bird self in the mirror. Look at it — no need to breathe yet.”</td><td>None</td></tr>
-      <tr><td>You start a sound</td><td>One short chirp at your pitch</td><td>Live synth, not a file</td></tr>
-      <tr><td>About 6 seconds</td><td>The scene ends. You can open scene 2.</td><td><code>birds_forest.wav</code></td></tr>
+      <tr><th>When</th><th>What you see</th><th>Audio</th></tr>
+      <tr><td>On enter</td><td>“This is your bird self in the mirror. Look at it — no need to breathe yet.”</td><td>None</td></tr>
+      <tr><td>About 6 seconds</td><td>The line becomes “You met your bird self.” You can open scene 2.</td><td>None. No forest sting.</td></tr>
     </table>
-    <p>The debug panel then reads “You met your bird self.” It is hidden by default.</p>
   </section>
 
   <section class="scene" id="en-s2">
     <h3>Scene 2 — Learn the breath</h3>
-    <p class="io"><b>Input</b>　Your own breathing. When the chest rises, breathe in. When it falls, breathe out.</p>
-    <p class="io"><b>Task</b>　Follow a faster rhythm, then a slower one.</p>
-    <p>Menu line: “I want to learn its breath.” You are still at the mirror. The parrot’s chest and wings move on their own, with a slight cyan tint. The prompt says: “Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.”</p>
+    <p class="io"><b>Input</b>　Your own breathing. When the chest rises, breathe in. When it falls, breathe out. The microphone stays silent.</p>
+    <p class="io"><b>Task</b>　Follow the slow rhythm until it finishes, then the visit moves on by itself.</p>
+    <p>Menu line: “I want to learn its breath.” / 「鳥の呼吸を覚える」. Still at the mirror. The parrot’s chest and wings move on their own. There is only the slow pattern: about <strong>6 seconds in, 6 seconds out</strong>. Default length is <strong>4 cycles</strong> (about 48 seconds), from <code>patternBCycles</code> on <code>AvianVoiceSettings</code>.</p>
     <table>
-      <tr><th>Phase</th><th>Rhythm</th><th>One cycle</th><th>Cycles</th></tr>
-      <tr><td>Pattern A</td><td>About 4 s in, 4 s out</td><td>About 8 s</td><td>3 (about 24 s)</td></tr>
-      <tr><td>Pattern B</td><td>About 6 s in, 6 s out</td><td>About 12 s</td><td>2 (about 24 s)</td></tr>
+      <tr><th>When</th><th>What you see</th><th>Audio</th></tr>
+      <tr><td>On enter</td><td>“Watch the bird's chest and breathe with it.” / 「鳥の胸を見て、一緒に呼吸してください。」</td><td>None</td></tr>
+      <tr><td>After 4 slow cycles</td><td>A short pause, then scene 3 starts.</td><td>None</td></tr>
     </table>
-    <table>
-      <tr><th>When</th><th>Feedback in view</th><th>Audio</th></tr>
-      <tr><td>On enter</td><td>Prompt stays: “Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.” The chest starts pattern A. Feathers tint slightly cyan as the chest rises.</td><td>None</td></tr>
-      <tr><td>After A’s 3 cycles</td><td>A cyan flash, then the slower pattern B starts at once</td><td><code>birds_forest.wav</code></td></tr>
-      <tr><td>After B’s 2 cycles</td><td>Another cyan flash. The scene ends.</td><td><code>birds_forest.wav</code></td></tr>
-    </table>
-    <p>Timings are Teacher Breath on <code>AvianVoiceSettings</code>. The debug panel counts inhale / exhale and “cycle 1/3”, then “Breath sync complete!” The prompt card does not change.</p>
   </section>
 
   <section class="scene" id="en-s3">
-    <h3>Scene 3 — Fly over the water</h3>
-    <p class="io"><b>Input</b>　The microphone. Louder or higher climbs; silence descends. At a desk, E climbs and Q descends. In a headset, stick up/down nudges height and left/right turns. Forward flight is automatic. WASD does not move you here.</p>
-    <p class="io"><b>Task</b>　Glide above the pond, set your height with your voice, and look down at the reflection.</p>
-    <p>Menu line: “I want to fly above the water.” You are placed above the pond, looking slightly down. Mirror off, pond reflection on. Your own view does not draw the bird’s body. The reflection shows the open wings. Forward speed is about 1.75 m/s. Height stays about 0.6–2.6 m over the water. This scene does not end by itself. Open <strong>I want …</strong> for the next one.</p>
+    <h3>Scene 3 — Sing with the friend</h3>
+    <p class="io"><b>Input</b>　Listen, then hold the same note with your voice. Replay the note if you lose it.</p>
+    <p class="io"><b>Task</b>　The friend sings E4, G4, A4, then B4. After each note stops, you sing it back. Any octave of that note counts.</p>
+    <p>Menu line: “I want to sing as a bird.” / 「鳥として歌う」. You stay at the mirror. <code>FriendParrot</code> stands about 0.72 m to your right. Pond reflection is off. A <strong>Replay</strong> chip (「もう一度」) sits in view. Click it, or press <strong>R</strong>, <strong>B</strong>, or Space. On a controller, the right-hand <strong>B</strong> button (left hand: <strong>Y</strong>) does the same. Replay restarts the note you are on. It does not skip ahead.</p>
     <table>
-      <tr><th>When</th><th>Feedback in view</th><th>Audio</th></tr>
-      <tr><td>On enter</td><td>Prompt stays: “The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.” The fly animation starts.</td><td>None</td></tr>
-      <tr><td>Louder or higher singing</td><td>You climb at once. The reflection climbs with you.</td><td>Live chirp</td></tr>
-      <tr><td>Silence</td><td>You sink at once, and stop above the water</td><td>None</td></tr>
-      <tr><td>E / Q, or the stick</td><td>Height changes at once. Stick left/right changes heading.</td><td>None</td></tr>
+      <tr><th>Order</th><th>Note you sing</th><th>Human Hz</th><th>What the bird synth plays (×8)</th></tr>
+      <tr><td>1</td><td>E4</td><td>330</td><td>about 2640 Hz</td></tr>
+      <tr><td>2</td><td>G4</td><td>392</td><td>about 3136 Hz</td></tr>
+      <tr><td>3</td><td>A4</td><td>440</td><td>about 3520 Hz</td></tr>
+      <tr><td>4</td><td>B4</td><td>494</td><td>about 3952 Hz</td></tr>
     </table>
+    <table>
+      <tr><th>When</th><th>Prompt</th><th>Audio</th></tr>
+      <tr><td>The friend sings (about 0.70 s)</td><td>“Listen to E4.” / 「E4を聴いてください。」</td><td>One guide chirp, same synth you will answer with. Your mic is muted.</td></tr>
+      <tr><td>A short gap (about 0.28 s)</td><td>The listen line stays.</td><td>Silence, so the note can finish.</td></tr>
+      <tr><td>Your turn</td><td>“Now sing E4.” / 「今度はE4を歌ってください。」</td><td>Your voice becomes the same synth. A new syllable is a chirp of about 0.08 s.</td></tr>
+      <tr><td>You hold the pitch class for about 0.45 s</td><td>“Listen for the next note.” for about 0.45 s, then the next listen line.</td><td>No reward sting. The next note is the only new sound.</td></tr>
+      <tr><td>All four notes</td><td>“Melody complete.” / 「メロディができました。」</td><td>The mic goes quiet. Replay starts again from E4.</td></tr>
+    </table>
+    <p>Matching uses pitch class, not the raw high bird frequency. E3 (165 Hz), E4 (330 Hz), and E5 (660 Hz) are the same note. The window is about 40 Hz around the written target, which is about two semitones. You pass when you are inside the inner three quarters of that window (roughly half a semitone) for 0.45 seconds. Feathers shift toward cyan as you get closer.</p>
   </section>
 
   <section class="scene" id="en-s4">
-    <h3>Scene 4 — Sing together</h3>
-    <p class="io"><b>Input</b>　Microphone pitch. Hold the current note steady.</p>
-    <p class="io"><b>Task</b>　Listen to the companion, then hold E4, G4, A4, and B4 one at a time.</p>
-    <p>Menu line: “I want to sing as a bird.” Mirror on, pond reflection off. <code>FriendParrot</code> stands beside you. A note passes when you stay within about 40 Hz for about 0.45 seconds.</p>
+    <h3>Scene 4 — Fly over the water</h3>
+    <p class="io"><b>Input</b>　The microphone sets height. Louder or higher climbs. Silence sinks. At a desk, hold E or Up to climb, Q or Down to sink. Hold R or F the same way, but a tap of R is the replay key in singing scenes, so use E and Q when you want a clean nudge. In a headset, stick up/down nudges height and left/right turns. Forward flight is automatic. WASD does not move you here.</p>
+    <p class="io"><b>Task</b>　Glide above the pond, set your height with your voice, and look down at the reflection.</p>
+    <p>Menu line: “I want to fly above the water.” / 「水面の上を飛ぶ」. The mirror turns off. The pond reflection turns on, a little enlarged (scale about 1.55) so the bird reads larger on the water. Your own view does not draw the body. The reflection shows the open wings. This scene does not end by itself.</p>
+    <h3>Where you start</h3>
+    <ul>
+      <li>The rig moves to the saved flying pose, then is pulled onto the pond: same X as the water, <strong>3.5 m</strong> back from the pond center.</li>
+      <li>If that saved height is outside <strong>0.6–2.4 m</strong> above the water, it snaps to the default: <strong>1.3 m</strong> above the surface. That 1.3 m is the enter height, not a note.</li>
+      <li>The camera tilts down <strong>18°</strong> so the reflection is in view. The rig itself stays upright.</li>
+      <li>While you fly, height is kept between <strong>0.6 m and 2.6 m</strong> above the water. Forward speed is about <strong>1.75 m/s</strong>.</li>
+    </ul>
+    <h3>How pitch and loudness become height</h3>
+    <p>A frame counts as singing when the voice detector is on and loudness is at least <strong>0.15</strong>. Silence sinks at <strong>0.45 m/s</strong> until the 0.6 m floor. A clear voice never sinks: the slowest climb is <strong>0.15 m/s</strong> (you more or less hold altitude). The fastest climb is <strong>2.2 m/s</strong>, at the 2.6 m ceiling.</p>
+    <p>Half of that climb comes from loudness, half from pitch. Pitch is silent at <strong>120 Hz</strong> and full at <strong>600 Hz</strong>, on a log scale. The four singing notes are not altitude locks. They only sit on this slope:</p>
     <table>
-      <tr><th>Order</th><th>Note</th><th>Hz</th></tr>
-      <tr><td>1</td><td>E4</td><td>330</td></tr>
-      <tr><td>2</td><td>G4</td><td>392</td></tr>
-      <tr><td>3</td><td>A4</td><td>440</td></tr>
-      <tr><td>4</td><td>B4</td><td>494</td></tr>
+      <tr><th>Voice</th><th>Pitch share (120–600 Hz)</th><th>If you are also loud</th></tr>
+      <tr><td>Quiet</td><td>—</td><td>Sink at 0.45 m/s, stop 0.6 m above the water</td></tr>
+      <tr><td>120 Hz, any loudness that counts</td><td>0%</td><td>From a bare hold (0.15 m/s) up to about 1.2 m/s if very loud</td></tr>
+      <tr><td>E4, 330 Hz</td><td>about 63%</td><td>About 0.8 m/s if just audible, about 1.8 m/s if very loud</td></tr>
+      <tr><td>600 Hz</td><td>100%</td><td>Up to 2.2 m/s</td></tr>
     </table>
-    <table>
-      <tr><th>When</th><th>Feedback in view</th><th>Audio</th></tr>
-      <tr><td>On enter</td><td>The singing prompt stays. The companion’s chest opens and its body lifts.</td><td><code>bird_melody.wav</code> from the start. If it is silent after 0.35 s, it plays again.</td></tr>
-      <tr><td>You are singing, not yet on the note</td><td>The companion’s feathers shift toward cyan as you get closer. Your own chest opens a little.</td><td>Live chirps, together with the recording</td></tr>
-      <tr><td>The note holds for about 0.45 s</td><td>A cyan flash, then the next note. The companion sings again.</td><td><code>bird_melody.wav</code> from the start again</td></tr>
-      <tr><td>All four notes are held</td><td>The scene ends</td><td><code>birds_forest.wav</code></td></tr>
-    </table>
-    <p>The debug panel reads “Hold E4 — pitch your Hz/target Hz”, then “Melody complete!” The prompt card does not change.</p>
+    <p>E, Q, the arrow keys, and a held R/F skip this curve and move at the full 2.2 m/s. The stick does the same when it is pushed past about a quarter of its travel. Each chirp you hear is still the short synth (about 0.08 s) at eight times your pitch, inside 1600–5500 Hz. There is no separate “engine” sound and no replay chip: this scene has no note to copy.</p>
   </section>
 
   <section class="scene" id="en-s5">
     <h3>Scene 5 — Call your friends</h3>
-    <p class="io"><b>Input</b>　Listen, then sing the current note back into the microphone.</p>
-    <p class="io"><b>Task</b>　Each note you hold brings one distant bird in, until the group is with you.</p>
-    <p>Menu line: “I want to call my bird friends.” You are above the pond, and the water shows a reflection. Seven parrots wait about 30 m ahead, spread about 4 m across, between about 1.8 and 4.6 m high. Their notes are 330, 392, 440, 494, 523, 587, and 659 Hz. A note counts when you stay within about 70 Hz for about 0.32 seconds. The prompt changes during this scene.</p>
+    <p class="io"><b>Input</b>　The same listen-then-sing loop as scene 3, on the same four notes. Replay with the chip, R, B, Space, or the controller B / Y button.</p>
+    <p class="io"><b>Task</b>　Each note you hold brings one bird. The four notes repeat until all seven have flown in.</p>
+    <p>Menu line: “I want to call my bird friends.” / 「仲間の鳥を呼ぶ」. You return to the mirror-side place. The mirror is off and the pond reflection is on. Seven parrots wait about <strong>30 m</strong> ahead, spread about <strong>4 m</strong> across, between about <strong>1.8 and 4.6 m</strong> high. Each successful note sends exactly one of them toward you. They stop about <strong>2.2 m</strong> in front of your eyes, spread about <strong>1.7 m</strong> across, from just under eye level to about <strong>0.4 m</strong> above it. They do not chirp when they arrive. The only sounds are the guide note and, on your turn, your own synth.</p>
     <table>
-      <tr><th>When</th><th>Feedback in view</th><th>Audio</th></tr>
-      <tr><td>On enter</td><td>Prompt changes to “Listen to the melody.”</td><td><code>bird_melody.wav</code>, through that play</td></tr>
-      <tr><td>That play ends</td><td>Prompt changes to “Your turn. Sing it back.”</td><td>None</td></tr>
-      <tr><td>You hold the current note</td><td>The nearest bird flies in. Your bird flashes cyan. The prompt becomes “Listen.” for about 0.7 s, then “Your turn. Sing it back.”</td><td><code>birds_forest.wav</code>. The next note is demonstrated with a short chirp.</td></tr>
-      <tr><td>All 7 notes, then about 0.45 s</td><td>Prompt changes to “Your friends are here.” Each arrived bird answers.</td><td><code>bird_melody.wav</code> again, plus a live answer from each bird</td></tr>
+      <tr><th>When</th><th>Prompt</th><th>Audio</th></tr>
+      <tr><td>Listen</td><td>“Listen to E4.”</td><td>The 0.70 s guide chirp. Mic muted.</td></tr>
+      <tr><td>Your turn</td><td>“Sing E4 to call a friend.” / 「E4を歌って仲間を呼んでください。」</td><td>Your synth</td></tr>
+      <tr><td>The note holds about 0.45 s</td><td>“A friend is coming.” for about 0.45 s, then the next note.</td><td>Silence while the birds fly in. No forest sting, no answer call.</td></tr>
+      <tr><td>The seventh bird leaves its perch</td><td>“Your friends are here.” / 「仲間が来ました。」</td><td>Mic quiet. Replay plays the last note again without resetting the flock.</td></tr>
     </table>
+    <p>The pass rule is the same as singing: pitch class within the 40 Hz window, held 0.45 seconds.</p>
   </section>
 
   <section class="scene" id="en-s6">
     <h3>Scene 6 — Rest by the water</h3>
-    <p class="io"><b>Input</b>　Looking at the mirror and the water. This scene does not score pitch or breath.</p>
-    <p class="io"><b>Task</b>　Return to the mirror and read the three feelings from the visit.</p>
-    <p>Menu line: “I want to rest by the water.” You return to a place where the mirror is visible. Mirror on, pond reflection off. The prompt stays: “Rest by the water and look over your scores. How did it feel to become a bird?”</p>
-    <table>
-      <tr><th>When</th><th>Feedback in view</th><th>Audio</th></tr>
-      <tr><td>About 0.5 s after enter</td><td>Five chirps, about 0.23 s apart, near 440 Hz</td><td>Generated by the program</td></tr>
-      <tr><td>Debug panel on</td><td>Three percentages keep updating: Breathing Control, Voice Control, Synchronization</td><td>None</td></tr>
-    </table>
+    <p class="io"><b>Input</b>　Looking. This scene does not score a new pitch, and the microphone does not chirp.</p>
+    <p class="io"><b>Task</b>　Return to the mirror. The visit keeps the three scores from earlier scenes.</p>
+    <p>Menu line: “I want to rest by the water.” / 「水辺で休む」. Mirror on, pond reflection off. The prompt stays: “Rest by the water and look over your scores. How did it feel to become a bird?” There is no farewell chirp. If the debug panel is turned on (<code>showHudPanels</code>), it shows Breathing Control, Voice Control, and Synchronization. It is hidden by default.</p>
   </section>
 
   <h2 id="en-desk">Desktop: run and play</h2>
   <ol>
     <li>Open the repo in Unity 6000.3.4f1.</li>
-    <li>Open <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>. The scene name is Avian Lab.</li>
+    <li>Open <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>.</li>
     <li>Confirm <code>XR Origin Hands (XR Rig)</code> and <code>PlayerParrot</code>.</li>
     <li>Press Play and allow the microphone. On Windows the app starts the mic, resets the audio device so the speakers still work, then listens again.</li>
-    <li><code>DesktopFlyCamera</code> drives the main camera.</li>
   </ol>
   <table>
     <tr><th>You want to</th><th>Do this</th></tr>
     <tr><td>Look around</td><td>Hold the right mouse button. Release it to click the UI.</td></tr>
     <tr><td>Walk (not during flight)</td><td>W A S D. Shift is faster. Q lowers the view, E raises it.</td></tr>
-    <tr><td>Height in flight</td><td>Sing to climb or sink. E and Q nudge height. WASD does not move you during flight.</td></tr>
-    <tr><td>Change scene</td><td>Click <strong>I want …</strong> or press M. Pick a scene. “Stay here” or M closes the list.</td></tr>
-    <tr><td>Jump with numbers</td><td>1 meet, 2 breath, 3 fly, 4 sing, 5 call friends, 6 rest. N is next.</td></tr>
-    <tr><td>Skip while testing</td><td>C. Turn off <code>enableDebugCheat</code> before a visitor session.</td></tr>
+    <tr><td>Change scene</td><td><strong>←</strong> previous, <strong>→</strong> or <strong>N</strong> next. Or 1–6. Or click <strong>I want …</strong> / press <strong>M</strong>. “Stay here” or M closes the list.</td></tr>
+    <tr><td>Language on the cards</td><td><strong>J</strong> toggles English and Japanese. Default is English.</td></tr>
+    <tr><td>Hear the current note again</td><td>Scenes 3 and 5: <strong>R</strong>, <strong>B</strong>, Space, or the Replay chip. Also the old pitch-match and song scenes, if you open those.</td></tr>
+    <tr><td>Height in flight</td><td>Sing to climb or sink. Hold E / Q, or Up / Down. WASD does not move you.</td></tr>
+    <tr><td>Skip while testing</td><td><strong>C</strong>. Turn off <code>enableDebugCheat</code> before a visitor session.</td></tr>
   </table>
 
   <h2 id="en-vr">Headset: run and play</h2>
   <p>Same scene: Avian Lab. OpenXR, Meta OpenXR on Quest. Assign <code>PlatformProfile.asset</code>. Use the headset mic or USB / OTG. Quest uses a larger audio buffer (about 512). <code>DesktopFlyCamera</code> does not take a real headset session.</p>
   <table>
     <tr><th>You want to</th><th>Do this</th></tr>
-    <tr><td>Look</td><td>Turn your head. In flight, look down.</td></tr>
+    <tr><td>Look</td><td>Turn your head. In flight, look down. The camera already pitches down 18°.</td></tr>
     <tr><td>Open the six scenes</td><td>Controller menu button, or select <strong>I want …</strong>.</td></tr>
     <tr><td>Turn while flying</td><td>Stick left / right.</td></tr>
-    <tr><td>Climb or sink</td><td>Sing. Stick up / down can nudge height.</td></tr>
-    <tr><td>Sing and call</td><td>Speak or hum. No button starts the voice.</td></tr>
+    <tr><td>Climb or sink</td><td>Sing. Stick up / down nudges height at up to 2.2 m/s.</td></tr>
+    <tr><td>Hear the note again</td><td>Right controller <strong>B</strong>, or left controller <strong>Y</strong>, or the Replay chip. Keys R, B, and J are for someone at the computer.</td></tr>
   </table>
-  <p>Keys 1–6, M, and C are for someone at the computer.</p>
 
-  <h2 id="en-ui">The two cards</h2>
-  <p>A prompt sentence from <code>TaskManager</code>, and <strong>I want …</strong> with the six scenes. The small card stays up during flight. Score bars and the Transform / Assistive switch stay hidden while <code>showHudPanels</code> is off. Do not draw the prompt twice.</p>
+  <h2 id="en-ui">What is in view</h2>
+  <p>One prompt card. During singing and calling it changes with the moment (listen, your turn, a friend is coming, done). Otherwise it shows the scene sentence. <strong>I want …</strong> lists the six scenes in the current order. The Replay chip appears only in scene 3 and scene 5. Score bars and the Transform / Assistive switch stay hidden while <code>showHudPanels</code> is off.</p>
 
-  <h2 id="en-sound">How your voice becomes birdsong</h2>
-  <p>Each time you start a note, the program plays one chirp at eight times your pitch, kept between about 1600 and 5500 Hz. 220 Hz becomes about 1760 Hz; 440 Hz becomes about 3520 Hz. The interval between notes stays. The multiplier is <code>synthPitchRatio</code>.</p>
-  <p>About 45 ms separates two chirps, so one syllable is not counted twice. Each chirp lasts about 0.08 s. Two quick notes are two chirps.</p>
-  <p><code>bird_melody.wav</code> and <code>birds_forest.wav</code> are in <code>Assets/AvianVoice/Resources/BirdExperience/</code>.</p>
+  <h2 id="en-sound">How the voice and the four notes work</h2>
+  <p>There is one birdsong voice. Human Hz is multiplied by <code>synthPitchRatio</code> (<strong>8</strong>), then kept between <strong>1600 and 5500 Hz</strong>. A guide note and your answer use that same mapping, so the pitch you hear is the pitch you are asked to match. You match it in your own octave. The guide holds for <strong>0.70 s</strong>. Your own syllables are short chirps of about <strong>0.08 s</strong>, at least <strong>45 ms</strong> apart, so one word is not two notes.</p>
+  <p>The microphone is heard as that synth only while you are flying, and during “your turn” in scenes 3 and 5. Meet, breath, rest, and the listen beats stay silent.</p>
+  <p>Recorded beds are not part of the visit anymore. <code>birds_forest.wav</code>, <code>birds_reward.wav</code>, and the long <code>bird_melody.wav</code> are still in <code>Resources/BirdExperience/</code>, but the six scenes do not play them. A finished note is marked by the next note, or by a bird flying in, not by a sting.</p>
+  <p><strong>T</strong> still toggles Assistive when you need it for debugging: you hear your own voice, shifted, instead of the bird synth. The visit starts in Transform, which is the synth above.</p>
 
   <h2 id="en-code">Where to edit</h2>
   <p>Move <code>.cs</code> with its <code>.cs.meta</code>. Comments are in English.</p>
   <pre>Assets/AvianVoice/
   Scenes/Avian_Lab.unity
   Settings/AvianVoiceSettings.asset
-  Resources/BirdExperience/
-  Scripts/Audio/  Core/  Tasks/  UI/  Physiology/
+  Scripts/Audio/  Core/  Tasks/  UI/
   Scripts/Embodiment/Parrot/  Mirror/  Pond/  Flock/  Scene/</pre>
   <table>
     <tr><th>Change</th><th>Open</th></tr>
-    <tr><td>Prompt and scene lines</td><td><code>TaskManager.cs</code>, <code>SceneWishMenu.cs</code></td></tr>
-    <tr><td>Meet duration</td><td><code>MeetBirdTask.cs</code> <code>LookSeconds</code></td></tr>
-    <tr><td>Breath timings</td><td>Teacher Breath, <code>BreathSyncTask.cs</code>, <code>BirdFriendDemonstrator.cs</code></td></tr>
-    <tr><td>Flight speed</td><td><code>FlightControlTask.cs</code></td></tr>
-    <tr><td>Flight camera</td><td><code>ParrotFlightPresentation.cs</code></td></tr>
-    <tr><td>The four notes</td><td><code>SingingBranchTask.cs</code></td></tr>
-    <tr><td>Companion song</td><td><code>bird_melody.wav</code>, <code>BirdExperienceAudio.cs</code></td></tr>
-    <tr><td>Flock</td><td><code>CallFriendsTask.cs</code></td></tr>
-    <tr><td>Chirps</td><td><code>BirdVoiceMapper.cs</code>, <code>BirdSongSynth.cs</code></td></tr>
-    <tr><td>Microphone</td><td><code>MicrophoneCapture.cs</code>, <code>VoiceAnalyzer.cs</code></td></tr>
-    <tr><td>Mouse and WASD</td><td><code>DesktopFlyCamera.cs</code></td></tr>
-    <tr><td>Keys</td><td><code>AvianInput.cs</code></td></tr>
+    <tr><td>Prompt and menu lines, English and Japanese</td><td><code>AvianUiCopy.cs</code>, <code>AvianUiLanguage.cs</code></td></tr>
+    <tr><td>Scene order and mirror / pond flags</td><td><code>TaskManager.cs</code></td></tr>
+    <tr><td>Saved places for each scene</td><td><code>XrRigTaskStartPoses</code> on the rig. Slots are matched by task id, not by list position.</td></tr>
+    <tr><td>The four notes, guide length, match rule</td><td><code>BirdSongPhrase.cs</code></td></tr>
+    <tr><td>When the mic may sing</td><td><code>BirdVoiceMapper.cs</code></td></tr>
+    <tr><td>Chirp length and the ×8 map</td><td><code>BirdSongSynth.cs</code>, <code>AvianVoiceSettings</code></td></tr>
+    <tr><td>Flight height, speed, pitch range</td><td><code>FlightControlTask.cs</code>, flying header on <code>XrRigTaskStartPoses.cs</code></td></tr>
+    <tr><td>Replay keys and the chip</td><td><code>AvianInput.cs</code>, <code>SingingReplayButton.cs</code></td></tr>
+    <tr><td>Previous / next scene keys</td><td><code>AvianInput.cs</code>, <code>TaskModeKeyboardSwitcher.cs</code></td></tr>
   </table>
 </article>
+
 <article id="ja" class="lang" lang="ja">
-  <p class="lead">Birdflow は、森の中でオウムになる没入体験です。カメラは鳥の目線です。鏡には自分の身体が映り、飛んでいるときは池に姿が映ります。話したりハミングしたりすると、自分のメロディに沿った鳥の声が聞こえます。</p>
-  <p>体験は一つの Unity シーンだけです。名前は <strong>Avian Lab</strong>、ファイルは <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>。これを開いて Play します。</p>
+  <p class="lead">Birdflow は、森の中でオウムになる没入体験です。カメラは鳥の目線です。鏡には自分の身体が映り、飛んでいるときは池に姿が映ります。歌う番と飛行中は、音高に沿った一つの合成の鳥の声だけが聞こえます。</p>
+  <p>体験は一つの Unity シーンです。名前は <strong>Avian Lab</strong>、ファイルは <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>。開いて Play します。体験中の文は <strong>J</strong> で英語と日本語が切り替わります。このページの「中文」は説明書だけです。</p>
   <nav class="toc">
     <a href="#ja-what">Birdflow とは</a>
     <a href="#ja-lab">Avian Lab</a>
     <a href="#ja-flow">六つの場面</a>
     <a href="#ja-desk">デスクトップ</a>
     <a href="#ja-vr">ヘッドセット</a>
-    <a href="#ja-sound">声が鳥の声になるしくみ</a>
+    <a href="#ja-sound">声と四つの音</a>
     <a href="#ja-code">直す場所</a>
   </nav>
 
   <h2 id="ja-what">Birdflow とは</h2>
-  <p>自分を見て、鳥と呼吸を合わせ、水面のすぐ上を滑空し、隣の鳥と歌い、仲間を呼び、水辺で休みます。中身は <code>Assets/AvianVoice/</code>、オウムのモデルは <code>Assets/Parrot/</code>、森と池は Avian Lab に置いてあります。</p>
+  <p>自分を見て、鳥と呼吸を合わせ、隣の鳥と一音ずつ歌い、水面の上を滑空し、同じ四音で仲間を呼び、水辺で休みます。中身は <code>Assets/AvianVoice/</code>、オウムは <code>Assets/Parrot/</code> です。</p>
+  <p>以前は飛行が 3、歌唱が 4 でした。今は逆です。<strong>3 が隣の鳥と歌う場面、4 が水面の飛行</strong>です。場所は場面ごとに保存されています。歌うときは鏡の前で、<code>FriendParrot</code> が隣にいます。飛行だけ池へ移動します。出会う・呼吸・休むでは、マイクは鳥の声になりません。</p>
 
   <h2 id="ja-lab">Avian Lab</h2>
-  <p>六つの場面はすべて Avian Lab の中です。キーボードの 1–6、または <strong>I want …</strong> で入ります。最初は 1 から 6 です。</p>
+  <p>六つの場面はすべて Avian Lab の中です。1–6、または <strong>I want …</strong>（日本語では「場面 …」）。<strong>←</strong> が前の場面、<strong>→</strong> または <strong>N</strong> が次の場面です。最初は 1 から 6 へ進みます。</p>
 
   <h2 id="ja-flow">六つの場面</h2>
   <nav class="scenes" aria-label="場面">
     <a href="#ja-s1">1 出会う</a>
     <a href="#ja-s2">2 呼吸</a>
-    <a href="#ja-s3">3 飛行</a>
-    <a href="#ja-s4">4 歌う</a>
+    <a href="#ja-s3">3 歌う</a>
+    <a href="#ja-s4">4 飛行</a>
     <a href="#ja-s5">5 呼ぶ</a>
     <a href="#ja-s6">6 休む</a>
   </nav>
 
   <section class="scene" id="ja-s1">
     <h3>場面 1　自分に会う</h3>
-    <p class="io"><b>入力</b>　視線とマイク。机では右ボタンを押して鏡を見る。ヘッドセットでは頭を向ける。話すかハミングすると、音高に沿った一声が鳴る。</p>
+    <p class="io"><b>入力</b>　視線。机では右ボタンを押して鏡を見る。ヘッドセットでは頭を向ける。ここでは声を出しても鳥の声にはなりません。</p>
     <p class="io"><b>課題</b>　鏡の中の自分の鳥を見て、およそ 6 秒とどまる。</p>
-    <p>メニューは “I want to meet my bird self.” 鏡の前に立ち、映るのは自分のオウム <code>PlayerParrot</code> です。案内は “This is your bird self in the mirror. Look at it — no need to breathe yet.” です。</p>
+    <p>メニューは “I want to meet my bird self.” / 「鏡の中の自分に会う」。立つ場所は、呼吸・歌唱・仲間・休息と同じ鏡の前です。映るのは <code>PlayerParrot</code>。隣の鳥は出ません。</p>
     <table>
-      <tr><th>いつ</th><th>目の前の反応</th><th>音</th></tr>
-      <tr><td>入ったとき</td><td>案内：“This is your bird self in the mirror. Look at it — no need to breathe yet.”</td><td>なし</td></tr>
-      <tr><td>声を出したとき</td><td>音高に沿った短い一声</td><td>その場で合成</td></tr>
-      <tr><td>およそ 6 秒</td><td>この場面が終わる。場面 2 へ進める。</td><td><code>birds_forest.wav</code></td></tr>
+      <tr><th>いつ</th><th>見えるもの</th><th>音</th></tr>
+      <tr><td>入ったとき</td><td>「鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。」</td><td>なし</td></tr>
+      <tr><td>およそ 6 秒</td><td>この場面が終わる。場面 2 へ進める。</td><td>なし。森の効果音はありません。</td></tr>
     </table>
-    <p>デバッグパネルは “You met your bird self.” になります。既定では見えません。</p>
   </section>
 
   <section class="scene" id="ja-s2">
     <h3>場面 2　呼吸を学ぶ</h3>
-    <p class="io"><b>入力</b>　自分の呼吸。胸が膨らむときに吸い、落ちるときに吐く。</p>
-    <p class="io"><b>課題</b>　速いリズムに合わせ、そのあと遅いリズムに合わせる。</p>
-    <p>メニューは “I want to learn its breath.” まだ鏡の前です。オウムの胸と翼が自分で動き、少し青くなります。案内は “Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.” です。</p>
+    <p class="io"><b>入力</b>　自分の呼吸。胸が膨らむときに吸い、落ちるときに吐く。マイクは無音のままです。</p>
+    <p class="io"><b>課題</b>　遅いリズムを最後まで合わせる。終わると次の場面へ自動で進みます。</p>
+    <p>メニューは “I want to learn its breath.” / 「鳥の呼吸を覚える」。まだ鏡の前です。胸と翼は自分で動きます。リズムは遅いものだけです。<strong>吸う約 6 秒、吐く約 6 秒</strong>。既定は <strong>4 周</strong>（およそ 48 秒）で、<code>AvianVoiceSettings</code> の <code>patternBCycles</code> です。</p>
     <table>
-      <tr><th>段階</th><th>リズム</th><th>一周</th><th>回数</th></tr>
-      <tr><td>Pattern A</td><td>吸う約 4 秒、吐く約 4 秒</td><td>約 8 秒</td><td>3（およそ 24 秒）</td></tr>
-      <tr><td>Pattern B</td><td>吸う約 6 秒、吐く約 6 秒</td><td>約 12 秒</td><td>2（およそ 24 秒）</td></tr>
+      <tr><th>いつ</th><th>見えるもの</th><th>音</th></tr>
+      <tr><td>入ったとき</td><td>「鳥の胸を見て、一緒に呼吸してください。」</td><td>なし</td></tr>
+      <tr><td>4 周のあと</td><td>少し間を置いて場面 3 が始まる。</td><td>なし</td></tr>
     </table>
-    <table>
-      <tr><th>いつ</th><th>目の前の反応</th><th>音</th></tr>
-      <tr><td>入ったとき</td><td>案内はそのまま：“Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.” 胸が A で動き、膨らむほど羽が少し青くなる。</td><td>なし</td></tr>
-      <tr><td>A が 3 周終わったとき</td><td>青く光って、すぐ遅い B に変わる</td><td><code>birds_forest.wav</code></td></tr>
-      <tr><td>B が 2 周終わったとき</td><td>もう一度光って、この場面が終わる</td><td><code>birds_forest.wav</code></td></tr>
-    </table>
-    <p>秒数は <code>AvianVoiceSettings</code> の Teacher Breath。デバッグパネルは inhale / exhale と “cycle 1/3”、最後に “Breath sync complete!” を出します。案内カードは変わりません。</p>
   </section>
 
   <section class="scene" id="ja-s3">
-    <h3>場面 3　水面を飛ぶ</h3>
-    <p class="io"><b>入力</b>　マイク。大きい声、または高い声で上昇。黙ると下降。机では E が上昇、Q が下降。ヘッドセットではスティックの上下が高さ、左右が向き。前進は自動です。この場面で WASD は動きません。</p>
-    <p class="io"><b>課題</b>　池の上を滑空し、声で高さを決め、水面の映り込みを見る。</p>
-    <p>メニューは “I want to fly above the water.” 池の上から始まり、視線は少し下です。鏡はオフ、映り込みはオン。自分の眼前には体を描きません。映り込みは翼を広げた姿です。速さはおよそ毎秒 1.75 メートル、高さは水面の上 約 0.6〜2.6 メートル。この場面は自分では終わりません。<strong>I want …</strong> で次へ進みます。</p>
+    <h3>場面 3　隣の鳥と歌う</h3>
+    <p class="io"><b>入力</b>　聴いてから、同じ音を声で保つ。音を忘れたら、もう一度聴く。</p>
+    <p class="io"><b>課題</b>　隣の鳥が E4、G4、A4、B4 を一音ずつ歌う。鳴き終わったら、同じ音を返す。どのオクターブでも、その音名なら通ります。</p>
+    <p>メニューは “I want to sing as a bird.” / 「鳥として歌う」。鏡の前のままです。<code>FriendParrot</code> は右およそ 0.72 m に立ちます。池の映り込みはオフ。<strong>Replay</strong>（「もう一度」）のチップが出ます。クリック、または <strong>R</strong>・<strong>B</strong>・Space。コントローラは右手の <strong>B</strong>（左手は <strong>Y</strong>）。今の音をもう一度鳴らすだけで、先には進みません。</p>
     <table>
-      <tr><th>いつ</th><th>目の前の反応</th><th>音</th></tr>
-      <tr><td>入ったとき</td><td>案内はそのまま：“The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.” 飛行の動きが始まる。</td><td>なし</td></tr>
-      <tr><td>大きい声、または高い声</td><td>すぐ上昇。映り込みも上がる。</td><td>その場の鳥の声</td></tr>
-      <tr><td>黙ったとき</td><td>すぐ降り、水面の上で止まる</td><td>なし</td></tr>
-      <tr><td>E / Q、またはスティック</td><td>すぐ高さが変わる。左右は進行方向。</td><td>なし</td></tr>
+      <tr><th>順</th><th>歌う音</th><th>人の Hz</th><th>鳥の合成（×8）</th></tr>
+      <tr><td>1</td><td>E4</td><td>330</td><td>およそ 2640 Hz</td></tr>
+      <tr><td>2</td><td>G4</td><td>392</td><td>およそ 3136 Hz</td></tr>
+      <tr><td>3</td><td>A4</td><td>440</td><td>およそ 3520 Hz</td></tr>
+      <tr><td>4</td><td>B4</td><td>494</td><td>およそ 3952 Hz</td></tr>
     </table>
+    <table>
+      <tr><th>いつ</th><th>案内</th><th>音</th></tr>
+      <tr><td>隣の鳥が歌う（約 0.70 秒）</td><td>「E4を聴いてください。」</td><td>ガイドの一声。あとで自分が返すのと同じ音色。マイクは無音。</td></tr>
+      <tr><td>短い間（約 0.28 秒）</td><td>聴く文のまま。</td><td>無音。音が消えてから自分の番。</td></tr>
+      <tr><td>自分の番</td><td>「今度はE4を歌ってください。」</td><td>声が同じ合成になる。一音はおよそ 0.08 秒。</td></tr>
+      <tr><td>音名を約 0.45 秒保てたとき</td><td>約 0.45 秒「次の音を聴いてください。」そのあと次の音。</td><td>ご褒美の音はない。次の音だけが新しい音。</td></tr>
+      <tr><td>四音が終わったとき</td><td>「メロディができました。」</td><td>マイクは静か。Replay は E4 からやり直す。</td></tr>
+    </table>
+    <p>判定は鳥の高い周波数そのものではなく、音名です。E3（165 Hz）、E4（330 Hz）、E5（660 Hz）は同じ音です。幅は目標のおよそ 40 Hz（約 2 半音）。その内側およそ 4 分の 3（半音の半分ほど）を 0.45 秒保つと通ります。近いほど羽が青くなります。</p>
   </section>
 
   <section class="scene" id="ja-s4">
-    <h3>場面 4　一緒に歌う</h3>
-    <p class="io"><b>入力</b>　マイクの音高。今の音を安定させる。</p>
-    <p class="io"><b>課題</b>　隣の鳥を聴いてから、E4、G4、A4、B4 を一つずつ保つ。</p>
-    <p>メニューは “I want to sing as a bird.” 鏡はオン、映り込みはオフ。<code>FriendParrot</code> が隣に立ちます。今の音からおよそ 40 Hz 以内を約 0.45 秒保てると、その音は終わりです。</p>
+    <h3>場面 4　水面を飛ぶ</h3>
+    <p class="io"><b>入力</b>　マイクが高さです。大きい声、または高い声で上昇。黙ると下降。机では E か ↑ を押すと上昇、Q か ↓ で下降。R と F を押し続けても同じですが、歌う場面では R のタップが聞き直しなので、微調整は E と Q を使います。ヘッドセットではスティックの上下が高さ、左右が向き。前進は自動です。この場面で WASD は動きません。</p>
+    <p class="io"><b>課題</b>　池の上を滑空し、声で高さを決め、水面の映り込みを見る。</p>
+    <p>メニューは “I want to fly above the water.” / 「水面の上を飛ぶ」。鏡はオフ、映り込みはオンで、鳥が水面で大きく見えるよう約 1.55 倍です。眼前には体を描きません。この場面は自分では終わりません。</p>
+    <h3>始まりの高さ</h3>
+    <ul>
+      <li>保存された飛行位置へ移り、そのあと池に合わせます。水面と同じ X で、池の中心から <strong>3.5 m</strong> 手前です。</li>
+      <li>保存された高さが水面から <strong>0.6〜2.4 m</strong> の外なら、既定の <strong>水面 + 1.3 m</strong> に揃えます。1.3 m は入りの高さであり、音名ではありません。</li>
+      <li>カメラは <strong>18°</strong> 下を向きます。体の原点は直立のままです。</li>
+      <li>飛んでいるあいだの高さは水面から <strong>0.6〜2.6 m</strong>。前進はおよそ <strong>毎秒 1.75 m</strong>。</li>
+    </ul>
+    <h3>音高と大きさが高さになる</h3>
+    <p>声として数えるのは、検出がオンで大きさが <strong>0.15</strong> 以上のときです。無音は <strong>毎秒 0.45 m</strong> で降り、水面から 0.6 m で止まります。声があると降りません。いちばん遅い上昇は <strong>毎秒 0.15 m</strong>（ほぼ高さを保つ）。いちばん速い上昇は <strong>毎秒 2.2 m</strong> で、2.6 m が天井です。</p>
+    <p>上昇の半分は大きさ、半分は音高です。音高は <strong>120 Hz</strong> で加算ゼロ、<strong>600 Hz</strong> で最大です（対数）。四つの歌唱音は高さの定点ではありません。この坂の上にあるだけです。</p>
     <table>
-      <tr><th>順</th><th>音</th><th>Hz</th></tr>
-      <tr><td>1</td><td>E4</td><td>330</td></tr>
-      <tr><td>2</td><td>G4</td><td>392</td></tr>
-      <tr><td>3</td><td>A4</td><td>440</td></tr>
-      <tr><td>4</td><td>B4</td><td>494</td></tr>
+      <tr><th>声</th><th>音高の割合（120〜600 Hz）</th><th>声も大きいとき</th></tr>
+      <tr><td>無音</td><td>—</td><td>毎秒 0.45 m で下降。水面から 0.6 m で止まる</td></tr>
+      <tr><td>120 Hz</td><td>0%</td><td>維持（0.15 m/s）から、とても大きいとおよそ 1.2 m/s</td></tr>
+      <tr><td>E4、330 Hz</td><td>およそ 63%</td><td>ぎりぎり聞こえるとおよそ 0.8 m/s、とても大きいとおよそ 1.8 m/s</td></tr>
+      <tr><td>600 Hz</td><td>100%</td><td>最大 毎秒 2.2 m</td></tr>
     </table>
-    <table>
-      <tr><th>いつ</th><th>目の前の反応</th><th>音</th></tr>
-      <tr><td>入ったとき</td><td>歌う案内はそのまま。隣の鳥は胸を開き、少し浮かぶ。</td><td><code>bird_melody.wav</code> を最初から。0.35 秒後に無音ならもう一度。</td></tr>
-      <tr><td>歌っているが、まだ合っていない</td><td>近いほど隣の羽が青くなる。自分の胸も少し開く。</td><td>その場の鳥の声。録音と同時。</td></tr>
-      <tr><td>約 0.45 秒保てたとき</td><td>青く光り、次の音へ。隣の鳥がもう一度歌う。</td><td><code>bird_melody.wav</code> を最初からもう一度</td></tr>
-      <tr><td>四音とも終わったとき</td><td>この場面が終わる</td><td><code>birds_forest.wav</code></td></tr>
-    </table>
-    <p>デバッグパネルは “Hold E4 — pitch 自分の Hz/目標 Hz”、最後に “Melody complete!” です。案内カードは変わりません。</p>
+    <p>E、Q、矢印、押し続けた R / F はこの曲線を使わず、毎秒 2.2 m で動きます。スティックも、およそ 4 分の 1 以上倒すと同じです。聞こえる一声は、人の音高の 8 倍（1600〜5500 Hz）の短い合成（約 0.08 秒）です。聞き直す音はありません。</p>
   </section>
 
   <section class="scene" id="ja-s5">
     <h3>場面 5　仲間を呼ぶ</h3>
-    <p class="io"><b>入力</b>　まず聴き、それから今の音をマイクで歌い返す。</p>
-    <p class="io"><b>課題</b>　音を一つ保つごとに遠くの鳥を一羽呼び、群れが揃うまで続ける。</p>
-    <p>メニューは “I want to call my bird friends.” 池の上にいて、水面に映り込みがあります。前方およそ 30 メートル、左右およそ 4 メートル、高さおよそ 1.8〜4.6 メートルに 7 羽います。音は 330、392、440、494、523、587、659 Hz。およそ 70 Hz 以内を約 0.32 秒保てると、その音は合ったことになります。この場面では案内の文が変わります。</p>
+    <p class="io"><b>入力</b>　場面 3 と同じ「聴いてから歌う」。音も同じ四つ。チップ、R、B、Space、コントローラの B / Y で聞き直せます。</p>
+    <p class="io"><b>課題</b>　音を保てるたびに 1 羽だけ来る。四つの音は、7 羽が揃うまで繰り返します。</p>
+    <p>メニューは “I want to call my bird friends.” / 「仲間の鳥を呼ぶ」。鏡の側の場所に戻ります。鏡はオフ、池の映り込みはオン。前方およそ <strong>30 m</strong>、左右およそ <strong>4 m</strong>、高さおよそ <strong>1.8〜4.6 m</strong> に 7 羽います。合った音のたびに 1 羽だけ向かってきます。目の前およそ <strong>2.2 m</strong>、左右およそ <strong>1.7 m</strong>、目の高さの少し下から上およそ <strong>0.4 m</strong> で止まります。着いても鳴きません。音はガイドと、自分の番の合成だけです。</p>
     <table>
-      <tr><th>いつ</th><th>目の前の反応</th><th>音</th></tr>
-      <tr><td>入ったとき</td><td>案内が “Listen to the melody.” に変わる</td><td><code>bird_melody.wav</code> をその再生が終わるまで</td></tr>
-      <tr><td>その再生が終わったとき</td><td>案内が “Your turn. Sing it back.” に変わる</td><td>なし</td></tr>
-      <tr><td>今の音を保てたとき</td><td>一番近い鳥が飛んでくる。自分の鳥が青く光る。案内は “Listen.” になり、およそ 0.7 秒後に “Your turn. Sing it back.” に戻る。</td><td><code>birds_forest.wav</code>。次の音は短い一声で示します。</td></tr>
-      <tr><td>7 音のあと、およそ 0.45 秒</td><td>案内が “Your friends are here.” に変わる。来た鳥がそれぞれ応える。</td><td><code>bird_melody.wav</code> をもう一度。各鳥の応答は合成音。</td></tr>
+      <tr><th>いつ</th><th>案内</th><th>音</th></tr>
+      <tr><td>聴く</td><td>「E4を聴いてください。」</td><td>0.70 秒のガイド。マイクは無音。</td></tr>
+      <tr><td>自分の番</td><td>「E4を歌って仲間を呼んでください。」</td><td>自分の合成</td></tr>
+      <tr><td>約 0.45 秒保てたとき</td><td>約 0.45 秒「仲間が向かっています。」そのあと次の音。</td><td>飛んでくるあいだは無音。森の音も、返事の一声もありません。</td></tr>
+      <tr><td>7 羽目が枝を離れたとき</td><td>「仲間が来ました。」</td><td>マイクは静か。Replay は群れを戻さず、直前の音だけもう一度。</td></tr>
     </table>
+    <p>合格の条件は歌唱と同じです。音名が 40 Hz の幅に入り、0.45 秒保つこと。</p>
   </section>
 
   <section class="scene" id="ja-s6">
     <h3>場面 6　水辺で休む</h3>
-    <p class="io"><b>入力</b>　鏡と水辺を見る。この場面は音高も呼吸も判定しません。</p>
-    <p class="io"><b>課題</b>　鏡の前に戻り、ここまでの三つの感覚を見る。</p>
-    <p>メニューは “I want to rest by the water.” 鏡の見える場所に戻ります。鏡はオン、映り込みはオフ。案内は “Rest by the water and look over your scores. How did it feel to become a bird?” のままです。</p>
-    <table>
-      <tr><th>いつ</th><th>目の前の反応</th><th>音</th></tr>
-      <tr><td>入っておよそ 0.5 秒</td><td>五声。およそ 0.23 秒間隔、音高は約 440 Hz。</td><td>プログラムが生成</td></tr>
-      <tr><td>デバッグパネルを開けたとき</td><td>三つの百分率が更新され続ける：Breathing Control、Voice Control、Synchronization</td><td>なし</td></tr>
-    </table>
+    <p class="io"><b>入力</b>　見ること。新しい音高は採点せず、マイクも鳥の声になりません。</p>
+    <p class="io"><b>課題</b>　鏡の前に戻り、それまでの三つの感覚を置く。</p>
+    <p>メニューは “I want to rest by the water.” / 「水辺で休む」。鏡はオン、映り込みはオフ。案内は「水辺で休み、ここまでの感覚を見てください。鳥になるのは、どんな感じでしたか。」のままです。別れの一声はありません。<code>showHudPanels</code> をオンにしたときだけ、Breathing Control、Voice Control、Synchronization が出ます。既定では隠れています。</p>
   </section>
 
   <h2 id="ja-desk">デスクトップでの起動と操作</h2>
   <ol>
     <li>Unity 6000.3.4f1 でリポジトリを開く。</li>
-    <li><code>Avian_Lab.unity</code> を開く。シーン名は Avian Lab。</li>
+    <li><code>Avian_Lab.unity</code> を開く。</li>
     <li><code>XR Origin Hands (XR Rig)</code> と <code>PlayerParrot</code> を確認する。</li>
-    <li>Play してマイクを許可する。Windows ではスピーカーのためにオーディオを一度リセットしてから聞き直します。</li>
-    <li>主カメラは <code>DesktopFlyCamera</code> が動かします。</li>
+    <li>Play してマイクを許可する。Windows ではスピーカーのために一度リセットしてから聞き直します。</li>
   </ol>
   <table>
     <tr><th>したいこと</th><th>操作</th></tr>
     <tr><td>見回す</td><td>右ボタンを押したままマウス。離すと画面を指せます。</td></tr>
     <tr><td>歩く（飛行中以外）</td><td>W A S D。Shift で速く。Q で下げ、E で上げる。</td></tr>
-    <tr><td>飛行中の高さ</td><td>歌うと上昇、黙ると下降。E と Q でも微調整。飛行中 WASD は動きません。</td></tr>
-    <tr><td>場面を変える</td><td><strong>I want …</strong> か M。Stay here か M でもう一度閉じる。</td></tr>
-    <tr><td>数字</td><td>1 出会う、2 呼吸、3 飛行、4 歌う、5 仲間、6 水辺。N は次。</td></tr>
-    <tr><td>テストで進める</td><td>C。来訪者の前では <code>enableDebugCheat</code> を外す。</td></tr>
+    <tr><td>場面を変える</td><td><strong>←</strong> 前へ、<strong>→</strong> または <strong>N</strong> 次へ。1–6 でも飛べます。<strong>I want …</strong> か M。Stay here（このまま）か M で閉じる。</td></tr>
+    <tr><td>画面の言語</td><td><strong>J</strong> で英語と日本語。既定は英語。</td></tr>
+    <tr><td>今の音をもう一度</td><td>場面 3 と 5：<strong>R</strong>、<strong>B</strong>、Space、または Replay。旧い音高合わせ・旋律の場面でも同じキーです。</td></tr>
+    <tr><td>飛行中の高さ</td><td>歌うと上昇、黙ると下降。E / Q、または ↑ / ↓ を押し続ける。WASD は動きません。</td></tr>
+    <tr><td>テストで進める</td><td><strong>C</strong>。来訪者の前では <code>enableDebugCheat</code> を外す。</td></tr>
   </table>
 
   <h2 id="ja-vr">ヘッドセットでの起動と操作</h2>
   <p>同じ Avian Lab です。OpenXR、Quest は Meta OpenXR。<code>PlatformProfile.asset</code> を割り当てます。ヘッドセットのマイクか USB / OTG。Quest のバッファはおよそ 512 です。実機では <code>DesktopFlyCamera</code> は視点を取りません。</p>
   <table>
     <tr><th>したいこと</th><th>操作</th></tr>
-    <tr><td>見る</td><td>頭を向ける。飛行中は下を見る。</td></tr>
+    <tr><td>見る</td><td>頭を向ける。飛行中は下を見る。カメラはすでに 18° 下を向いています。</td></tr>
     <tr><td>六つの場面</td><td>メニューボタン、または <strong>I want …</strong>。</td></tr>
     <tr><td>飛行中の向き</td><td>スティックの左右。</td></tr>
-    <tr><td>上昇と下降</td><td>歌う。スティックの上下でも押せます。</td></tr>
-    <tr><td>歌う、呼ぶ</td><td>話すかハミングする。開始ボタンはありません。</td></tr>
+    <tr><td>上昇と下降</td><td>歌う。スティックの上下は最大毎秒 2.2 m。</td></tr>
+    <tr><td>音をもう一度</td><td>右手の <strong>B</strong>、左手の <strong>Y</strong>、または Replay。R、B、J は横にいる人のキーボードです。</td></tr>
   </table>
-  <p>1–6、M、C は横にいる人のキーボード用です。</p>
 
-  <h2 id="ja-ui">二つのカード</h2>
-  <p>案内は <code>TaskManager</code> の一文。<strong>I want …</strong> は六つの場面へ切り替える一覧です。小さなカードは飛行中も残ります。点数バーと Transform / Assistive は <code>showHudPanels</code> がオフのあいだ出ません。案内を二枚重ねないでください。</p>
+  <h2 id="ja-ui">画面に出るもの</h2>
+  <p>案内は一枚です。歌うときと呼ぶときは、聴く・あなたの番・仲間が向かう・終わり、で文が変わります。それ以外は場面の一文です。<strong>I want …</strong> は今の順で六つ並びます。Replay は場面 3 と 5 だけです。点数バーと Transform / Assistive は <code>showHudPanels</code> がオフのあいだ出ません。</p>
 
-  <h2 id="ja-sound">声が鳥の声になるしくみ</h2>
-  <p>音を出すと、プログラムが一声鳴らします。音高は人の 8 倍で、およそ 1600〜5500 Hz に収まります。220 Hz は約 1760 Hz、440 Hz は約 3520 Hz です。高低の関係は残ります。倍率は <code>synthPitchRatio</code> です。</p>
-  <p>二声の間隔はおよそ 45 ミリ秒です。同じ一音が二回に分かれません。一声はおよそ 0.08 秒です。</p>
-  <p><code>bird_melody.wav</code> と <code>birds_forest.wav</code> は <code>Assets/AvianVoice/Resources/BirdExperience/</code> にあります。</p>
+  <h2 id="ja-sound">声と四つの音</h2>
+  <p>鳥の声は一つです。人の Hz に <code>synthPitchRatio</code>（<strong>8</strong>）を掛け、<strong>1600〜5500 Hz</strong> に収めます。ガイドと返事は同じ変換なので、聞こえた音高が、合わせる音高です。自分の声域のオクターブで合えば通ります。ガイドは <strong>0.70 秒</strong>。自分の一音はおよそ <strong>0.08 秒</strong> で、間隔は少なくとも <strong>45 ミリ秒</strong>です。</p>
+  <p>この合成が鳴るのは、飛行中と、場面 3・5 の「自分の番」だけです。出会う、呼吸、休む、そして聴いているあいだは無音です。</p>
+  <p>録音の環境音は、もう体験では使いません。<code>birds_forest.wav</code>、<code>birds_reward.wav</code>、長い <code>bird_melody.wav</code> は <code>Resources/BirdExperience/</code> に残っていますが、六つの場面は再生しません。音が通ったことは、次の音か、飛んでくる鳥で分かります。</p>
+  <p>デバッグ用の <strong>T</strong> は Assistive です。鳥の合成ではなく、自分の声を移調して聞きます。体験の開始は Transform（上の合成）です。</p>
 
   <h2 id="ja-code">直す場所</h2>
   <p><code>.cs</code> は <code>.cs.meta</code> と一緒に動かします。コメントは英語です。</p>
   <pre>Assets/AvianVoice/
   Scenes/Avian_Lab.unity
   Settings/AvianVoiceSettings.asset
-  Resources/BirdExperience/
-  Scripts/Audio/  Core/  Tasks/  UI/  Physiology/
+  Scripts/Audio/  Core/  Tasks/  UI/
   Scripts/Embodiment/Parrot/  Mirror/  Pond/  Flock/  Scene/</pre>
   <table>
     <tr><th>変えたいこと</th><th>ファイル</th></tr>
-    <tr><td>案内と場面の文</td><td><code>TaskManager.cs</code>、<code>SceneWishMenu.cs</code></td></tr>
-    <tr><td>出会う長さ</td><td><code>MeetBirdTask.cs</code> の <code>LookSeconds</code></td></tr>
-    <tr><td>呼吸の秒数</td><td>Teacher Breath、<code>BreathSyncTask.cs</code>、<code>BirdFriendDemonstrator.cs</code></td></tr>
-    <tr><td>飛行</td><td><code>FlightControlTask.cs</code>、<code>ParrotFlightPresentation.cs</code></td></tr>
-    <tr><td>四つの音</td><td><code>SingingBranchTask.cs</code></td></tr>
-    <tr><td>隣の録音</td><td><code>bird_melody.wav</code>、<code>BirdExperienceAudio.cs</code></td></tr>
-    <tr><td>仲間</td><td><code>CallFriendsTask.cs</code></td></tr>
-    <tr><td>鳥の声</td><td><code>BirdVoiceMapper.cs</code>、<code>BirdSongSynth.cs</code></td></tr>
-    <tr><td>マイク</td><td><code>MicrophoneCapture.cs</code>、<code>VoiceAnalyzer.cs</code></td></tr>
-    <tr><td>マウスと WASD</td><td><code>DesktopFlyCamera.cs</code></td></tr>
-    <tr><td>キー</td><td><code>AvianInput.cs</code></td></tr>
+    <tr><td>案内とメニュー（英語と日本語）</td><td><code>AvianUiCopy.cs</code>、<code>AvianUiLanguage.cs</code></td></tr>
+    <tr><td>順番、鏡、池の映り込み</td><td><code>TaskManager.cs</code></td></tr>
+    <tr><td>各場面の立ち位置</td><td>リグの <code>XrRigTaskStartPoses</code>。番号ではなく task id で対応します。</td></tr>
+    <tr><td>四音、ガイドの長さ、合格条件</td><td><code>BirdSongPhrase.cs</code></td></tr>
+    <tr><td>マイクを鳥の声にするタイミング</td><td><code>BirdVoiceMapper.cs</code></td></tr>
+    <tr><td>一声の長さと 8 倍</td><td><code>BirdSongSynth.cs</code>、<code>AvianVoiceSettings</code></td></tr>
+    <tr><td>飛行の高さ、速さ、音高の範囲</td><td><code>FlightControlTask.cs</code>、<code>XrRigTaskStartPoses.cs</code> の飛行欄</td></tr>
+    <tr><td>聞き直しのキーとチップ</td><td><code>AvianInput.cs</code>、<code>SingingReplayButton.cs</code></td></tr>
+    <tr><td>前後の場面キー</td><td><code>AvianInput.cs</code>、<code>TaskModeKeyboardSwitcher.cs</code></td></tr>
   </table>
 </article>
+
 <article id="zh" class="lang" lang="zh-Hans">
-  <p class="lead">Birdflow 是一段在森林里变成鹦鹉的体验。镜头是鸟的眼睛。镜子里是你的身体。飞过池塘时，水面有倒影。说话或哼唱时，鸟鸣跟着你的旋律走。</p>
-  <p>整段体验是一个 Unity 场景，名字是 <strong>Avian Lab</strong>，文件是 <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>。打开后按 Play。</p>
+  <p class="lead">Birdflow 是一段在森林里变成鹦鹉的体验。镜头是鸟的眼睛。镜子里是你的身体。飞过池塘时，水面有倒影。轮到你唱、以及飞行时，只会听到一种跟着音高走的合成鸟鸣。</p>
+  <p>整段体验是一个 Unity 场景，名字是 <strong>Avian Lab</strong>，文件是 <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>。打开后按 Play。体验里的句子用 <strong>J</strong> 在英文和日文之间切换。这一页的「中文」只属于这份说明，游戏画面里没有中文。</p>
   <nav class="toc">
     <a href="#zh-what">Birdflow 是什么</a>
     <a href="#zh-lab">Avian Lab</a>
     <a href="#zh-flow">六个场景</a>
-    <a href="#zh-desk">电脑</a>
+    <a href="#zh-desk">桌面</a>
     <a href="#zh-vr">头显</a>
-    <a href="#zh-sound">人声怎么变成鸟叫</a>
+    <a href="#zh-sound">声音和四个音</a>
     <a href="#zh-code">改哪里</a>
   </nav>
 
   <h2 id="zh-what">Birdflow 是什么</h2>
-  <p>先看见自己，再跟着鸟呼吸，贴着水面滑翔，在伙伴身边唱歌，把别的鸟叫过来，最后在水边休息。内容在 <code>Assets/AvianVoice/</code>，鹦鹉模型在 <code>Assets/Parrot/</code>。森林和池塘已经放在 Avian Lab 里。</p>
+  <p>先看见自己，再跟着鸟呼吸，然后在镜子旁边一个音一个音地唱，贴着水面飞，用同样的四个音把同伴叫来，最后在水边停下。内容在 <code>Assets/AvianVoice/</code>，鹦鹉模型在 <code>Assets/Parrot/</code>。</p>
+  <p>以前飞行是第 3 个场景，唱歌是第 4 个。现在对调了：<strong>3 是和伙伴一起唱，4 是在水面飞</strong>。每个场景仍用自己存下来的站位。唱歌站在镜子前，<code>FriendParrot</code> 在旁边。只有飞行会移到池塘。见面、呼吸、休息时，麦克风不会变成鸟叫，这几段是安静的。</p>
 
   <h2 id="zh-lab">Avian Lab</h2>
-  <p>六个场景都在 Avian Lab 里。按 1–6，或打开 <strong>I want …</strong>。第一次从 1 走到 6。</p>
+  <p>六个场景都在 Avian Lab 里。按 1–6，或打开 <strong>I want …</strong>（日文是「場面 …」）。<strong>←</strong> 是上一个场景，<strong>→</strong> 或 <strong>N</strong> 是下一个场景。第一次从 1 走到 6。</p>
 
   <h2 id="zh-flow">六个场景</h2>
   <nav class="scenes" aria-label="场景">
-    <a href="#zh-s1">1 遇见</a>
+    <a href="#zh-s1">1 见面</a>
     <a href="#zh-s2">2 呼吸</a>
-    <a href="#zh-s3">3 飞行</a>
-    <a href="#zh-s4">4 唱歌</a>
-    <a href="#zh-s5">5 呼唤</a>
+    <a href="#zh-s3">3 唱歌</a>
+    <a href="#zh-s4">4 飞行</a>
+    <a href="#zh-s5">5 呼朋</a>
     <a href="#zh-s6">6 休息</a>
   </nav>
 
   <section class="scene" id="zh-s1">
-    <h3>场景 1　遇见自己</h3>
-    <p class="io"><b>输入</b>　看向哪里，以及麦克风。电脑上按住鼠标右键看镜子，头显里转头。说话或哼唱时，按你的音高叫一声。</p>
-    <p class="io"><b>任务</b>　在镜子里看见自己的鸟身，停留大约 6 秒。</p>
-    <p>菜单句：“I want to meet my bird self.” 你站在镜子前，里面是你的鹦鹉 <code>PlayerParrot</code>。提示是：“This is your bird self in the mirror. Look at it — no need to breathe yet.”</p>
+    <h3>场景 1 — 看见自己</h3>
+    <p class="io"><b>输入</b>　看向哪里。桌面按住鼠标右键看镜子。头显里转头。这里说话不会变成鸟叫。</p>
+    <p class="io"><b>任务</b>　在镜子里看见自己的鸟，停留大约 6 秒。</p>
+    <p>菜单句是 “I want to meet my bird self.” / 「鏡の中の自分に会う」。站位和呼吸、唱歌、呼朋、休息相同，都在镜子前。镜子里是 <code>PlayerParrot</code>。伙伴鸟不出现。</p>
     <table>
-      <tr><th>什么时候</th><th>眼前的反馈</th><th>音频</th></tr>
-      <tr><td>进入时</td><td>提示：“This is your bird self in the mirror. Look at it — no need to breathe yet.”</td><td>无</td></tr>
-      <tr><td>你一出声</td><td>一声短鸟鸣，音高跟着你</td><td>程序即时合成，不是音频文件</td></tr>
-      <tr><td>大约 6 秒</td><td>这一关结束，可以进入场景 2</td><td><code>birds_forest.wav</code></td></tr>
+      <tr><th>何时</th><th>看到什么</th><th>声音</th></tr>
+      <tr><td>进入</td><td>「鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。」</td><td>无</td></tr>
+      <tr><td>大约 6 秒</td><td>这一段结束，可以进入场景 2。</td><td>无。没有树林奖励声。</td></tr>
     </table>
-    <p>调试面板这时写成 “You met your bird self.” 默认不显示。</p>
   </section>
 
   <section class="scene" id="zh-s2">
-    <h3>场景 2　学习呼吸</h3>
-    <p class="io"><b>输入</b>　自己的呼吸。胸口鼓起就吸气，落下就呼气。</p>
-    <p class="io"><b>任务</b>　先跟上较快的节奏，再跟上较慢的。</p>
-    <p>菜单句：“I want to learn its breath.” 还在镜子前。鹦鹉的胸口和翅膀自己动，略微发青。提示是：“Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.”</p>
+    <h3>场景 2 — 学呼吸</h3>
+    <p class="io"><b>输入</b>　自己的呼吸。胸口升起时吸气，落下时呼气。麦克风保持无声。</p>
+    <p class="io"><b>任务</b>　跟着慢节奏直到结束，然后自动进入下一场。</p>
+    <p>菜单句是 “I want to learn its breath.” / 「鳥の呼吸を覚える」。仍在镜子前。胸口和翅膀自己动。现在只有慢节奏：<strong>吸大约 6 秒，呼大约 6 秒</strong>。默认 <strong>4 个循环</strong>（大约 48 秒），数字来自 <code>AvianVoiceSettings</code> 的 <code>patternBCycles</code>。</p>
     <table>
-      <tr><th>阶段</th><th>节奏</th><th>一轮</th><th>次数</th></tr>
-      <tr><td>Pattern A</td><td>吸大约 4 秒，呼大约 4 秒</td><td>大约 8 秒</td><td>3 次（大约 24 秒）</td></tr>
-      <tr><td>Pattern B</td><td>吸大约 6 秒，呼大约 6 秒</td><td>大约 12 秒</td><td>2 次（大约 24 秒）</td></tr>
+      <tr><th>何时</th><th>看到什么</th><th>声音</th></tr>
+      <tr><td>进入</td><td>「鳥の胸を見て、一緒に呼吸してください。」</td><td>无</td></tr>
+      <tr><td>4 个循环之后</td><td>短暂停一下，场景 3 开始。</td><td>无</td></tr>
     </table>
-    <table>
-      <tr><th>什么时候</th><th>眼前的反馈</th><th>音频</th></tr>
-      <tr><td>进入时</td><td>提示保持：“Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.” 胸口按 A 开始动。胸口鼓起时，羽毛略微发青。</td><td>无</td></tr>
-      <tr><td>A 的 3 轮结束</td><td>闪一下青光，马上换成较慢的 B</td><td><code>birds_forest.wav</code></td></tr>
-      <tr><td>B 的 2 轮结束</td><td>再闪一下青光。这一关结束。</td><td><code>birds_forest.wav</code></td></tr>
-    </table>
-    <p>秒数在 <code>AvianVoiceSettings</code> 的 Teacher Breath。调试面板显示吸气 / 呼气和 “cycle 1/3”，结束时是 “Breath sync complete!” 提示卡片不变。</p>
   </section>
 
   <section class="scene" id="zh-s3">
-    <h3>场景 3　飞过水面</h3>
-    <p class="io"><b>输入</b>　麦克风。更大声或更高就上升，不发声就下降。电脑上 E 升高、Q 降低。头显里摇杆上下调高度，左右转向。前进是自动的。这一关 WASD 不移动。</p>
-    <p class="io"><b>任务</b>　在池塘上方滑翔，用声音定高度，低头看水面倒影。</p>
-    <p>菜单句：“I want to fly above the water.” 你被放到池塘上方，视线略向下。镜子关，水面倒影开。自己的眼前不画鸟的身体。倒影里翅膀是张开的。前进大约每秒 1.75 米。高度保持在水面以上大约 0.6–2.6 米。这一关不会自己结束。打开 <strong>I want …</strong> 进入下一关。</p>
+    <h3>场景 3 — 和伙伴一起唱</h3>
+    <p class="io"><b>输入</b>　先听，再把同一个音稳住。忘了就重听这一音。</p>
+    <p class="io"><b>任务</b>　伙伴依次唱 E4、G4、A4、B4。每一音停下后，你唱回去。这个音名的任何一个八度都算。</p>
+    <p>菜单句是 “I want to sing as a bird.” / 「鳥として歌う」。人还在镜子前。<code>FriendParrot</code> 站在右侧大约 0.72 米。池塘倒影关闭。画面上有 <strong>Replay</strong>（「もう一度」）按钮。可以点它，也可以按 <strong>R</strong>、<strong>B</strong> 或空格。手柄是右手 <strong>B</strong>（左手是 <strong>Y</strong>）。重听只重放当前这一音，不会跳到下一音。</p>
     <table>
-      <tr><th>什么时候</th><th>眼前的反馈</th><th>音频</th></tr>
-      <tr><td>进入时</td><td>提示保持：“The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.” 飞行动画开始。</td><td>无</td></tr>
-      <tr><td>唱得更大声或更高</td><td>马上上升。倒影一起上升。</td><td>即时鸟鸣</td></tr>
-      <tr><td>不发声</td><td>马上下降，停在水面上方</td><td>无</td></tr>
-      <tr><td>E / Q，或摇杆</td><td>高度马上变。摇杆左右改变方向。</td><td>无</td></tr>
+      <tr><th>顺序</th><th>你要唱的音</th><th>人声 Hz</th><th>鸟的合成（×8）</th></tr>
+      <tr><td>1</td><td>E4</td><td>330</td><td>约 2640 Hz</td></tr>
+      <tr><td>2</td><td>G4</td><td>392</td><td>约 3136 Hz</td></tr>
+      <tr><td>3</td><td>A4</td><td>440</td><td>约 3520 Hz</td></tr>
+      <tr><td>4</td><td>B4</td><td>494</td><td>约 3952 Hz</td></tr>
     </table>
+    <table>
+      <tr><th>何时</th><th>提示</th><th>声音</th></tr>
+      <tr><td>伙伴在唱（约 0.70 秒）</td><td>「E4を聴いてください。」</td><td>一声引导，和你之后回答的是同一种合成。麦克风不出声。</td></tr>
+      <tr><td>短暂停顿（约 0.28 秒）</td><td>仍是「听」。</td><td>安静，让这一音先结束。</td></tr>
+      <tr><td>轮到你</td><td>「今度はE4を歌ってください。」</td><td>你的声音变成同一种合成。一个音节约 0.08 秒。</td></tr>
+      <tr><td>音名稳住约 0.45 秒</td><td>约 0.45 秒「次の音を聴いてください。」然后下一音。</td><td>没有奖励音。下一音就是反馈。</td></tr>
+      <tr><td>四音都完成</td><td>「メロディができました。」</td><td>麦克风安静。再按 Replay 会从 E4 重新开始。</td></tr>
+    </table>
+    <p>判定看的是音名，不是鸟的那个高频率本身。E3（165 Hz）、E4（330 Hz）、E5（660 Hz）是同一个音。窗口大约是目标音上下 40 Hz，约两个半音。要落在窗口内侧大约四分之三（大约半个半音）并保持 0.45 秒。越接近，羽毛越偏青。</p>
   </section>
 
   <section class="scene" id="zh-s4">
-    <h3>场景 4　一起唱歌</h3>
-    <p class="io"><b>输入</b>　麦克风音高。把当前这个音唱稳。</p>
-    <p class="io"><b>任务</b>　先听伙伴唱，再逐个稳住 E4、G4、A4、B4。</p>
-    <p>菜单句：“I want to sing as a bird.” 镜子开，水面倒影关。<code>FriendParrot</code> 站在旁边。和目标音相差大约 40 Hz 以内，稳住大约 0.45 秒，这个音就过了。</p>
+    <h3>场景 4 — 在水面飞</h3>
+    <p class="io"><b>输入</b>　麦克风决定高度。更大声或更高就上升，安静就下降。桌面按住 E 或 ↑ 上升，Q 或 ↓ 下降。按住 R 或 F 也一样，但唱歌场景里点一下 R 是重听，所以想微调高度时用 E 和 Q。头显里摇杆上下调高度，左右转向。向前飞是自动的。这里 WASD 不能移动。</p>
+    <p class="io"><b>任务</b>　在池塘上方滑翔，用声音定高度，低头看倒影。</p>
+    <p>菜单句是 “I want to fly above the water.” / 「水面の上を飛ぶ」。镜子关闭，池塘倒影打开，并放大到约 1.55 倍，让水面上的鸟更大。自己的眼前不画身体。这一段不会自己结束。</p>
+    <h3>开始时在多高</h3>
+    <ul>
+      <li>先移到存好的飞行位置，再贴到池塘上：X 与水面相同，在池塘中心后方 <strong>3.5 米</strong>。</li>
+      <li>如果存下来的高度不在水面以上 <strong>0.6–2.4 米</strong>，就收到默认高度：水面以上 <strong>1.3 米</strong>。1.3 米是入场高度，不是某个音。</li>
+      <li>相机向下倾 <strong>18°</strong>，方便看见倒影。身体原点保持直立。</li>
+      <li>飞行过程中，高度限制在水面以上 <strong>0.6–2.6 米</strong>。向前大约 <strong>每秒 1.75 米</strong>。</li>
+    </ul>
+    <h3>音高和响度怎么变成高度</h3>
+    <p>一帧算「在唱」，需要人声检测打开，并且响度至少 <strong>0.15</strong>。不唱时以 <strong>每秒 0.45 米</strong>下降，降到离水面 0.6 米停下。只要在唱就不会下降。最慢的上升是 <strong>每秒 0.15 米</strong>（几乎是保持高度）。最快是 <strong>每秒 2.2 米</strong>，到 2.6 米封顶。</p>
+    <p>上升的一半来自响度，一半来自音高。音高在 <strong>120 Hz</strong> 时没有加分，在 <strong>600 Hz</strong> 时加满，按对数算。唱歌的四个音不是四个固定高度，它们只是落在这条坡上：</p>
     <table>
-      <tr><th>顺序</th><th>音</th><th>Hz</th></tr>
-      <tr><td>1</td><td>E4</td><td>330</td></tr>
-      <tr><td>2</td><td>G4</td><td>392</td></tr>
-      <tr><td>3</td><td>A4</td><td>440</td></tr>
-      <tr><td>4</td><td>B4</td><td>494</td></tr>
+      <tr><th>声音</th><th>音高占比（120–600 Hz）</th><th>同时也很响时</th></tr>
+      <tr><td>安静</td><td>—</td><td>每秒下降 0.45 米，停在水面以上 0.6 米</td></tr>
+      <tr><td>120 Hz</td><td>0%</td><td>从几乎悬停（0.15 米/秒）到很响时大约 1.2 米/秒</td></tr>
+      <tr><td>E4，330 Hz</td><td>大约 63%</td><td>刚能听见大约 0.8 米/秒，很响大约 1.8 米/秒</td></tr>
+      <tr><td>600 Hz</td><td>100%</td><td>最快每秒 2.2 米</td></tr>
     </table>
-    <table>
-      <tr><th>什么时候</th><th>眼前的反馈</th><th>音频</th></tr>
-      <tr><td>进入时</td><td>唱歌的提示保持不变。伙伴胸口张开，身体微微浮起。</td><td><code>bird_melody.wav</code> 从头播。若 0.35 秒后还没有声音，再播一次。</td></tr>
-      <tr><td>你在唱，还没对准</td><td>越接近，伙伴的羽毛越青。你自己的胸口也会微微张开。</td><td>即时鸟鸣，和录音叠在一起</td></tr>
-      <tr><td>这个音稳住大约 0.45 秒</td><td>闪一下青光，进入下一个音。伙伴再唱一遍。</td><td><code>bird_melody.wav</code> 再从头播</td></tr>
-      <tr><td>四个音都稳住</td><td>这一关结束</td><td><code>birds_forest.wav</code></td></tr>
-    </table>
-    <p>调试面板显示 “Hold E4 — pitch 你的 Hz/目标 Hz”，结束时是 “Melody complete!” 提示卡片不变。</p>
+    <p>按住 E、Q、方向键，或按住 R / F，不走这条曲线，直接以每秒 2.2 米升降。摇杆推过大约四分之一行程也一样。听到的仍是人声音高乘 8（限制在 1600–5500 Hz）的短 chirp，大约 0.08 秒。这一段没有要跟的音，也没有 Replay 按钮。</p>
   </section>
 
   <section class="scene" id="zh-s5">
-    <h3>场景 5　呼唤朋友</h3>
-    <p class="io"><b>输入</b>　先听，再用麦克风把当前这个音唱回去。</p>
-    <p class="io"><b>任务</b>　每稳住一个音，就有一只远处的鸟飞过来，直到这群鸟都在身边。</p>
-    <p>菜单句：“I want to call my bird friends.” 你在池塘上方，水面有倒影。前方大约 30 米有 7 只鹦鹉，左右大约 4 米，高度大约 1.8 到 4.6 米。七个音是 330、392、440、494、523、587、659 Hz。和目标相差大约 70 Hz 以内，稳住大约 0.32 秒，算唱准。这一关的提示会改字。</p>
+    <h3>场景 5 — 呼唤伙伴</h3>
+    <p class="io"><b>输入</b>　和场景 3 一样，先听再唱，还是那四个音。芯片、R、B、空格，或手柄 B / Y 都可以重听。</p>
+    <p class="io"><b>任务</b>　每稳住一个音，只飞来一只。四个音会重复，直到七只都过来。</p>
+    <p>菜单句是 “I want to call my bird friends.” / 「仲間の鳥を呼ぶ」。人回到镜子这一侧的位置。镜子关，池塘倒影开。前方大约 <strong>30 米</strong>、左右展开大约 <strong>4 米</strong>、高度大约 <strong>1.8–4.6 米</strong>，有 7 只鸟。每唱准一次，只有一只飞过来。它们停在眼前大约 <strong>2.2 米</strong>，左右大约 <strong>1.7 米</strong>，从略低于眼睛到眼睛上方大约 <strong>0.4 米</strong>。飞到身边时不叫。声音只有引导音，以及轮到你时你自己的合成。</p>
     <table>
-      <tr><th>什么时候</th><th>眼前的反馈</th><th>音频</th></tr>
-      <tr><td>进入时</td><td>提示改成 “Listen to the melody.”</td><td><code>bird_melody.wav</code>，播完这一遍</td></tr>
-      <tr><td>这一遍播完</td><td>提示改成 “Your turn. Sing it back.”</td><td>无</td></tr>
-      <tr><td>稳住当前这个音</td><td>最近的一只飞过来。你的鸟闪一下青光。提示先变成 “Listen.”，大约 0.7 秒后再变回 “Your turn. Sing it back.”</td><td><code>birds_forest.wav</code>。下一个音用一声短鸟鸣做示范。</td></tr>
-      <tr><td>7 个音之后，再过大约 0.45 秒</td><td>提示改成 “Your friends are here.” 到齐的鸟各自应一声。</td><td>再播一遍 <code>bird_melody.wav</code>，每只鸟再各应一声</td></tr>
+      <tr><th>何时</th><th>提示</th><th>声音</th></tr>
+      <tr><td>听</td><td>「E4を聴いてください。」</td><td>0.70 秒的引导。麦克风无声。</td></tr>
+      <tr><td>轮到你</td><td>「E4を歌って仲間を呼んでください。」</td><td>你的合成</td></tr>
+      <tr><td>稳住约 0.45 秒</td><td>约 0.45 秒「仲間が向かっています。」然后下一音。</td><td>鸟飞来的时候是安静的。没有树林声，也没有回应 chirp。</td></tr>
+      <tr><td>第七只离开栖枝</td><td>「仲間が来ました。」</td><td>麦克风安静。Replay 只再放刚才那一音，不会把鸟群清掉。</td></tr>
     </table>
+    <p>通过条件和唱歌相同：音名落在 40 Hz 窗口里，并保持 0.45 秒。</p>
   </section>
 
   <section class="scene" id="zh-s6">
-    <h3>场景 6　水边休息</h3>
-    <p class="io"><b>输入</b>　看镜子和水边。这一关不计音高，也不计呼吸。</p>
-    <p class="io"><b>任务</b>　回到镜子前，看这一路的三项感觉。</p>
-    <p>菜单句：“I want to rest by the water.” 回到能看见镜子的地方。镜子开，水面倒影关。提示保持：“Rest by the water and look over your scores. How did it feel to become a bird?”</p>
-    <table>
-      <tr><th>什么时候</th><th>眼前的反馈</th><th>音频</th></tr>
-      <tr><td>进入大约 0.5 秒</td><td>连叫五声，大约每 0.23 秒一声，音高大约 440 Hz</td><td>程序生成</td></tr>
-      <tr><td>调试面板开着时</td><td>三项百分比一直更新：Breathing Control、Voice Control、Synchronization</td><td>无</td></tr>
-    </table>
+    <h3>场景 6 — 在水边休息</h3>
+    <p class="io"><b>输入</b>　看。这里不再为新的音高打分，麦克风也不会变成鸟叫。</p>
+    <p class="io"><b>任务</b>　回到镜子前。前面几段留下的三项分数还在。</p>
+    <p>菜单句是 “I want to rest by the water.” / 「水辺で休む」。镜子开，池塘倒影关。提示保持为「水辺で休み、ここまでの感覚を見てください。鳥になるのは、どんな感じでしたか。」没有告别 chirp。只有打开 <code>showHudPanels</code> 时，调试面板才显示 Breathing Control、Voice Control、Synchronization。默认是关的。</p>
   </section>
 
-  <h2 id="zh-desk">电脑：怎么运行、怎么操作</h2>
+  <h2 id="zh-desk">桌面：怎么运行、怎么操作</h2>
   <ol>
-    <li>用 Unity 6000.3.4f1 打开本仓库。</li>
-    <li>打开 <code>Assets/AvianVoice/Scenes/Avian_Lab.unity</code>。场景名是 Avian Lab。</li>
-    <li>确认 <code>XR Origin Hands (XR Rig)</code> 和 <code>PlayerParrot</code>。</li>
-    <li>按 Play，并允许麦克风。在 Windows 上，程序会先打开麦克风，再重置音频设备，好让扬声器还能出声，然后重新听。</li>
-    <li>主相机由 <code>DesktopFlyCamera</code> 驱动。</li>
+    <li>用 Unity 6000.3.4f1 打开仓库。</li>
+    <li>打开 <code>Avian_Lab.unity</code>。</li>
+    <li>确认层级里有 <code>XR Origin Hands (XR Rig)</code> 和 <code>PlayerParrot</code>。</li>
+    <li>按 Play，允许麦克风。在 Windows 上会先开麦，再重置一次音频设备，好让喇叭还能出声，然后重新听。</li>
   </ol>
   <table>
-    <tr><th>你想做什么</th><th>怎么做</th></tr>
+    <tr><th>想做的事</th><th>操作</th></tr>
     <tr><td>环顾</td><td>按住鼠标右键。松开才能点界面。</td></tr>
-    <tr><td>走动（飞行时除外）</td><td>W A S D。Shift 更快。Q 降低视点，E 升高视点。</td></tr>
-    <tr><td>飞行时的高度</td><td>唱就上升，不唱就下降。E 和 Q 也可以调高度。飞行时 WASD 不移动。</td></tr>
-    <tr><td>换场景</td><td>点 <strong>I want …</strong>，或按 M。选一个场景。“Stay here” 或再按 M，把列表合上。</td></tr>
-    <tr><td>用数字跳</td><td>1 遇见，2 呼吸，3 飞行，4 唱歌，5 呼唤，6 休息。N 是下一关。</td></tr>
-    <tr><td>测试时跳过</td><td>C。给体验者玩之前，关掉 <code>enableDebugCheat</code>。</td></tr>
+    <tr><td>走动（飞行时除外）</td><td>W A S D。Shift 更快。Q 降低视角，E 抬高。</td></tr>
+    <tr><td>切换场景</td><td><strong>←</strong> 上一个，<strong>→</strong> 或 <strong>N</strong> 下一个。也可以 1–6。或点 <strong>I want …</strong> / 按 <strong>M</strong>。Stay here（このまま）或再按 M 关闭列表。</td></tr>
+    <tr><td>画面语言</td><td><strong>J</strong> 在英文和日文之间切换。默认英文。</td></tr>
+    <tr><td>再听当前这一音</td><td>场景 3 和 5：<strong>R</strong>、<strong>B</strong>、空格，或 Replay 按钮。旧的音高匹配和旋律场景也认这些键。</td></tr>
+    <tr><td>飞行高度</td><td>唱就上升，不唱就下降。按住 E / Q，或 ↑ / ↓。WASD 不能移动。</td></tr>
+    <tr><td>测试时跳过</td><td><strong>C</strong>。给访客之前关掉 <code>enableDebugCheat</code>。</td></tr>
   </table>
 
   <h2 id="zh-vr">头显：怎么运行、怎么操作</h2>
-  <p>还是 Avian Lab。OpenXR，Quest 上用 Meta OpenXR。把 <code>PlatformProfile.asset</code> 赋上。用头显麦克风，或 USB / OTG 麦克风。Quest 的音频缓冲大约 512。<code>DesktopFlyCamera</code> 不会接管真正的头显会话。</p>
+  <p>还是 Avian Lab。OpenXR，Quest 用 Meta OpenXR。在启动组件上指定 <code>PlatformProfile.asset</code>。用头显麦克风或 USB / OTG。Quest 的音频缓冲大约 512，会稍晚一点、更稳。真机会话里 <code>DesktopFlyCamera</code> 不会抢走视角。</p>
   <table>
-    <tr><th>你想做什么</th><th>怎么做</th></tr>
-    <tr><td>看</td><td>转头。飞行时低头。</td></tr>
+    <tr><th>想做的事</th><th>操作</th></tr>
+    <tr><td>看</td><td>转头。飞行时向下看。相机入场时已经下倾 18°。</td></tr>
     <tr><td>打开六个场景</td><td>手柄菜单键，或点 <strong>I want …</strong>。</td></tr>
-    <tr><td>飞行时转向</td><td>摇杆左右。</td></tr>
-    <tr><td>上升或下降</td><td>唱。摇杆上下也可以调高度。</td></tr>
-    <tr><td>唱歌、呼唤</td><td>说话或哼唱。没有一个键用来“开始发声”。</td></tr>
+    <tr><td>飞行中转向</td><td>摇杆左右。</td></tr>
+    <tr><td>升降</td><td>唱。摇杆上下最多每秒 2.2 米。</td></tr>
+    <tr><td>再听这一音</td><td>右手 <strong>B</strong>，或左手 <strong>Y</strong>，或 Replay 按钮。R、B、J 是旁边电脑上的人用的。</td></tr>
   </table>
-  <p>1–6、M、C 是给旁边电脑上的人用的。</p>
 
-  <h2 id="zh-ui">两张卡片</h2>
-  <p>一张是 <code>TaskManager</code> 里的提示句，一张是用来切换六个场景的 <strong>I want …</strong>。小卡片在飞行时也还在。分数条和 Transform / Assistive 开关在 <code>showHudPanels</code> 关闭时不显示。不要把提示画成两张。</p>
+  <h2 id="zh-ui">画面上有什么</h2>
+  <p>提示只有一张卡片。唱歌和呼朋时，它会跟着阶段变（听、轮到你、伙伴飞来、完成）。其他时候是这一场的那一句话。<strong>I want …</strong> 按现在的顺序列出六个场景。Replay 按钮只在场景 3 和 5 出现。分数条和 Transform / Assistive 开关在 <code>showHudPanels</code> 关闭时不显示。</p>
 
-  <h2 id="zh-sound">人声怎么变成鸟叫</h2>
-  <p>你每起一个音，程序就叫一声，音高是你的 8 倍，再限制在大约 1600 到 5500 Hz。220 Hz 大约变成 1760 Hz，440 Hz 大约变成 3520 Hz。音与音之间的高低关系还在。这个倍数是 <code>synthPitchRatio</code>。</p>
-  <p>两声之间大约隔 45 毫秒，所以同一下不会被算成两声。每声大约 0.08 秒。很快的两声就是两声鸟鸣。</p>
-  <p><code>bird_melody.wav</code> 和 <code>birds_forest.wav</code> 在 <code>Assets/AvianVoice/Resources/BirdExperience/</code>。</p>
+  <h2 id="zh-sound">声音和四个音怎么对应</h2>
+  <p>鸟鸣只有一种。人声赫兹乘 <code>synthPitchRatio</code>（<strong>8</strong>），再限制在 <strong>1600–5500 Hz</strong>。引导音和你的回答用同一套换算，所以听到的音高就是要跟上的音高。用自己顺口的八度唱同一个音名即可。引导音持续 <strong>0.70 秒</strong>。你自己的音节是大约 <strong>0.08 秒</strong> 的短 chirp，两次之间至少 <strong>45 毫秒</strong>，避免一个字被算成两个音。</p>
+  <p>麦克风变成这种合成，只发生在飞行中，以及场景 3、5 的「轮到你」。见面、呼吸、休息，还有「听」的那一段，都是安静的。</p>
+  <p>录音里的氛围和奖励不再播放。<code>birds_forest.wav</code>、<code>birds_reward.wav</code> 和整段 <code>bird_melody.wav</code> 还在 <code>Resources/BirdExperience/</code>，但六个场景都不会放它们。唱对了，反馈就是下一音，或者一只鸟飞过来。</p>
+  <p>调试用的 <strong>T</strong> 仍可切到 Assistive：听到的是变调后的自己的声音，不是鸟的合成。体验开始时是 Transform，也就是上面的合成。</p>
 
   <h2 id="zh-code">改哪里</h2>
-  <p>移动 <code>.cs</code> 时要连同 <code>.cs.meta</code>。注释用英文。</p>
+  <p>移动 <code>.cs</code> 时带上它的 <code>.cs.meta</code>。代码注释用英文。</p>
   <pre>Assets/AvianVoice/
   Scenes/Avian_Lab.unity
   Settings/AvianVoiceSettings.asset
-  Resources/BirdExperience/
-  Scripts/Audio/  Core/  Tasks/  UI/  Physiology/
+  Scripts/Audio/  Core/  Tasks/  UI/
   Scripts/Embodiment/Parrot/  Mirror/  Pond/  Flock/  Scene/</pre>
   <table>
-    <tr><th>要改什么</th><th>打开</th></tr>
-    <tr><td>提示和切换场景的句子</td><td><code>TaskManager.cs</code>，<code>SceneWishMenu.cs</code></td></tr>
-    <tr><td>遇见要看多久</td><td><code>MeetBirdTask.cs</code> 的 <code>LookSeconds</code></td></tr>
-    <tr><td>呼吸秒数</td><td>Teacher Breath，<code>BreathSyncTask.cs</code>，<code>BirdFriendDemonstrator.cs</code></td></tr>
-    <tr><td>飞行速度</td><td><code>FlightControlTask.cs</code></td></tr>
-    <tr><td>飞行相机</td><td><code>ParrotFlightPresentation.cs</code></td></tr>
-    <tr><td>四个音</td><td><code>SingingBranchTask.cs</code></td></tr>
-    <tr><td>伙伴的歌</td><td><code>bird_melody.wav</code>，<code>BirdExperienceAudio.cs</code></td></tr>
-    <tr><td>鸟群</td><td><code>CallFriendsTask.cs</code></td></tr>
-    <tr><td>鸟鸣</td><td><code>BirdVoiceMapper.cs</code>，<code>BirdSongSynth.cs</code></td></tr>
-    <tr><td>麦克风</td><td><code>MicrophoneCapture.cs</code>，<code>VoiceAnalyzer.cs</code></td></tr>
-    <tr><td>鼠标和 WASD</td><td><code>DesktopFlyCamera.cs</code></td></tr>
-    <tr><td>按键</td><td><code>AvianInput.cs</code></td></tr>
+    <tr><th>想改什么</th><th>打开</th></tr>
+    <tr><td>提示和菜单（英文与日文）</td><td><code>AvianUiCopy.cs</code>、<code>AvianUiLanguage.cs</code></td></tr>
+    <tr><td>顺序、镜子、池塘倒影</td><td><code>TaskManager.cs</code></td></tr>
+    <tr><td>每个场景的站位</td><td>Rig 上的 <code>XrRigTaskStartPoses</code>。按任务 id 对应，不按列表序号。</td></tr>
+    <tr><td>四个音、引导时长、通过规则</td><td><code>BirdSongPhrase.cs</code></td></tr>
+    <tr><td>麦克风何时可以出鸟声</td><td><code>BirdVoiceMapper.cs</code></td></tr>
+    <tr><td>chirp 长度和 ×8</td><td><code>BirdSongSynth.cs</code>、<code>AvianVoiceSettings</code></td></tr>
+    <tr><td>飞行高度、速度、音高范围</td><td><code>FlightControlTask.cs</code>，以及 <code>XrRigTaskStartPoses.cs</code> 的飞行栏</td></tr>
+    <tr><td>重听按键和按钮</td><td><code>AvianInput.cs</code>、<code>SingingReplayButton.cs</code></td></tr>
+    <tr><td>上一个 / 下一个场景</td><td><code>AvianInput.cs</code>、<code>TaskModeKeyboardSwitcher.cs</code></td></tr>
   </table>
 </article>
 
-  <footer>Same text as <code>TEAM_GUIDE.md</code> in this folder. Open this file in a browser and use the language buttons.</footer>
+  <footer>Open this file in a browser. The three buttons switch the handbook language. Inside Avian Lab, J switches English and Japanese only.</footer>
   </main>
   <script>
     const buttons = document.querySelectorAll(".langs button");

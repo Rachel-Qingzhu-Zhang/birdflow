@@ -121,6 +121,7 @@ namespace AvianVoice.Tasks
             glideActive = false;
             flightSessionActive = true;
             cheatClimbTimer = 0f;
+            BirdVoiceMapper.Find()?.SetFollowVoice(true);
             Debug.Log("[AvianVoice] Flying: sing louder or higher to climb, stay quiet to glide down. E/Q or stick still nudge height.");
         }
 
@@ -229,7 +230,6 @@ namespace AvianVoice.Tasks
                 cheatClimbTimer = 0.85f;
                 taskManager?.ReportScore(score);
                 SessionScoreCache.RecordVoice(1f);
-                BirdExperienceAudio.Ensure()?.PlayForestReward();
                 Debug.Log("[AvianVoice] Flying cheat: score 1, brief climb.");
             }
 

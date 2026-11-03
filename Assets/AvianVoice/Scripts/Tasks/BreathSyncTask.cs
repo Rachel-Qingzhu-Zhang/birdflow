@@ -8,15 +8,13 @@ using UnityEngine;
 namespace AvianVoice.Tasks
 {
     /// <summary>
-    /// Breath Sync: follow the bird through Pattern A, then the slower Pattern B.
-    /// Each pattern advances after its configured cycle count (AvianVoiceSettings).
+    /// Breath Sync: follow the slower breath only. After patternBCycles the next scene starts.
     /// </summary>
     public class BreathSyncTask : MonoBehaviour
     {
         enum Phase
         {
-            PatternA,
-            PatternB,
+            Breathing,
             Complete
         }
 
@@ -27,16 +25,14 @@ namespace AvianVoice.Tasks
         BirdFriendDemonstrator demonstrator;
 
         [SerializeField]
-        SuccessChirpBurst successChirp;
-
-        [SerializeField]
         bool enableDebugCheat = true;
 
         AvianVoiceSettings settings;
         ParrotMatchVisuals birdVisuals;
         TaskFlowUI taskUi;
         SessionRecorder recorder;
-        Phase phase = Phase.PatternA;
+        Phase phase = Phase.Breathing;
+        bool advancing;
 
         void Start()
         {
@@ -49,17 +45,18 @@ namespace AvianVoice.Tasks
             if (!TaskActivity.IsActive("breath_sync"))
                 return;
 
-            phase = Phase.PatternA;
+            phase = Phase.Breathing;
+            advancing = false;
             ResolveReferences();
-            demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternA4x4);
+            BirdVoiceMapper.Find()?.SetFollowVoice(false);
+            demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternB6x6);
             demonstrator?.RestartPattern();
-            SetHud("Pattern A");
+            SetHud("Breathe with the bird");
         }
 
         void OnDisable()
         {
             birdVisuals?.ApplyMatch(0f);
-            BirdExperienceAudio.Ensure()?.StopAll();
         }
 
         void Update()
@@ -71,8 +68,6 @@ namespace AvianVoice.Tasks
             {
                 if (phase != Phase.Complete)
                     AdvancePhase();
-                else
-                    BirdExperienceAudio.Ensure()?.PlayForestReward();
                 Debug.Log("[AvianVoice] Breath sync cheat. Phase=" + phase);
                 return;
             }
@@ -82,9 +77,8 @@ namespace AvianVoice.Tasks
 
             var required = RequiredCycles();
             var progress = Mathf.Clamp01((demonstrator.CompletedCycles + demonstrator.CycleProgress) / required);
-            var overall = phase == Phase.PatternA ? progress * 0.5f : 0.5f + progress * 0.5f;
-            taskManager?.ReportScore(overall);
-            recorder?.SetBreathSyncContext(progress, phase == Phase.PatternA ? "A" : "B");
+            taskManager?.ReportScore(progress);
+            recorder?.SetBreathSyncContext(progress, "B");
             EnsureBirdVisuals();
             birdVisuals?.ApplyMatch(demonstrator.CurrentDepth * 0.6f);
 
@@ -94,38 +88,35 @@ namespace AvianVoice.Tasks
                 return;
             }
 
-            var label = phase == Phase.PatternA ? "Pattern A" : "Pattern B";
             var breath = demonstrator.IsInhaling ? "inhale" : "exhale";
-            SetHud($"{label}: {breath} {demonstrator.SecondsLeftInPhase:0}s · cycle {demonstrator.CompletedCycles + 1}/{required}");
+            SetHud($"{breath} {demonstrator.SecondsLeftInPhase:0}s · cycle {demonstrator.CompletedCycles + 1}/{required}");
         }
 
         void AdvancePhase()
         {
-            if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
-                successChirp?.PlaySuccessBurst();
-            birdVisuals?.PulsePerfect();
-
-            if (phase == Phase.PatternA)
-            {
-                phase = Phase.PatternB;
-                demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternB6x6);
-                demonstrator?.RestartPattern();
-                SetHud("Pattern B: slower breaths. Keep following your bird.");
+            if (phase == Phase.Complete || advancing)
                 return;
-            }
+
+            birdVisuals?.PulsePerfect();
 
             phase = Phase.Complete;
             taskManager?.ReportScore(1f);
             SessionScoreCache.RecordSynchronization(1f);
             SessionScoreCache.RecordBreathing(1f);
             SetHud("Breath sync complete!");
+            advancing = true;
+            StartCoroutine(AdvanceAfterCue());
+        }
+
+        System.Collections.IEnumerator AdvanceAfterCue()
+        {
+            yield return new WaitForSeconds(0.6f);
+            taskManager?.AdvanceTask();
         }
 
         int RequiredCycles()
         {
-            var cycles = phase == Phase.PatternA
-                ? settings != null ? settings.patternACycles : 3
-                : settings != null ? settings.patternBCycles : 2;
+            var cycles = settings != null ? settings.patternBCycles : 4;
             return Mathf.Max(1, cycles);
         }
 
@@ -135,8 +126,6 @@ namespace AvianVoice.Tasks
                 taskManager = FindAnyObjectByType<TaskManager>();
             if (demonstrator == null)
                 demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            if (successChirp == null)
-                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
             if (recorder == null)
                 recorder = FindAnyObjectByType<SessionRecorder>();
             if (settings == null)

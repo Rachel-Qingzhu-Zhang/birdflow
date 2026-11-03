@@ -35,6 +35,9 @@ namespace AvianVoice.UI
         TaskManager taskManager;
         GameObject panelRoot;
         GameObject chipRoot;
+        TextMeshProUGUI titleLabel;
+        TextMeshProUGUI stayLabel;
+        TextMeshProUGUI chipLabel;
         WishRow[] rows;
         bool open;
         bool leftMenuHeld;
@@ -45,7 +48,6 @@ namespace AvianVoice.UI
         struct Wish
         {
             public string taskId;
-            public string line;
         }
 
         struct WishRow
@@ -58,12 +60,12 @@ namespace AvianVoice.UI
 
         static readonly Wish[] Wishes =
         {
-            new() { taskId = "meet", line = "I want to meet my bird self." },
-            new() { taskId = "breath_sync", line = "I want to learn its breath." },
-            new() { taskId = "flying", line = "I want to fly above the water." },
-            new() { taskId = "singing", line = "I want to sing as a bird." },
-            new() { taskId = "call_friends", line = "I want to call my bird friends." },
-            new() { taskId = "reflection", line = "I want to rest by the water." }
+            new() { taskId = "meet" },
+            new() { taskId = "breath_sync" },
+            new() { taskId = "singing" },
+            new() { taskId = "flying" },
+            new() { taskId = "call_friends" },
+            new() { taskId = "reflection" }
         };
 
         public static SceneWishMenu Ensure(Transform head)
@@ -117,18 +119,23 @@ namespace AvianVoice.UI
 
         void OnEnable()
         {
+            AvianUiLanguage.Changed -= RefreshLanguage;
+            AvianUiLanguage.Changed += RefreshLanguage;
             BindTaskManager();
             RefreshActive();
+            RefreshLanguage();
         }
 
         void OnDisable()
         {
+            AvianUiLanguage.Changed -= RefreshLanguage;
             if (taskManager != null)
                 taskManager.OnTaskChanged -= OnTaskChanged;
         }
 
         void Update()
         {
+            AvianUiLanguage.PollToggle();
             if (taskManager == null)
             {
                 BindTaskManager();
@@ -191,6 +198,7 @@ namespace AvianVoice.UI
             }
 
             BindTaskManager();
+            RefreshLanguage();
             SetLayerRecursive(gameObject, BirdSceneRoles.UiLayer);
             if (!layoutReady)
             {
@@ -228,6 +236,38 @@ namespace AvianVoice.UI
             }
         }
 
+        void RefreshLanguage()
+        {
+            if (titleLabel != null)
+            {
+                titleLabel.text = AvianUiCopy.MenuTitle;
+                AvianUiFont.Apply(titleLabel);
+            }
+
+            if (stayLabel != null)
+            {
+                stayLabel.text = AvianUiCopy.StayHere;
+                AvianUiFont.Apply(stayLabel);
+            }
+
+            if (chipLabel != null)
+            {
+                chipLabel.text = AvianUiCopy.MenuChip;
+                AvianUiFont.Apply(chipLabel);
+            }
+
+            if (rows == null)
+                return;
+
+            for (var i = 0; i < rows.Length && i < Wishes.Length; i++)
+            {
+                if (rows[i].wishText == null)
+                    continue;
+                rows[i].wishText.text = AvianUiCopy.SceneLine(rows[i].taskId);
+                AvianUiFont.Apply(rows[i].wishText);
+            }
+        }
+
         GameObject BuildPanel()
         {
             var canvasGo = CreateCanvas(PanelName, AvianHudLayout.WishPanelLocalPosition, AvianHudLayout.WishPanelCanvasSize, AvianHudLayout.WishPanelWorldScale, 40);
@@ -236,8 +276,8 @@ namespace AvianVoice.UI
             var card = CreateImage(root, "Card", Vector2.zero, AvianHudLayout.WishPanelCanvasSize, Card, roundedSprite, true);
             card.raycastTarget = true;
 
-            var title = CreateTmp(root, "Title", new Vector2(0f, 158f), new Vector2(320f, 32f), "What do you wish?", 20, FontStyles.Normal, Ivory, TextAlignmentOptions.Center);
-            title.characterSpacing = 2.2f;
+            titleLabel = CreateTmp(root, "Title", new Vector2(0f, 158f), new Vector2(320f, 32f), AvianUiCopy.MenuTitle, 20, FontStyles.Normal, Ivory, TextAlignmentOptions.Center);
+            titleLabel.characterSpacing = 2.2f;
 
             CreateImage(root, "Rule", new Vector2(0f, 136f), new Vector2(72f, 1.2f), GoldSoft, null, false);
 
@@ -276,7 +316,7 @@ namespace AvianVoice.UI
             button.onClick.AddListener(() => Choose(taskId));
 
             var mark = CreateTmp(rect, "Mark", new Vector2(-152f, 0f), new Vector2(22f, 28f), "", 20, FontStyles.Bold, Gold, TextAlignmentOptions.Center);
-            var wishText = CreateTmp(rect, "Wish", new Vector2(10f, 0f), new Vector2(300f, 28f), wish.line, 16, FontStyles.Normal, Ivory, TextAlignmentOptions.MidlineLeft);
+            var wishText = CreateTmp(rect, "Wish", new Vector2(10f, 0f), new Vector2(300f, 28f), AvianUiCopy.SceneLine(wish.taskId), 16, FontStyles.Normal, Ivory, TextAlignmentOptions.MidlineLeft);
 
             return new WishRow
             {
@@ -295,7 +335,7 @@ namespace AvianVoice.UI
             rect.anchoredPosition = pos;
             rect.sizeDelta = new Vector2(160f, 28f);
 
-            var label = CreateTmp(rect, "Label", Vector2.zero, new Vector2(160f, 28f), "Stay here", 13, FontStyles.Italic, IvoryMuted, TextAlignmentOptions.Center);
+            stayLabel = CreateTmp(rect, "Label", Vector2.zero, new Vector2(160f, 28f), AvianUiCopy.StayHere, 13, FontStyles.Italic, IvoryMuted, TextAlignmentOptions.Center);
             var hit = go.AddComponent<Image>();
             hit.color = Color.clear;
             hit.raycastTarget = true;
@@ -304,7 +344,6 @@ namespace AvianVoice.UI
             button.targetGraphic = hit;
             button.navigation = new Navigation { mode = Navigation.Mode.None };
             button.onClick.AddListener(() => SetOpen(false));
-            _ = label;
         }
 
         GameObject BuildChip()
@@ -318,7 +357,7 @@ namespace AvianVoice.UI
             button.targetGraphic = card;
             button.navigation = new Navigation { mode = Navigation.Mode.None };
             button.onClick.AddListener(() => SetOpen(true));
-            CreateTmp(root, "Label", Vector2.zero, new Vector2(150f, 28f), "I want …", 16, FontStyles.Italic, Ivory, TextAlignmentOptions.Center);
+            chipLabel = CreateTmp(root, "Label", Vector2.zero, new Vector2(150f, 28f), AvianUiCopy.MenuChip, 16, FontStyles.Italic, Ivory, TextAlignmentOptions.Center);
             return canvasGo;
         }
 
@@ -412,9 +451,7 @@ namespace AvianVoice.UI
             tmp.enableWordWrapping = true;
             tmp.overflowMode = TextOverflowModes.Ellipsis;
             tmp.raycastTarget = false;
-            var font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-            if (font != null)
-                tmp.font = font;
+            AvianUiFont.Apply(tmp);
             return tmp;
         }
 

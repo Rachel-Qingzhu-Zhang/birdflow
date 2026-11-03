@@ -88810,13 +88810,13 @@ MonoBehaviour:
     worldPosition: {x: 34.8, y: -12.697, z: 64.53}
     worldRotation: {x: -0, y: -0, z: -0, w: 1}
     configured: 1
-  - taskId: flying
-    worldPosition: {x: 80, y: -20.25, z: 56.5}
-    worldRotation: {x: 0.32556814, y: 0, z: 0, w: 0.9455186}
-    configured: 1
   - taskId: singing
     worldPosition: {x: 34.8, y: -12.697, z: 64.53}
     worldRotation: {x: -0, y: -0, z: -0, w: 1}
+    configured: 1
+  - taskId: flying
+    worldPosition: {x: 80, y: -20.25, z: 56.5}
+    worldRotation: {x: 0.32556814, y: 0, z: 0, w: 0.9455186}
     configured: 1
   - taskId: call_friends
     worldPosition: {x: 34.8, y: -12.697, z: 64.53}

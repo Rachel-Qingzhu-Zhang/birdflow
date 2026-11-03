@@ -102,7 +102,7 @@ namespace AvianVoice.Audio
             PushSettings();
         }
 
-        public void PlayChirp(float humanPitchHz, float loudness)
+        public void PlayChirp(float humanPitchHz, float loudness, float holdSeconds = -1f)
         {
             if (humanPitchHz <= 0f)
                 return;
@@ -113,7 +113,9 @@ namespace AvianVoice.Audio
             var minRate = settings != null ? settings.synthTrillRateMin : 18f;
             var maxRate = settings != null ? settings.synthTrillRateMax : 28f;
             trillRate = Mathf.Lerp(minRate, maxRate, loud);
-            var hold = settings != null ? Mathf.Max(0.05f, settings.synthChirpSeconds) : 0.14f;
+            var hold = holdSeconds > 0f
+                ? holdSeconds
+                : (settings != null ? Mathf.Max(0.05f, settings.synthChirpSeconds) : 0.14f);
             chirpFramesLeft = Mathf.Max(1, Mathf.RoundToInt(hold * sampleRate));
             targetGate = 1f;
             EnsurePlaying();

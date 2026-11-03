@@ -152,8 +152,8 @@ namespace AvianVoice.Core
         public int meetCycles = 3;
         [Tooltip("Breath cycles of Pattern A in Breath Sync before switching to Pattern B.")]
         public int patternACycles = 3;
-        [Tooltip("Breath cycles of Pattern B before Breath Sync completes.")]
-        public int patternBCycles = 2;
+        [Tooltip("Slow breath cycles before Breath Sync moves to the next scene.")]
+        public int patternBCycles = 4;
 
         [Header("Experiment")]
         public bool mirrorEnabled = true;

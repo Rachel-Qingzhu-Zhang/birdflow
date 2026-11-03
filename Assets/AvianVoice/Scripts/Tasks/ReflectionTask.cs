@@ -19,17 +19,9 @@ namespace AvianVoice.Tasks
         [SerializeField]
         BirdFriendDemonstrator demonstrator;
 
-        [SerializeField]
-        SuccessChirpBurst successChirp;
-
-        [SerializeField]
-        float fadeDuration = 2f;
-
         TaskFlowUI taskUi;
         SessionRecorder recorder;
         ParrotMatchVisuals friendVisuals;
-        float timer;
-        bool farewellPlayed;
         float liveSync;
 
         void Start()
@@ -40,8 +32,6 @@ namespace AvianVoice.Tasks
                 breath = FindAnyObjectByType<BreathSimulator>();
             if (demonstrator == null)
                 demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            if (successChirp == null)
-                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
             recorder = FindAnyObjectByType<SessionRecorder>();
             EnsureFriendVisuals();
         }
@@ -51,14 +41,13 @@ namespace AvianVoice.Tasks
             if (!TaskActivity.IsActive("reflection"))
                 return;
 
-            timer = 0f;
-            farewellPlayed = false;
             liveSync = 0f;
             BirdSceneRoles.EnsurePlayerBirdVisible();
+            BirdVoiceMapper.Find()?.SetFollowVoice(false);
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.Intro4x4);
             demonstrator?.RestartPattern();
             ShowScores();
-            Debug.Log("[AvianVoice] Reflection: session scores + Task 1 breath/chirp sync.");
+            Debug.Log("[AvianVoice] Reflection: session scores.");
         }
 
         void OnDisable()
@@ -74,28 +63,13 @@ namespace AvianVoice.Tasks
 
             if (AvianInput.WasTaskCheatPressedThisFrame())
             {
-                timer = fadeDuration;
-                if (!farewellPlayed)
-                {
-                    farewellPlayed = true;
-                    successChirp?.PlaySuccessBurst();
-                }
-
                 ShowScores();
                 SetHud(BuildScoreText());
                 Debug.Log("[AvianVoice] Reflection cheat: scores and question shown.");
                 return;
             }
 
-            timer += Time.deltaTime;
             UpdateBreathSync();
-
-            if (!farewellPlayed && timer > 0.5f)
-            {
-                farewellPlayed = true;
-                successChirp?.PlaySuccessBurst();
-            }
-
             SetHud(BuildScoreText());
         }
 

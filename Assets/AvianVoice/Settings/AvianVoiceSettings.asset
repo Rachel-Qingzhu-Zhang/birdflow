@@ -88,7 +88,7 @@ MonoBehaviour:
   breathCurvePower: 1
   meetCycles: 3
   patternACycles: 3
-  patternBCycles: 2
+  patternBCycles: 4
   mirrorEnabled: 1
   wingMappingEnabled: 1
   showHudPanels: 0

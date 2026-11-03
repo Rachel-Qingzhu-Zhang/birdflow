@@ -1,4 +1,3 @@
-using AvianVoice.Audio;
 using AvianVoice.Data;
 using AvianVoice.Embodiment;
 using AvianVoice.Tasks;
@@ -46,10 +45,8 @@ namespace AvianVoice.Core
                 taskRoot.transform.rotation = BirdSceneRoles.Player.rotation;
             }
 
-            var demonstrator = taskRoot.GetComponent<BirdFriendDemonstrator>() ?? taskRoot.AddComponent<BirdFriendDemonstrator>();
-            var successChirp = taskRoot.GetComponent<SuccessChirpBurst>() ?? taskRoot.AddComponent<SuccessChirpBurst>();
-            if (taskRoot.GetComponent<BirdExperienceAudio>() == null)
-                taskRoot.AddComponent<BirdExperienceAudio>();
+            if (taskRoot.GetComponent<BirdFriendDemonstrator>() == null)
+                taskRoot.AddComponent<BirdFriendDemonstrator>();
 
             var meet = taskRoot.GetComponent<MeetBirdTask>() ?? taskRoot.AddComponent<MeetBirdTask>();
             var breathSync = taskRoot.GetComponent<BreathSyncTask>() ?? taskRoot.AddComponent<BreathSyncTask>();

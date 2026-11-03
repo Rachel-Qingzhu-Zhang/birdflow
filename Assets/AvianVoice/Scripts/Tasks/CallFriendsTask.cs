@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using AvianVoice.Audio;
@@ -10,30 +9,18 @@ using UnityEngine;
 
 namespace AvianVoice.Tasks
 {
+    /// <summary>
+    /// Same one-note call and response as singing. Each matched note brings one bird.
+    /// The phrase repeats until every companion has flown in.
+    /// Arrival is visual: no forest sting, no chorus, no extra chirp.
+    /// </summary>
     public class CallFriendsTask : MonoBehaviour
     {
-        enum SummonStage
-        {
-            None,
-            OneBird,
-            ThreeBirds,
-            Flock
-        }
-
         [SerializeField]
         TaskManager taskManager;
 
         [SerializeField]
         VoiceAnalyzer analyzer;
-
-        [SerializeField]
-        BirdCallLibrary library;
-
-        [SerializeField]
-        AudioSource source;
-
-        [SerializeField]
-        SuccessChirpBurst successChirp;
 
         [SerializeField]
         GameObject flockBirdPrefab;
@@ -60,12 +47,6 @@ namespace AvianVoice.Tasks
         float perchHeightMax = 4.6f;
 
         [SerializeField]
-        int[] birdsPerNote = { 1, 2 };
-
-        [SerializeField]
-        float[] melodyHz = { 330f, 392f };
-
-        [SerializeField]
         float toleranceHz = 40f;
 
         [SerializeField]
@@ -83,10 +64,11 @@ namespace AvianVoice.Tasks
         float matchHold;
         float score;
         int sessionSeed;
-        SummonStage stage = SummonStage.None;
-        Coroutine chorusRoutine;
-        bool chorusComplete;
         float listenUntil;
+        float nextPromptAt;
+        bool guideReady;
+        bool responding;
+        bool flockArrived;
 
         void Start()
         {
@@ -94,12 +76,7 @@ namespace AvianVoice.Tasks
                 taskManager = FindAnyObjectByType<TaskManager>();
             if (analyzer == null)
                 analyzer = FindAnyObjectByType<VoiceAnalyzer>();
-            if (library == null)
-                library = FindAnyObjectByType<BirdCallLibrary>();
-            if (successChirp == null)
-                successChirp = FindAnyObjectByType<SuccessChirpBurst>();
             demonstrator = FindAnyObjectByType<BirdFriendDemonstrator>();
-            EnsureSource();
             EnsureFriendVisuals();
         }
 
@@ -112,33 +89,47 @@ namespace AvianVoice.Tasks
             stepIndex = 0;
             matchHold = 0f;
             score = 0f;
-            stage = SummonStage.None;
-            chorusComplete = false;
+            listenUntil = 0f;
+            nextPromptAt = 0f;
+            guideReady = false;
+            responding = false;
+            flockArrived = false;
             sessionSeed = Random.Range(0, 100000);
-            EnsureSummonPlan();
             ResolveOrbitCenter();
             SpawnIdleCompanions();
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternA4x4);
             demonstrator?.RestartPattern();
             BeginListen();
+            SingingReplayButton.Show(ReplayCurrentNote);
         }
 
         void OnDisable()
         {
             friendVisuals?.ApplyMatch(0f);
-            CancelInvoke(nameof(PlaySuccessChirpDelayed));
-            if (chorusRoutine != null)
-                StopCoroutine(chorusRoutine);
-            chorusRoutine = null;
-            BirdExperienceAudio.Ensure()?.StopAll();
             ClearCompanions();
             SceneGuide.ClearPhase();
+            SingingReplayButton.Hide();
         }
 
         void Update()
         {
             if (!enabled || !TaskActivity.IsActive("call_friends"))
                 return;
+
+            if (AvianInput.WasReplayPressedThisFrame())
+            {
+                ReplayCurrentNote();
+                return;
+            }
+
+            if (flockArrived)
+            {
+                AvianUiCopy.ShowSingingCue("friends", "");
+                return;
+            }
+
+            if (!guideReady && nextPromptAt <= 0f)
+                BeginListen();
 
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
@@ -147,107 +138,150 @@ namespace AvianVoice.Tasks
                 return;
             }
 
+            if (nextPromptAt > 0f)
+            {
+                if (Time.time >= nextPromptAt)
+                {
+                    nextPromptAt = 0f;
+                    BeginListen();
+                }
+
+                return;
+            }
+
             if (analyzer == null)
                 return;
 
-            if (stepIndex >= melodyHz.Length && stage == SummonStage.Flock)
-            {
-                SceneGuide.SetPhase("Your friends are here.");
-                return;
-            }
-
             if (Time.time < listenUntil)
             {
-                SceneGuide.SetPhase("Listen to the melody.");
+                responding = false;
+                ShowCue("listen", CurrentNote());
                 return;
             }
 
-            SceneGuide.SetPhase("Your turn. Sing it back.");
-
-            var target = melodyHz[Mathf.Min(stepIndex, melodyHz.Length - 1)];
-            var v = analyzer.Current;
-            var windowHz = Mathf.Max(toleranceHz, 70f);
-            var pitchMatch = 0f;
-            var nearNote = false;
-            if (v.voiced > 0.5f && v.pitchHz > 0f)
+            if (!responding)
             {
-                var error = Mathf.Abs(v.pitchHz - target);
-                pitchMatch = Mathf.Clamp01(1f - error / windowHz);
-                nearNote = error <= windowHz;
+                responding = true;
+                BirdVoiceMapper.Find()?.SetFollowVoice(true);
             }
 
-            var combined = pitchMatch;
-            score = Mathf.Lerp(score, combined, Time.deltaTime * 2f);
-            taskManager?.ReportScore(score);
-            SessionScoreCache.RecordVoice(combined);
-            friendVisuals?.ApplyMatch(combined);
+            var target = CurrentNote();
+            var v = analyzer.Current;
+            var pitchMatch = v.voiced > 0.5f
+                ? BirdSongPhrase.Match(v.pitchHz, target, toleranceHz)
+                : 0f;
 
-            if (nearNote)
+            score = Mathf.Lerp(score, pitchMatch, Time.deltaTime * 2f);
+            taskManager?.ReportScore(score);
+            SessionScoreCache.RecordVoice(pitchMatch);
+            friendVisuals?.ApplyMatch(pitchMatch);
+            ShowCue("call", target);
+
+            if (pitchMatch >= 0.75f)
                 matchHold += Time.deltaTime;
             else
                 matchHold = 0f;
 
-            var holdNeeded = Mathf.Min(matchHoldSeconds, 0.32f);
-            if (matchHold >= holdNeeded)
-                AdvanceSummon(combined);
-            else
-                SetHud($"Sing {NoteLabel(target)} to call the birds");
+            if (matchHold >= matchHoldSeconds)
+                AdvanceSummon(pitchMatch);
         }
 
         void AdvanceSummon(float stepScore)
         {
             matchHold = 0f;
             friendVisuals?.PulsePerfect();
-            if (BirdExperienceAudio.Ensure()?.PlayForestReward() != true)
-                Invoke(nameof(PlaySuccessChirpDelayed), 0.2f);
+            BirdVoiceMapper.Find()?.SetFollowVoice(false);
 
-            var noteIndex = melodyHz == null || melodyHz.Length == 0
-                ? 0
-                : Mathf.Clamp(stepIndex, 0, melodyHz.Length - 1);
-            var noteHz = melodyHz != null && melodyHz.Length > 0 ? melodyHz[noteIndex] : 440f;
-            stepIndex++;
-            SummonNearestCompanions(1, noteHz, noteIndex);
+            var noteIndex = Mathf.Clamp(stepIndex, 0, BirdSongPhrase.Notes.Length - 1);
+            stepIndex = (stepIndex + 1) % BirdSongPhrase.Notes.Length;
+            SummonNearestCompanions(1, noteIndex);
 
             var perchedLeft = companions.Count(c => c != null && c.IsPerched);
-            var melodyDone = melodyHz == null || stepIndex >= melodyHz.Length;
-            if (melodyDone || perchedLeft == 0)
+            if (perchedLeft == 0)
             {
-                stage = SummonStage.Flock;
-                if (!chorusComplete)
-                {
-                    if (chorusRoutine != null)
-                        StopCoroutine(chorusRoutine);
-                    chorusRoutine = StartCoroutine(CommunicateChorusRoutine());
-                }
-                SetHud("Your friends are here.");
+                flockArrived = true;
+                responding = false;
+                guideReady = true;
+                nextPromptAt = 0f;
+                ShowCue("friends", 0f);
             }
             else
-            {
-                stage = perchedLeft > 1 ? SummonStage.OneBird : SummonStage.ThreeBirds;
-                SetHud("A friend flies in. Sing the next note.");
-            }
-
-            if (melodyHz != null && stepIndex < melodyHz.Length && perchedLeft > 0)
-                BeginListen();
+                HoldForNextNote();
 
             taskManager?.ReportScore(stepScore);
         }
 
-        void EnsureSummonPlan()
+        void ReplayCurrentNote()
         {
-            var count = Mathf.Clamp(initialCompanionCount, 1, 10);
-            if (melodyHz != null && melodyHz.Length == count)
+            var notes = BirdSongPhrase.Notes;
+            if (flockArrived)
+            {
+                var last = (stepIndex + notes.Length - 1) % notes.Length;
+                BirdVoiceMapper.Find()?.PlayGuideNote(notes[last], BirdSongPhrase.GuideSeconds);
                 return;
+            }
 
-            var cycle = new[] { 330f, 392f, 440f, 494f, 523f, 587f, 659f };
-            melodyHz = new float[count];
-            for (var i = 0; i < count; i++)
-                melodyHz[i] = cycle[i % cycle.Length];
+            nextPromptAt = 0f;
+            matchHold = 0f;
+            responding = false;
+            BeginListen();
         }
 
-        void PlaySuccessChirpDelayed()
+        void HoldForNextNote()
         {
-            successChirp?.PlaySuccessBurst();
+            responding = false;
+            guideReady = false;
+            nextPromptAt = Time.time + BirdSongPhrase.PauseBetweenNotes;
+            ShowCue("coming", 0f);
+        }
+
+        void BeginListen()
+        {
+            var mapper = BirdVoiceMapper.Find();
+            if (mapper == null || stepIndex < 0 || stepIndex >= BirdSongPhrase.Notes.Length)
+            {
+                guideReady = false;
+                return;
+            }
+
+            var note = CurrentNote();
+            mapper.PlayGuideNote(note, BirdSongPhrase.GuideSeconds);
+            listenUntil = Time.time + BirdSongPhrase.ListenSeconds;
+            responding = false;
+            guideReady = true;
+            matchHold = 0f;
+            ShowCue("listen", note);
+        }
+
+        float CurrentNote()
+        {
+            var notes = BirdSongPhrase.Notes;
+            return notes[Mathf.Clamp(stepIndex, 0, notes.Length - 1)];
+        }
+
+        void ShowCue(string kind, float hz)
+        {
+            var name = hz > 0f ? BirdSongPhrase.NoteName(hz) : "";
+            AvianUiCopy.ShowSingingCue(kind, name);
+            if (taskUi == null)
+                taskUi = FindAnyObjectByType<TaskFlowUI>();
+            taskUi?.SetProgressInstruction(string.IsNullOrEmpty(name) ? kind : name);
+        }
+
+        void SummonNearestCompanions(int count, int noteIndex)
+        {
+            ResolveOrbitCenter();
+            if (orbitCenter == null || count <= 0)
+                return;
+
+            var perched = companions
+                .Where(c => c != null && c.IsPerched)
+                .OrderBy(c => c.DistanceTo(orbitCenter.position))
+                .Take(count)
+                .ToList();
+
+            for (var i = 0; i < perched.Count; i++)
+                perched[i].RespondToCall(orbitCenter, noteIndex * 10 + i);
         }
 
         void SpawnIdleCompanions()
@@ -287,65 +321,6 @@ namespace AvianVoice.Tasks
             }
         }
 
-        void SummonNearestCompanions(int count, float noteHz, int noteIndex)
-        {
-            ResolveOrbitCenter();
-            if (orbitCenter == null)
-                return;
-
-            var perched = companions
-                .Where(c => c != null && c.IsPerched)
-                .OrderBy(c => c.DistanceTo(orbitCenter.position))
-                .Take(count)
-                .ToList();
-
-            for (var i = 0; i < perched.Count; i++)
-                perched[i].RespondToCall(orbitCenter, noteHz, library, noteIndex * 10 + i);
-        }
-
-        void SummonAllRemaining(float noteHz)
-        {
-            ResolveOrbitCenter();
-            if (orbitCenter == null)
-                return;
-
-            var remaining = companions.Where(c => c != null && c.IsPerched).ToList();
-            for (var i = 0; i < remaining.Count; i++)
-                remaining[i].RespondToCall(orbitCenter, noteHz, library, 20 + i);
-        }
-
-        IEnumerator CommunicateChorusRoutine()
-        {
-            yield return new WaitForSeconds(0.45f);
-
-            var audio = BirdExperienceAudio.Ensure();
-            if (audio != null && audio.HasMelodyClip)
-            {
-                audio.PlayMelodyNear(HearPoint(), true);
-            }
-            else if (melodyHz != null)
-            {
-                for (var note = 0; note < melodyHz.Length; note++)
-                {
-                    library?.PlayNearest(source, melodyHz[note], 1f, 0f);
-                    yield return new WaitForSeconds(0.55f);
-                }
-            }
-
-            var idx = 0;
-            foreach (var companion in companions)
-            {
-                if (companion == null || companion.IsPerched)
-                    continue;
-                companion.PlayAnswerCall(library, 0.05f + idx * 0.1f);
-                idx++;
-            }
-
-            chorusComplete = true;
-            chorusRoutine = null;
-            SetHud("Flock gathered! Friends say goodbye soon — press 6 for Reflection.");
-        }
-
         GameObject CreateCompanionInstance()
         {
             if (flockBirdPrefab != null)
@@ -378,78 +353,19 @@ namespace AvianVoice.Tasks
                 if (companion != null)
                     Destroy(companion.gameObject);
             }
+
             companions.Clear();
-        }
-
-        void BeginListen()
-        {
-            PlayReference();
-            var audio = BirdExperienceAudio.Ensure();
-            var wait = 0.7f;
-            if (stepIndex == 0 && audio != null && audio.IsReferencePlaying)
-                wait = Mathf.Max(0.45f, audio.ReferenceSecondsRemaining + 0.08f);
-            listenUntil = Time.time + wait;
-            SceneGuide.SetPhase(stepIndex == 0 ? "Listen to the melody." : "Listen.");
-        }
-
-        Transform HearPoint()
-        {
-            if (BirdSceneRoles.Player != null)
-                return BirdSceneRoles.Player;
-            return Camera.main != null ? Camera.main.transform : transform;
-        }
-
-        void PlayReference()
-        {
-            var audio = BirdExperienceAudio.Ensure();
-            if (stepIndex == 0 && audio != null && audio.HasMelodyClip)
-            {
-                audio.PlayMelodyNear(HearPoint(), true);
-                return;
-            }
-
-            if (melodyHz == null || stepIndex >= melodyHz.Length)
-                return;
-            var cue = audio != null ? audio.CueSource : source;
-            library?.PlayTeachingCue(cue, melodyHz[stepIndex], 1f);
-        }
-
-        void EnsureSource()
-        {
-            if (source != null)
-                return;
-            var bird = BirdSceneRoles.Player;
-            var host = bird != null ? bird.gameObject : gameObject;
-            source = host.GetComponent<AudioSource>() ?? host.AddComponent<AudioSource>();
-            source.playOnAwake = false;
         }
 
         void EnsureFriendVisuals()
         {
             if (friendVisuals != null)
                 return;
+
             var bird = BirdSceneRoles.Player;
             var host = bird != null ? bird.gameObject : gameObject;
             friendVisuals = host.GetComponent<ParrotMatchVisuals>() ?? host.AddComponent<ParrotMatchVisuals>();
             friendVisuals.BindFromScene();
-        }
-
-        static string NoteLabel(float hz)
-        {
-            if (hz < 360f) return "E4";
-            if (hz < 420f) return "G4";
-            if (hz < 470f) return "A4";
-            if (hz < 510f) return "B4";
-            if (hz < 555f) return "C5";
-            if (hz < 620f) return "D5";
-            return "E5";
-        }
-
-        void SetHud(string message)
-        {
-            if (taskUi == null)
-                taskUi = FindAnyObjectByType<TaskFlowUI>();
-            taskUi?.SetProgressInstruction(message);
         }
     }
 }

@@ -25,8 +25,38 @@ namespace AvianVoice.Audio
         bool requireOnsetAfterSilence = true;
         bool synthSawDip;
         bool loggedAssistiveMixerWarning;
+        bool followVoice;
 
         public VoiceMapMode Mode => mode;
+
+        /// <summary>
+        /// When false, the microphone does not make bird sound. Guide notes still play.
+        /// </summary>
+        public void SetFollowVoice(bool enabled)
+        {
+            if (followVoice == enabled)
+                return;
+
+            followVoice = enabled;
+            if (!enabled)
+                synth?.Silence();
+        }
+
+        /// <summary>
+        /// One note in the same synth voice the player will answer with.
+        /// Microphone playback stays off until SetFollowVoice(true).
+        /// </summary>
+        public void PlayGuideNote(float humanHz, float seconds)
+        {
+            EnsureSynth();
+            followVoice = false;
+            synth?.PlayChirp(humanHz, 0.92f, seconds);
+        }
+
+        public static BirdVoiceMapper Find()
+        {
+            return FindAnyObjectByType<BirdVoiceMapper>();
+        }
 
         public void Initialize(
             AvianVoiceSettings voiceSettings,
@@ -73,7 +103,7 @@ namespace AvianVoice.Audio
 
         void Update()
         {
-            if (analyzer == null || settings == null)
+            if (!followVoice || analyzer == null || settings == null)
                 return;
 
             var v = analyzer.Current;

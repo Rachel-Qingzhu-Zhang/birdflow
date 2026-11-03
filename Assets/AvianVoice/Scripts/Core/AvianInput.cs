@@ -2,6 +2,7 @@
 using UnityEngine.InputSystem;
 #endif
 using UnityEngine;
+using UnityEngine.XR;
 
 namespace AvianVoice.Core
 {
@@ -59,7 +60,17 @@ namespace AvianVoice.Core
             };
         }
 
-        /// <summary>Open or close the wish / scene menu (M).</summary>
+        /// <summary>Toggle on-screen copy between English and Japanese (J).</summary>
+        public static bool WasLanguageTogglePressedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null && Keyboard.current.jKey.wasPressedThisFrame)
+                return true;
+#endif
+            return Input.GetKeyDown(KeyCode.J);
+        }
+
+        /// <summary>Open or close the scene menu (M).</summary>
         public static bool WasWishMenuPressedThisFrame()
         {
 #if ENABLE_INPUT_SYSTEM
@@ -74,11 +85,70 @@ namespace AvianVoice.Core
 #if ENABLE_INPUT_SYSTEM
             if (Keyboard.current != null)
             {
-                if (Keyboard.current.nKey.wasPressedThisFrame || Keyboard.current.rightBracketKey.wasPressedThisFrame)
+                if (Keyboard.current.nKey.wasPressedThisFrame
+                    || Keyboard.current.rightBracketKey.wasPressedThisFrame
+                    || Keyboard.current.rightArrowKey.wasPressedThisFrame)
                     return true;
             }
 #endif
-            return Input.GetKeyDown(KeyCode.N) || Input.GetKeyDown(KeyCode.RightBracket);
+            return Input.GetKeyDown(KeyCode.N)
+                || Input.GetKeyDown(KeyCode.RightBracket)
+                || Input.GetKeyDown(KeyCode.RightArrow);
+        }
+
+        public static bool WasPreviousTaskPressedThisFrame()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null && Keyboard.current.leftArrowKey.wasPressedThisFrame)
+                return true;
+#endif
+            return Input.GetKeyDown(KeyCode.LeftArrow);
+        }
+
+        static bool rightReplayHeld;
+        static bool leftReplayHeld;
+
+        /// <summary>
+        /// Hear the current guide note again. Keyboard R or B, or the controller B button
+        /// (secondary face button; Y on a left controller).
+        /// </summary>
+        public static bool WasReplayPressedThisFrame()
+        {
+            var keyboardPressed = false;
+#if ENABLE_INPUT_SYSTEM
+            var keyboard = Keyboard.current;
+            if (keyboard != null &&
+                (keyboard.rKey.wasPressedThisFrame
+                 || keyboard.bKey.wasPressedThisFrame
+                 || keyboard.spaceKey.wasPressedThisFrame))
+                keyboardPressed = true;
+
+            if (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame)
+                keyboardPressed = true;
+#endif
+            if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.B) || Input.GetKeyDown(KeyCode.Space))
+                keyboardPressed = true;
+
+            var controllerPressed = ControllerReplayPressed();
+            return keyboardPressed || controllerPressed;
+        }
+
+        static bool ControllerReplayPressed()
+        {
+            return ReplayEdge(XRNode.RightHand, ref rightReplayHeld)
+                   || ReplayEdge(XRNode.LeftHand, ref leftReplayHeld);
+        }
+
+        static bool ReplayEdge(XRNode node, ref bool held)
+        {
+            var device = InputDevices.GetDeviceAtXRNode(node);
+            var pressed = false;
+            if (device.isValid)
+                device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out pressed);
+
+            var down = pressed && !held;
+            held = pressed;
+            return down;
         }
 
         /// <summary>Debug cheat (C). Checks every keyboard and the legacy manager so one backend cannot hide the press.</summary>

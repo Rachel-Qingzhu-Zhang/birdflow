@@ -1,22 +1,16 @@
 # Avian Voice
 
-VR bird body illusion vocal training prototype for CHI 2027 research.
+You become a parrot in a forest. The Unity scene to press Play on is **Avian Lab**.
 
-**Team handbook (EN / 日本語 / 中文)** → [TEAM_GUIDE.md](TEAM_GUIDE.md) · open [TEAM_GUIDE.html](TEAM_GUIDE.html) in a browser for language tabs.
-
-**中文项目总览（场景与任务目标）** → [PROJECT_OVERVIEW_CN.md](PROJECT_OVERVIEW_CN.md)
-
-**中文 User Flow（项目内容 + 各场景流程）** → [PROJECT_USERFLOW_CN.md](PROJECT_USERFLOW_CN.md)
-
-**中文场景说明与后续操作（推荐阅读）** → [SCENES_GUIDE.md](SCENES_GUIDE.md)
+**Team handbook (中文 / English / 日本語)** → [TEAM_GUIDE.md](TEAM_GUIDE.md) · open [TEAM_GUIDE.html](TEAM_GUIDE.html) in a browser and use the language buttons. That handbook is the current description of the visit, desktop controls, and headset controls.
 
 ## Quick start
 
 1. Open the project in **Unity 6000.3.4f1** (or compatible Unity 6).
-2. Menu: **Avian Voice → Setup Project** (creates lab scene, settings, build entries, layers).
-3. Menu: **Avian Voice → Create Task Scenes** (optional task scenes).
-4. Open `Assets/AvianVoice/Scenes/Avian_Lab.unity` and press Play.
-5. Allow microphone access. Hold **Space** to inhale. Press **T** to toggle Assistive / Transform voice mode.
+2. Open `Assets/AvianVoice/Scenes/Avian_Lab.unity`. The scene name is **Avian Lab**.
+3. Press Play and allow the microphone.
+4. At a desk: hold the right mouse button to look, WASD to walk, and open **I want …** (or press M) to move between the six moments. In a headset: look with your head and use the controller menu button for the same list.
+5. Speak or hum. Your voice is heard as birdsong. During flight, louder or higher singing climbs; silence glides down.
 
 ## Desktop vs Quest
 

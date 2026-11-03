@@ -10,8 +10,8 @@ namespace AvianVoice.UI
         {
             "meet",
             "breath_sync",
-            "flying",
             "singing",
+            "flying",
             "call_friends",
             "reflection"
         };
@@ -37,8 +37,10 @@ namespace AvianVoice.UI
                 }
             }
 
-            if (AvianInput.WasNextTaskPressedThisFrame())
-                taskManager.AdvanceTask();
+            if (AvianInput.WasPreviousTaskPressedThisFrame())
+                taskManager.StepTask(-1);
+            else if (AvianInput.WasNextTaskPressedThisFrame())
+                taskManager.StepTask(1);
         }
     }
 }

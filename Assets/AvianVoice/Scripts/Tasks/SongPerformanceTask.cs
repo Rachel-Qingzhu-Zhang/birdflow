@@ -106,6 +106,12 @@ namespace AvianVoice.Tasks
             if (!enabled || !TaskActivity.IsActive("song"))
                 return;
 
+            if (AvianInput.WasReplayPressedThisFrame())
+            {
+                ReplayCurrentNote();
+                return;
+            }
+
             if (enableDebugCheat && AvianInput.WasTaskCheatPressedThisFrame())
             {
                 if (phase != SongPhase.Complete && stepIndex < melodyHz.Length && !stepAdvanceLocked)
@@ -270,6 +276,19 @@ namespace AvianVoice.Tasks
             stepAdvanceLocked = false;
             SetHud($"Chorus complete! Score {totalScore:0}");
             Debug.Log("[AvianVoice] Song Performance complete — flock chorus finished.");
+        }
+
+        void ReplayCurrentNote()
+        {
+            if (stepIndex >= melodyHz.Length || phase == SongPhase.Finale || phase == SongPhase.Complete)
+                return;
+
+            stepAdvanceLocked = false;
+            matchHold = 0f;
+            phase = SongPhase.Listen;
+            phaseTimer = listenDuration;
+            PlayCurrentTarget();
+            SetHud($"● Listen: {NoteLabel(melodyHz[stepIndex])} ({stepIndex + 1}/{melodyHz.Length})");
         }
 
         void PlayCurrentTarget()

@@ -35,7 +35,7 @@ namespace AvianVoice.Core
             }
 
             var head = ResolveHeadAnchor(xrOrigin.transform);
-            EnsureRuntimeUiIfMissing(xrOrigin, head);
+            EnsureRuntimeUiIfMissing(xrOrigin, head, settings);
             AvianHudLayerSetup.ApplyToXrRig();
             ApplyHudVisibility(settings);
             EnsureRuntimeAudioIfMissing(xrOrigin);
@@ -57,7 +57,7 @@ namespace AvianVoice.Core
 
             if (hasMic && !hasHud)
             {
-                EnsureRuntimeUi(xrOrigin, head);
+                EnsureRuntimeUi(xrOrigin, head, settings);
                 ApplyHudVisibility(settings);
                 StripPlaceholderIfRoleBirdsPresent(head);
                 return;
@@ -69,7 +69,7 @@ namespace AvianVoice.Core
             // Lab scenes with FriendParrot/PlayerParrot should not spawn cube placeholder bodies.
             if (SceneHasRoleParrots())
             {
-                EnsureRuntimeUi(xrOrigin, head);
+                EnsureRuntimeUi(xrOrigin, head, settings);
                 EnsureRuntimeAudioIfMissing(xrOrigin);
                 StripPlaceholderIfRoleBirdsPresent(head);
                 Debug.Log("[AvianVoice] Role parrots present — skipped AvianBody_Placeholder cold-path.");
@@ -147,18 +147,18 @@ namespace AvianVoice.Core
         /// <summary>
         /// Always runs (even when autoSetup is off) so custom bird rigs still get HUD / mode UI.
         /// </summary>
-        static void EnsureRuntimeUiIfMissing(GameObject xrOrigin, Transform head)
+        static void EnsureRuntimeUiIfMissing(GameObject xrOrigin, Transform head, AvianVoiceSettings voiceSettings)
         {
             var bootstrap = xrOrigin.GetComponent<AvianAppBootstrap>();
             var hud = head.GetComponentInChildren<TrainingHUD>(true);
             if (hud == null)
             {
-                EnsureRuntimeUi(xrOrigin, head);
+                EnsureRuntimeUi(xrOrigin, head, voiceSettings);
                 return;
             }
 
             var toggle = head.GetComponentInChildren<VoiceModeToggle>(true);
-            if (settings == null || settings.showHudPanels)
+            if (voiceSettings == null || voiceSettings.showHudPanels)
                 CreateTaskModePanel(head);
             SceneWishMenu.Ensure(head);
             EnsureTaskKeyboardSwitcher(xrOrigin);
@@ -166,11 +166,11 @@ namespace AvianVoice.Core
                 bootstrap.AttachUi(hud, toggle);
         }
 
-        static void EnsureRuntimeUi(GameObject xrOrigin, Transform head)
+        static void EnsureRuntimeUi(GameObject xrOrigin, Transform head, AvianVoiceSettings voiceSettings)
         {
             var hud = CreateHud(head);
             var toggle = CreateModeToggle(head);
-            if (settings == null || settings.showHudPanels)
+            if (voiceSettings == null || voiceSettings.showHudPanels)
                 CreateTaskModePanel(head);
             SceneWishMenu.Ensure(head);
             EnsureTaskKeyboardSwitcher(xrOrigin);

@@ -28,10 +28,10 @@ namespace AvianVoice.Tasks
         }
 
         const string MeetInstruction = "This is your bird self in the mirror. Look at it — no need to breathe yet.";
-        const string BreathSyncInstruction = "Watch the bird's chest and breathe with it. Pattern A first, then the slower Pattern B.";
+        const string BreathSyncInstruction = "Watch the bird's chest and breathe with it.";
         const string FlyingInstruction = "The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.";
-        const string SingingInstruction = "Your bird sings a note. Hold that pitch with your voice until the melody is done.";
-        const string CallFriendsInstruction = "Sing the melody to call birds in. One bird comes first, then three, then the flock.";
+        const string SingingInstruction = "The bird sings one note. When it stops, sing that same note. Then it sings the next one.";
+        const string CallFriendsInstruction = "The bird sings one note. Sing it back and one friend flies in.";
         const string ReflectionInstruction = "Rest by the water and look over your scores. How did it feel to become a bird?";
 
         [SerializeField]
@@ -56,16 +56,16 @@ namespace AvianVoice.Tasks
             },
             new()
             {
-                taskId = "flying",
-                displayName = "Flying",
-                instruction = FlyingInstruction,
+                taskId = "singing",
+                displayName = "Singing Branch",
+                instruction = SingingInstruction,
                 sceneName = ""
             },
             new()
             {
-                taskId = "singing",
-                displayName = "Singing Branch",
-                instruction = SingingInstruction,
+                taskId = "flying",
+                displayName = "Flying",
+                instruction = FlyingInstruction,
                 sceneName = ""
             },
             new()
@@ -95,13 +95,16 @@ namespace AvianVoice.Tasks
 
         public TaskSwitchMode SwitchMode => switchMode;
         public string CurrentTaskName => tasks.Length > 0 ? tasks[currentIndex].displayName : "None";
-        public string CurrentInstruction => tasks.Length > 0 ? tasks[currentIndex].instruction : "";
+        public string CurrentInstruction => tasks.Length > 0
+            ? UI.AvianUiCopy.Instruction(tasks[currentIndex].taskId)
+            : "";
         public string CurrentTaskId => tasks.Length > 0 ? tasks[currentIndex].taskId : "";
         public int CurrentIndex => currentIndex;
         public int TaskCount => tasks.Length;
 
         void Start()
         {
+            EnsureCanonicalOrder();
             ApplyCurrentTask();
         }
 
@@ -118,6 +121,7 @@ namespace AvianVoice.Tasks
         {
             switchMode = mode;
             currentIndex = 0;
+            EnsureCanonicalOrder();
             BindBehaviour("meet", meetTask);
             BindBehaviour("breath_sync", breathSyncTask);
             BindBehaviour("flying", flyingTask);
@@ -146,11 +150,56 @@ namespace AvianVoice.Tasks
 
         public void AdvanceTask()
         {
-            if (tasks.Length == 0 || isLoading)
+            StepTask(1, wrap: true);
+        }
+
+        public void StepTask(int delta, bool wrap = false)
+        {
+            if (tasks.Length == 0 || isLoading || delta == 0)
                 return;
 
-            currentIndex = (currentIndex + 1) % tasks.Length;
+            var next = currentIndex + delta;
+            if (wrap)
+                next = (next % tasks.Length + tasks.Length) % tasks.Length;
+            else if (next < 0 || next >= tasks.Length)
+                return;
+
+            currentIndex = next;
             ApplyCurrentTask();
+        }
+
+        static readonly string[] CanonicalOrder =
+        {
+            "meet",
+            "breath_sync",
+            "singing",
+            "flying",
+            "call_friends",
+            "reflection"
+        };
+
+        void EnsureCanonicalOrder()
+        {
+            var next = new TaskEntry[CanonicalOrder.Length];
+            for (var i = 0; i < CanonicalOrder.Length; i++)
+            {
+                TaskEntry found = null;
+                if (tasks != null)
+                {
+                    for (var j = 0; j < tasks.Length; j++)
+                    {
+                        if (tasks[j] != null && tasks[j].taskId == CanonicalOrder[i])
+                        {
+                            found = tasks[j];
+                            break;
+                        }
+                    }
+                }
+
+                next[i] = found ?? new TaskEntry { taskId = CanonicalOrder[i], unlocked = true };
+            }
+
+            tasks = next;
         }
 
         public void LoadTaskById(string taskId)
@@ -194,8 +243,10 @@ namespace AvianVoice.Tasks
 
             if (switchMode == TaskSwitchMode.InScene)
             {
-                ApplyInSceneTask(entry);
+                DisableOtherTasks(entry);
                 ApplyTaskStartPose(entry.taskId);
+                if (entry.taskBehaviour != null)
+                    entry.taskBehaviour.enabled = true;
                 NotifyTaskChanged();
                 return;
             }
@@ -206,13 +257,13 @@ namespace AvianVoice.Tasks
                 NotifyTaskChanged();
         }
 
-        void ApplyInSceneTask(TaskEntry active)
+        void DisableOtherTasks(TaskEntry active)
         {
             foreach (var entry in tasks)
             {
-                if (entry.taskBehaviour == null)
+                if (entry.taskBehaviour == null || entry == active)
                     continue;
-                entry.taskBehaviour.enabled = entry == active;
+                entry.taskBehaviour.enabled = false;
             }
         }
 
@@ -286,7 +337,7 @@ namespace AvianVoice.Tasks
         {
             if (tasks.Length == 0)
                 return;
-            OnTaskChanged?.Invoke(tasks[currentIndex].displayName, tasks[currentIndex].instruction);
+            OnTaskChanged?.Invoke(tasks[currentIndex].displayName, CurrentInstruction);
             var head = Camera.main != null ? Camera.main.transform : null;
             if (head != null)
                 SceneWishMenu.Ensure(head);

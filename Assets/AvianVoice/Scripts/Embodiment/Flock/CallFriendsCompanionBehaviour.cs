@@ -1,5 +1,4 @@
 using System.Collections;
-using AvianVoice.Audio;
 using UnityEngine;
 
 namespace AvianVoice.Embodiment
@@ -22,6 +21,9 @@ namespace AvianVoice.Embodiment
 
         [SerializeField]
         float perchBobAmplitude = 0.03f;
+
+        [SerializeField]
+        float gatherDistance = 2.2f;
 
         [SerializeField]
         float orbitRadius = 2.6f;
@@ -52,12 +54,10 @@ namespace AvianVoice.Embodiment
         float orbitRadiusForMember;
         float orbitSpeedForMember;
         float bobPhase;
-        float chirpHz;
         Vector3 perchedBasePosition;
         Quaternion perchedBaseRotation;
         CallFriendsCompanionPhase phase = CallFriendsCompanionPhase.Perched;
         Animator animator;
-        AudioSource chirpSource;
         Coroutine motionRoutine;
 
         public CallFriendsCompanionPhase Phase => phase;
@@ -95,7 +95,6 @@ namespace AvianVoice.Embodiment
                 renderer.updateWhenOffscreen = true;
 
             BeginIdleAnimation();
-            EnsureChirpSource();
         }
 
         public float DistanceTo(Vector3 point)
@@ -103,13 +102,12 @@ namespace AvianVoice.Embodiment
             return Vector3.Distance(transform.position, point);
         }
 
-        public void RespondToCall(Transform center, float noteHz, BirdCallLibrary library, int responseIdx)
+        public void RespondToCall(Transform center, int responseIdx)
         {
             if (phase != CallFriendsCompanionPhase.Perched)
                 return;
 
             orbitCenter = center;
-            chirpHz = noteHz;
             responseIndex = responseIdx;
             orbitRadiusForMember = orbitRadius + memberIndex * orbitRadiusStep;
             orbitSpeedForMember = orbitSpeed + memberIndex * 3.5f;
@@ -117,14 +115,7 @@ namespace AvianVoice.Embodiment
 
             if (motionRoutine != null)
                 StopCoroutine(motionRoutine);
-            motionRoutine = StartCoroutine(FlyToOrbitRoutine(library));
-        }
-
-        public void PlayAnswerCall(BirdCallLibrary library, float delaySeconds)
-        {
-            if (library == null || chirpHz <= 0f)
-                return;
-            Invoke(nameof(PlayChirpEcho), delaySeconds);
+            motionRoutine = StartCoroutine(FlyToOrbitRoutine());
         }
 
         void LateUpdate()
@@ -173,15 +164,15 @@ namespace AvianVoice.Embodiment
             forward.Normalize();
 
             var right = Vector3.Cross(Vector3.up, forward);
-            var lateral = Mathf.Lerp(-1.4f, 1.4f, (memberIndex % 7) / 6f);
-            lateral += Mathf.Sin(Time.time * 0.45f + memberIndex) * 0.1f;
-            var height = Mathf.Lerp(0.35f, 1.15f, (memberIndex % 5) / 4f);
+            var lateral = Mathf.Lerp(-0.85f, 0.85f, (memberIndex % 7) / 6f);
+            lateral += Mathf.Sin(Time.time * 0.45f + memberIndex) * 0.06f;
+            var height = Mathf.Lerp(-0.05f, 0.42f, (memberIndex % 5) / 4f);
             return orbitCenter.position + forward * distance + right * lateral + Vector3.up * height;
         }
 
         float GatherDistance()
         {
-            return 5f;
+            return gatherDistance;
         }
 
         void BeginIdleAnimation()
@@ -194,7 +185,7 @@ namespace AvianVoice.Embodiment
             animator.SetBool("idle", true);
         }
 
-        IEnumerator FlyToOrbitRoutine(BirdCallLibrary library)
+        IEnumerator FlyToOrbitRoutine()
         {
             phase = CallFriendsCompanionPhase.FlyingToPlayer;
 
@@ -240,39 +231,12 @@ namespace AvianVoice.Embodiment
 
             phase = CallFriendsCompanionPhase.Orbiting;
             motionRoutine = null;
-
-            var chirpDelay = responseIndex * 0.12f;
-            PlayAnswerCall(library, chirpDelay);
-        }
-
-        void EnsureChirpSource()
-        {
-            if (chirpSource != null)
-                return;
-
-            chirpSource = GetComponent<AudioSource>();
-            if (chirpSource == null)
-                chirpSource = gameObject.AddComponent<AudioSource>();
-            chirpSource.playOnAwake = false;
-            chirpSource.spatialBlend = 0f;
-            chirpSource.spatialize = false;
-            chirpSource.volume = 1f;
-        }
-
-        void PlayChirpEcho()
-        {
-            if (chirpSource == null || chirpHz <= 0f)
-                return;
-
-            var lib = FindAnyObjectByType<BirdCallLibrary>();
-            lib?.PlayNearest(chirpSource, chirpHz, 0.85f, null);
         }
 
         void OnDestroy()
         {
             if (motionRoutine != null)
                 StopCoroutine(motionRoutine);
-            CancelInvoke(nameof(PlayChirpEcho));
         }
     }
 }
