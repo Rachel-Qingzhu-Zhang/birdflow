@@ -45,6 +45,23 @@ namespace AvianVoice.Editor
             };
         }
 
+        [MenuItem("Avian Voice/Embodiment/Log Avatar State (Play Mode)")]
+        public static void LogAvatarState()
+        {
+            var controller = UnityEngine.Object.FindAnyObjectByType<AvatarEmbodimentController>();
+            Debug.Log("[AvianVoice] Avatar state: " + (controller != null ? controller.DescribeState() : "no AvatarEmbodimentController (is Avian_Lab_Embodiment playing?)"));
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Toggle Avatar (Play Mode)")]
+        public static void ToggleAvatar()
+        {
+            var controller = UnityEngine.Object.FindAnyObjectByType<AvatarEmbodimentController>();
+            if (controller != null)
+                controller.Toggle();
+            else
+                Debug.LogWarning("[AvianVoice] No AvatarEmbodimentController in the running scene.");
+        }
+
         [MenuItem("Avian Voice/Embodiment/Open Avian_Lab_Embodiment")]
         public static void OpenScene()
         {

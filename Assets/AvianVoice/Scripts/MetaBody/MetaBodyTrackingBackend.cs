@@ -52,6 +52,68 @@ namespace AvianVoice.MetaBody
         OVRBody body;
         bool permissionHooked;
         bool loggedNoData;
+        float nextStatusLog;
+        bool lastHadData;
+
+        /// <summary>Human-readable state for logs and on-screen hints.</summary>
+        public string Describe()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("OVRBody=").Append(body == null ? "none" : body.isActiveAndEnabled ? "enabled" : "disabled");
+            sb.Append(" xrApi=").Append(OVRPlugin.nativeXrApi);
+            sb.Append(" supported=").Append(OVRPlugin.bodyTrackingSupported);
+            sb.Append(" trackerEnabled=").Append(OVRPlugin.bodyTrackingEnabled);
+            sb.Append(" inputFocus=").Append(OVRManager.hasInputFocus);
+            sb.Append(" jointSet=").Append(OVRRuntimeSettings.GetRuntimeSettings()?.BodyTrackingJointSet);
+            var state = body != null ? body.BodyState : null;
+            if (state.HasValue)
+            {
+                var s = state.Value;
+                var valid = 0;
+                if (s.JointLocations != null)
+                {
+                    foreach (var j in s.JointLocations)
+                    {
+                        if (j.PositionValid && j.OrientationValid)
+                            valid++;
+                    }
+                }
+
+                sb.Append(" state: joints=").Append(s.JointLocations?.Length ?? 0)
+                  .Append(" valid=").Append(valid)
+                  .Append(" conf=").Append(s.Confidence.ToString("0.00"))
+                  .Append(" set=").Append(s.JointSet)
+                  .Append(" calib=").Append(s.CalibrationStatus)
+                  .Append(" fidelity=").Append(s.Fidelity);
+            }
+            else
+            {
+                sb.Append(" state: none");
+            }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            sb.Append(" permission=").Append(OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.BodyTracking));
+#endif
+            return sb.ToString();
+        }
+
+        void Update()
+        {
+            // Periodic status while nothing arrives, and one line when data starts/stops.
+            var hasData = body != null && body.isActiveAndEnabled && body.BodyState.HasValue;
+            if (hasData != lastHadData)
+            {
+                lastHadData = hasData;
+                Debug.Log("[AvianVoice] Body tracking " + (hasData ? "data started: " : "data stopped: ") + Describe());
+                return;
+            }
+
+            if (hasData || Time.unscaledTime < nextStatusLog)
+                return;
+
+            nextStatusLog = Time.unscaledTime + 5f;
+            Debug.Log("[AvianVoice] Body tracking waiting: " + Describe());
+        }
 
         public string DisplayName => "Meta XR Core SDK (OVRBody / IOBT)";
 

@@ -9,6 +9,10 @@
 シーン内の `Avian Embodiment` オブジェクトに `AvatarEmbodimentController` が付いています。元の `Avian_Lab` の 6 場面・
 音声・鏡・池などはそのまま動きます。
 
+> **注意**: 体トラッキングとアバター切替は **Avian_Lab_Embodiment** を開いて Play したときだけ動きます。
+> 元の `Avian_Lab` を Play しても鳥は止まり木に乗ったままで、ユーザーの体には追従しません。
+> メニュー **Avian Voice → Embodiment → Open Avian_Lab_Embodiment** で開けます。
+
 ## 操作
 
 | したいこと | デスクトップ | Quest |
@@ -50,6 +54,24 @@
 
 鳥の「目」の位置は `BirdFirstPersonDriver.eyeOffsetFromHeadBone`（頭ボーン基準、ルート座標系）で調整できます。
 人間アバターを別の Humanoid モデルに替えるには、Resources 配下に置いて `humanAvatarResourcePath` を変更してください。
+
+## 動作確認とトラブルシュート
+
+Play 中にメニュー **Avian Voice → Embodiment → Log Avatar State (Play Mode)** と **Log Body Tracking Diagnostics (Play Mode)**
+を実行すると、コンソールに次のような 1 行が出ます。
+
+```
+[AvianVoice] Avatar state: avatar=Bird ... bodyValid=True conf=1.00 ... torsoYaw=-30 armElev=78/95 birdYaw=330 ...
+[AvianVoice] Body tracking data started: OVRBody=enabled xrApi=OpenXR supported=True trackerEnabled=True inputFocus=True ... joints=84 valid=84
+```
+
+- `inputFocus=False` / `state: none` のまま → ヘッドセットを装着していない（近接センサー）か、Link アプリの開発者ランタイム機能
+  （Body tracking over Meta Quest Link）が無効。
+- `bodyValid=True` なのに動かない → 開いているシーンを確認（上の注意）。
+- 視界下のカードにも「体トラッキング: 上半身 / 全身 / なし (理由)」が常時出ます。
+- **Toggle Avatar (Play Mode)** メニューで V キーと同じ切替ができます。
+
+Quest Link 経由のエディタ再生で、鳥・人間とも体トラッキングで動くことを確認済みです（2026-11-03、Quest 3、上半身ジョイントセット）。
 
 ## 既知の制限
 

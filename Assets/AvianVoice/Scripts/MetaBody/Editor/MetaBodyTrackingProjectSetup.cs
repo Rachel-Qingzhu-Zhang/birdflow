@@ -1,5 +1,6 @@
 #if AVIAN_META_XR_CORE
 using System.Reflection;
+using AvianVoice.MetaBody;
 using Meta.XR;
 using UnityEditor;
 using UnityEditor.XR.OpenXR.Features;
@@ -60,6 +61,16 @@ namespace AvianVoice.MetaBody.Editor
 
             var config = OVRProjectConfig.CachedProjectConfig;
             return config != null && config.bodyTrackingSupport == OVRProjectConfig.FeatureSupport.None;
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Log Body Tracking Diagnostics (Play Mode)")]
+        public static void LogDiagnostics()
+        {
+            var backend = Object.FindAnyObjectByType<MetaBodyTrackingBackend>();
+            Debug.Log("[AvianVoice] Body tracking diagnostics: xrDevice=" + UnityEngine.XR.XRSettings.loadedDeviceName +
+                      " xrActive=" + UnityEngine.XR.XRSettings.isDeviceActive +
+                      " ovrManager=" + (OVRManager.instance != null) +
+                      " " + (backend != null ? backend.Describe() : "(no MetaBodyTrackingBackend in scene; is Avian_Lab_Embodiment playing?)"));
         }
 
         [MenuItem(MenuPath)]

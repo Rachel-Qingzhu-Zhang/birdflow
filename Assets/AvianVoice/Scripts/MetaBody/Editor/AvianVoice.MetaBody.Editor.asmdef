@@ -2,6 +2,7 @@
     "name": "AvianVoice.MetaBody.Editor",
     "rootNamespace": "AvianVoice.MetaBody.Editor",
     "references": [
+        "AvianVoice.MetaBody",
         "Oculus.VR",
         "Oculus.VR.Editor",
         "Unity.XR.OpenXR",

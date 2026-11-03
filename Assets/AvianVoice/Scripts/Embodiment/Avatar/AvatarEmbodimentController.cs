@@ -93,6 +93,43 @@ namespace AvianVoice.Embodiment.Avatars
 
         public GameObject HumanRoot => humanRoot;
 
+        /// <summary>One-line state dump for the diagnostics menu and bug reports.</summary>
+        public string DescribeState()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("avatar=").Append(Current);
+            sb.Append(" backend=").Append(Backend != null ? Backend.DisplayName + (Backend.IsRunning ? " (running)" : " (stopped)") : "none");
+            sb.Append(" bodyValid=").Append(BodyTrackingValid).Append(" conf=").Append(Frame.Confidence.ToString("0.00"));
+            sb.Append(" fullBody=").Append(Frame.IsFullBody);
+            sb.Append(" t2wValid=").Append(TrackingToWorldValid);
+            sb.Append(" sharedSpace=").Append(assumeSharedTrackingSpace && !sharedSpaceRejected);
+            if (XrCamera != null)
+            {
+                sb.Append(" camPos=").Append(XrCamera.transform.position.ToString("F2"));
+                sb.Append(" camYaw=").Append(TrackingSpaceSolver.YawOf(XrCamera.transform.forward).ToString("F0"));
+            }
+
+            if (TrackingToWorldValid && Frame.Has(BodyJoint.Head))
+            {
+                var head = TrackingSpaceSolver.TransformPoint(TrackingToWorld, Frame[BodyJoint.Head].position);
+                sb.Append(" headJointWorld=").Append(head.ToString("F2"));
+                if (XrCamera != null)
+                    sb.Append(" headErr=").Append(Vector3.Distance(head, XrCamera.transform.position).ToString("F2"));
+            }
+
+            if (TryGetTorsoYawWorld(out var torsoYaw))
+                sb.Append(" torsoYaw=").Append(torsoYaw.ToString("F0"));
+            if (TryGetArmElevation(out var l, out var r))
+                sb.Append(" armElev=").Append(l.ToString("F0")).Append('/').Append(r.ToString("F0"));
+            if (birdRoot != null)
+                sb.Append(" birdPos=").Append(birdRoot.position.ToString("F2")).Append(" birdYaw=").Append(birdRoot.eulerAngles.y.ToString("F0"))
+                  .Append(" birdDriver=").Append(birdDriver != null && birdDriver.enabled);
+            if (humanRoot != null)
+                sb.Append(" humanActive=").Append(humanRoot.activeSelf).Append(" humanPos=").Append(humanRoot.transform.position.ToString("F2"))
+                  .Append(" humanTracked=").Append(humanDriver != null && humanDriver.IsTracked);
+            return sb.ToString();
+        }
+
         void Start()
         {
             ResolveXrCamera();
@@ -482,11 +519,32 @@ namespace AvianVoice.Embodiment.Avatars
             if (hintLabel == null)
                 return;
 
-            var tracking = BodyTrackingValid ? (Frame.IsFullBody ? "full body" : "upper body") : "off";
+            string tracking;
+            string trackingJa;
+            if (BodyTrackingValid)
+            {
+                tracking = Frame.IsFullBody ? "full body" : "upper body";
+                trackingJa = Frame.IsFullBody ? "全身" : "上半身";
+            }
+            else if (Backend == null)
+            {
+                tracking = "off (no backend)";
+                trackingJa = "なし (バックエンド無し)";
+            }
+            else if (!Backend.IsRunning)
+            {
+                tracking = "off (tracker not running)";
+                trackingJa = "なし (トラッカー未起動)";
+            }
+            else
+            {
+                tracking = "off (no data)";
+                trackingJa = "なし (データ無し)";
+            }
+
             if (AvianUiLanguage.IsJapanese)
             {
                 var avatar = Current == AvatarKind.Bird ? "鳥" : "人間";
-                var trackingJa = BodyTrackingValid ? (Frame.IsFullBody ? "全身" : "上半身") : "なし";
                 hintLabel.text = "アバター: " + avatar + "　V キー / 左コントローラ X で切替　　体トラッキング: " + trackingJa;
             }
             else

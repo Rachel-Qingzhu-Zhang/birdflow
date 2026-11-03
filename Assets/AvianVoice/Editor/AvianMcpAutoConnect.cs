@@ -17,7 +17,11 @@ namespace AvianVoice.Editor
         static AvianMcpAutoConnect()
         {
             EditorPrefs.SetBool("MCPForUnity.AutoStartOnLoad", true);
-            EditorPrefs.SetBool("MCPForUnity.UseHttpTransport", true);
+            // Claude Code launches the MCP server in stdio mode and discovers Unity through the stdio bridge,
+            // so the bridge must not run in HTTP mode (that made this editor invisible to the server).
+            // Set AVIAN_MCP_HTTP=1 in the environment before starting Unity to keep the HTTP transport instead.
+            var preferHttp = Environment.GetEnvironmentVariable("AVIAN_MCP_HTTP") == "1";
+            EditorPrefs.SetBool("MCPForUnity.UseHttpTransport", preferHttp);
             EditorApplication.delayCall += () => { _ = TryStart(); };
         }
 
