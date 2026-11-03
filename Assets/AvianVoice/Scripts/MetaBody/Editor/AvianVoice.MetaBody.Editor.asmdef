@@ -1,0 +1,31 @@
+{
+    "name": "AvianVoice.MetaBody.Editor",
+    "rootNamespace": "AvianVoice.MetaBody.Editor",
+    "references": [
+        "Oculus.VR",
+        "Oculus.VR.Editor",
+        "Unity.XR.OpenXR",
+        "Unity.XR.OpenXR.Editor",
+        "Unity.XR.Management",
+        "Unity.XR.Management.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "AVIAN_META_XR_CORE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.meta.xr.sdk.core",
+            "expression": "",
+            "define": "AVIAN_META_XR_CORE"
+        }
+    ],
+    "noEngineReferences": false
+}
