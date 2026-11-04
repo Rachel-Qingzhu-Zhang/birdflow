@@ -62,6 +62,38 @@ namespace AvianVoice.Editor
                 Debug.LogWarning("[AvianVoice] No AvatarEmbodimentController in the running scene.");
         }
 
+        [MenuItem("Avian Voice/Embodiment/Debug/Next Human Avatar (Play Mode)")]
+        public static void NextHumanAvatar()
+        {
+            var controller = UnityEngine.Object.FindAnyObjectByType<AvatarEmbodimentController>();
+            if (controller == null || controller.HumanAvatars == null || controller.HumanAvatars.Length == 0)
+            {
+                Debug.LogWarning("[AvianVoice] No AvatarEmbodimentController / human avatars in the running scene.");
+                return;
+            }
+
+            var options = controller.HumanAvatars;
+            var index = 0;
+            for (var i = 0; i < options.Length; i++)
+            {
+                if (options[i].id == controller.HumanAvatarId)
+                    index = i;
+            }
+
+            for (var step = 1; step <= options.Length; step++)
+            {
+                var candidate = options[(index + step) % options.Length];
+                if (controller.SetHumanAvatar(candidate.id))
+                {
+                    controller.SetAvatar(AvatarKind.Human);
+                    Debug.Log("[AvianVoice] Human avatar now: " + controller.DescribeState());
+                    return;
+                }
+            }
+
+            Debug.LogWarning("[AvianVoice] No other human avatar model is available.");
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Load Task 3 Singing (Play Mode)")]
         public static void DebugLoadSinging()
         {

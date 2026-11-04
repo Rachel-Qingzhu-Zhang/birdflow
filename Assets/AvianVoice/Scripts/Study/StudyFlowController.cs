@@ -39,8 +39,7 @@ namespace AvianVoice.Study
         string defaultParticipantId = "P000";
 
         AvatarEmbodimentController avatar;
-        AvatarKind lastAvatar;
-        bool avatarKnown;
+        string lastAvatarLabel = "";
 
         public TaskManager TaskManager { get; private set; }
         public SingingTrialTask Trials { get; private set; }
@@ -75,9 +74,8 @@ namespace AvianVoice.Study
             avatar = FindAnyObjectByType<AvatarEmbodimentController>();
             if (avatar != null && Recorder != null)
             {
-                lastAvatar = avatar.Current;
-                avatarKnown = true;
-                Recorder.CurrentAvatar = lastAvatar.ToString();
+                lastAvatarLabel = avatar.CurrentLabel;
+                Recorder.CurrentAvatar = lastAvatarLabel;
             }
 
             if (TaskManager == null)
@@ -111,12 +109,12 @@ namespace AvianVoice.Study
             if (avatar == null || Recorder == null)
                 return;
 
-            if (!avatarKnown || avatar.Current != lastAvatar)
+            var label = avatar.CurrentLabel;
+            if (label != lastAvatarLabel)
             {
-                lastAvatar = avatar.Current;
-                avatarKnown = true;
-                Recorder.CurrentAvatar = lastAvatar.ToString();
-                Recorder.LogEvent("avatar_changed", j => j.Add("avatar", lastAvatar.ToString()));
+                lastAvatarLabel = label;
+                Recorder.CurrentAvatar = label;
+                Recorder.LogEvent("avatar_changed", j => j.Add("kind", avatar.Current.ToString()).Add("human_id", avatar.HumanAvatarId));
             }
         }
     }

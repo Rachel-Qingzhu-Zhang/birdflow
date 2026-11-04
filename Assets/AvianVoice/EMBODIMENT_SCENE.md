@@ -4,7 +4,8 @@
 
 1. **Quest の体トラッキング（IOBT / Full Body）** で、ユーザーの体の向き・腕・（対応機種では）脚がアバターに反映される。
 2. **視点がアバターの目に一致する**（アバターの目が XR カメラの位置に来るように毎フレーム合わせる）。
-3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間（Microsoft Rocketbox `Male_Adult_01`）。
+3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間。人間は **男性 / 女性 / 中性** の 3 体から選べる
+   （鳥との embodiment の差を、人間アバターの性別の影響と分けて調べるため）。
 4. **4 場面の実験フロー**: 鳥に会う → 呼吸 → 歌う → 休む（元の 6 場面のうち「飛ぶ」「仲間を呼ぶ」は使わない）。
 5. **歌う場面は試行形式**: 実験者がボタンを押す → 教師の鳥が 1 音歌う → 被験者が歌い返す。3 ピッチ × 20 回 = 60 試行。
    60 回終わると自動で「休む」に移って終了。
@@ -74,7 +75,31 @@ Unity の音は **Windows の既定の再生デバイス**に出ます（ログ�
 サウンド設定で既定の出力を「Headphones (Oculus Virtual Audio Device)」にするか、Meta Quest Link アプリの
 設定でリンク時にオーディオを切り替えるようにしてください。PC スピーカーで聞く場合はその逆です。
 
-### 人間アバターの見た目
+### 人間アバター（男性 / 女性 / 中性）
+
+| Id | モデル | 出典・実績 | 置き場所 |
+|----|--------|------------|----------|
+| `male` | Microsoft Rocketbox `Male_Adult_01` | Rocketbox ライブラリ（MIT）。Gonzalez-Franco et al. 2020, *Frontiers in VR*。Maselli & Slater 2013 以来、VR の身体所有感・embodiment 研究（IEEE VR / CHI / UIST 系）の標準的な刺激 | `Resources/Avatars/Rocketbox/Male_Adult_01` |
+| `female` | Microsoft Rocketbox `Female_Adult_01` | 同上（同じ骨格・同じ描画設定なので、性別以外の条件を揃えやすい） | `Resources/Avatars/Rocketbox/Female_Adult_01` |
+| `neutral` | MakeHuman（MPFB2）で生成する中性体 | MakeHuman（CC0）は CHI / IEEE VR の embodiment 研究で広く使われる無料のヒューマンジェネレータ。性別スライダ 0.5、胸なし、短髪、化粧なしの肌、無地の T シャツとジーンズという Nag & Yalçın (2020) の中性エージェント指針に沿った設定。Rocketbox にも VALID にも中性モデルは無い | `Resources/Avatars/MakeHuman/Neutral_Adult_01`（下記の手順で生成） |
+
+実験者パネルの「人間 (男性 / 女性 / 中性)」ボタンで切り替えます（V キーは鳥 ⇄ 選択中の人間）。`Avian Embodiment` の
+`AvatarEmbodimentController` → `Human Avatars` に 3 体の id / 表示名 / Resources パスがあり、モデルが無い id はパネルに
+「未配置」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:female` のように id 付きで残ります。
+
+**中性アバターの生成**（一度だけ。Blender 4.2 以上 + MPFB2 拡張 + MakeHuman system assets が必要）
+
+1. Blender に MPFB2 を入れる: Edit → Preferences → Get Extensions →「MPFB」→ Install。
+2. https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip をダウンロード。
+3. リポジトリのルートで次を実行（Blender のパスは環境に合わせる）:
+
+```
+"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" -b --python Tools\MakeHuman\generate_neutral_avatar.py -- --out Assets\AvianVoice\Resources\Avatars\MakeHuman\Neutral_Adult_01 --asset-zip <zip のパス>
+```
+
+`Neutral_Adult_01.fbx` とテクスチャが書き出され、Unity が `MakeHumanAvatarImport.cs` で Humanoid として取り込みます。
+体型・肌・髪・服はスクリプトの引数（`--gender 0.5 --cupsize 0 --skin young_asian_male.mhmat --hair short04.mhclo
+--clothes male_casualsuit06.mhclo` など）で変えられ、設定は出力先の `GENERATED.md` に残ります。
 
 人間アバターは専用レイヤー **HumanAvatar (12)** に置かれます。鏡と池の反射用の補助ライト（鳥向けに強め）はこのレイヤーに
 当たらないため、白飛びしません。髪（`m002_opacity`）はアルファカットアウト、肌は smoothness 0.3 で再インポートされます
@@ -123,10 +148,12 @@ Unity の音は **Windows の既定の再生デバイス**に出ます（ログ�
 | `Scripts/Study/SingingTrialTask.cs` | 試行形式の歌う場面（教師の 1 音 → 応答、発声検出、60 回で休む場面へ） |
 | `Scripts/Study/StudyRecorder.cs` | `events.jsonl` / `trials.csv` / `mic.wav` / `output.wav` / 試行切り出しの書き出し |
 | `Scripts/Study/ListenerOutputTap.cs`, `WavWriter.cs` | AudioListener のミックス取得、16 bit WAV ストリーム書き込み |
-| `Resources/Avatars/Rocketbox/` | 人間アバター（MIT ライセンス、`README.md` 参照） |
+| `Resources/Avatars/Rocketbox/` | 人間アバター 男性・女性（MIT ライセンス、`README.md` 参照） |
+| `Resources/Avatars/MakeHuman/`, `Tools/MakeHuman/generate_neutral_avatar.py` | 中性アバター（MakeHuman / CC0、生成スクリプト） |
+| `Editor/MakeHumanAvatarImport.cs` | MakeHuman FBX の Humanoid 取り込みとマテリアル設定 |
 
 鳥の「目」の位置は `BirdFirstPersonDriver.eyeOffsetFromHeadBone`（頭ボーン基準、ルート座標系）で調整できます。
-人間アバターを別の Humanoid モデルに替えるには、Resources 配下に置いて `humanAvatarResourcePath` を変更してください。
+人間アバターを追加するには、Humanoid モデルを Resources 配下に置いて `Human Avatars` に id と Resources パスを足してください。
 
 ## 動作確認とトラブルシュート
 
@@ -158,8 +185,11 @@ Quest Link 経由のエディタ再生で、鳥・人間とも体トラッキン
 # English summary
 
 `Avian_Lab_Embodiment.unity` is a copy of `Avian_Lab.unity` plus: Meta Quest body tracking (IOBT) driving the
-avatar, the avatar eyes locked to the XR camera, and an avatar switch (bird `PlayerParrot` ⇄ human Microsoft
-Rocketbox `Male_Adult_01`, MIT licensed). Toggle with **V** (keyboard) or the **left X** button (Quest).
+avatar, the avatar eyes locked to the XR camera, and an avatar switch (bird `PlayerParrot` ⇄ human). Three human
+bodies are selectable from the experimenter panel: Microsoft Rocketbox `Male_Adult_01` and `Female_Adult_01`
+(MIT; the standard rigged avatars of VR embodiment research) and a gender-neutral MakeHuman body (CC0, gender
+slider 0.5, no breasts, short hair, plain T-shirt and jeans, following Nag & Yalcin 2020) generated with
+`Tools/MakeHuman/generate_neutral_avatar.py`. Toggle bird / human with **V** (keyboard) or the **left X** button.
 
 The study flow is four scenes (meet, breath, singing, rest). The singing scene is experimenter-paced: each
 press of the panel button (or Space) makes the teacher bird sing one of three target pitches and opens a

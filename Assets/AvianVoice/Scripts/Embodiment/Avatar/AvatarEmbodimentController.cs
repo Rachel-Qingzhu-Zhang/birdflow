@@ -27,9 +27,19 @@ namespace AvianVoice.Embodiment.Avatars
         [SerializeField]
         AvatarKind startAvatar = AvatarKind.Bird;
 
-        [Tooltip("Resources path of a Humanoid-rigged model (no extension).")]
+        [Tooltip("Human avatars the experimenter can choose from (Resources paths of Humanoid-rigged models, no extension). " +
+                 "Missing models are reported and skipped.")]
         [SerializeField]
-        string humanAvatarResourcePath = "Avatars/Rocketbox/Male_Adult_01/Male_Adult_01";
+        HumanAvatarOption[] humanAvatars =
+        {
+            new() { id = "male", label = "male", labelJa = "男性", resourcePath = "Avatars/Rocketbox/Male_Adult_01/Male_Adult_01" },
+            new() { id = "female", label = "female", labelJa = "女性", resourcePath = "Avatars/Rocketbox/Female_Adult_01/Female_Adult_01" },
+            new() { id = "neutral", label = "neutral", labelJa = "中性", resourcePath = "Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01" }
+        };
+
+        [Tooltip("Which human avatar is shown first when switching to Human.")]
+        [SerializeField]
+        string startHumanAvatarId = "male";
 
         [SerializeField]
         bool hideHumanHeadInFirstPerson = true;
@@ -65,9 +75,28 @@ namespace AvianVoice.Embodiment.Avatars
         [SerializeField]
         bool logStatus = true;
 
+        /// <summary>One selectable human body.</summary>
+        [Serializable]
+        public class HumanAvatarOption
+        {
+            public string id = "";
+            public string label = "";
+            public string labelJa = "";
+            public string resourcePath = "";
+        }
+
+        sealed class HumanInstance
+        {
+            public HumanAvatarOption option;
+            public GameObject root;
+            public HumanFirstPersonDriver driver;
+        }
+
         readonly TrackingSpaceSolver solver = new();
         readonly List<Renderer> birdRenderers = new();
         readonly List<XRHandSubsystem> handSubsystems = new();
+        readonly Dictionary<string, HumanInstance> humanInstances = new();
+        readonly Dictionary<string, bool> humanAvailability = new();
 
         Transform birdRoot;
         BirdFirstPersonDriver birdDriver;
@@ -82,7 +111,20 @@ namespace AvianVoice.Embodiment.Avatars
 
         public AvatarKind Current { get; private set; }
 
+        /// <summary>Id of the human body in use (one of <see cref="HumanAvatars"/>), whichever avatar is shown now.</summary>
+        public string HumanAvatarId { get; private set; } = "";
+
+        public HumanAvatarOption[] HumanAvatars => humanAvatars;
+
+        public HumanAvatarOption CurrentHumanOption => FindHumanOption(HumanAvatarId);
+
+        /// <summary>"Bird" or "Human:&lt;id&gt;", for logs and the study recorder.</summary>
+        public string CurrentLabel => Current == AvatarKind.Bird ? "Bird" : "Human:" + HumanAvatarId;
+
         public event Action<AvatarKind> AvatarChanged;
+
+        /// <summary>Raised when the human body changes (id), even while the bird is shown.</summary>
+        public event Action<string> HumanAvatarChanged;
 
         public Camera XrCamera { get; private set; }
 
@@ -108,7 +150,7 @@ namespace AvianVoice.Embodiment.Avatars
         public string DescribeState()
         {
             var sb = new System.Text.StringBuilder();
-            sb.Append("avatar=").Append(Current);
+            sb.Append("avatar=").Append(Current).Append(" human=").Append(HumanAvatarId);
             sb.Append(" backend=").Append(Backend != null ? Backend.DisplayName + (Backend.IsRunning ? " (running)" : " (stopped)") : "none");
             sb.Append(" bodyValid=").Append(BodyTrackingValid).Append(" conf=").Append(Frame.Confidence.ToString("0.00"));
             sb.Append(" fullBody=").Append(Frame.IsFullBody);
@@ -180,7 +222,9 @@ namespace AvianVoice.Embodiment.Avatars
             }
 
             ResolveBird();
-            CreateHumanAvatar();
+            HumanAvatarId = FindHumanOption(startHumanAvatarId) != null ? startHumanAvatarId
+                : humanAvatars.Length > 0 ? humanAvatars[0].id : "";
+            ActivateHumanInstance(HumanAvatarId);
             CreateHint();
             started = true;
             SetAvatar(startAvatar);
@@ -223,8 +267,11 @@ namespace AvianVoice.Embodiment.Avatars
         public void SetAvatar(AvatarKind kind)
         {
             if (kind == AvatarKind.Human && humanRoot == null)
+                ActivateHumanInstance(HumanAvatarId);
+
+            if (kind == AvatarKind.Human && humanRoot == null)
             {
-                Debug.LogWarning("[AvianVoice] Human avatar not available; staying on the bird.");
+                Debug.LogWarning("[AvianVoice] Human avatar '" + HumanAvatarId + "' not available; staying on the bird.");
                 kind = AvatarKind.Bird;
             }
 
@@ -245,7 +292,75 @@ namespace AvianVoice.Embodiment.Avatars
             RefreshHint();
             AvatarChanged?.Invoke(kind);
             if (logStatus)
-                Debug.Log("[AvianVoice] Avatar: " + kind);
+                Debug.Log("[AvianVoice] Avatar: " + CurrentLabel);
+        }
+
+        /// <summary>
+        /// Choose which human body is used (male / female / neutral ...). Switches the visible body at once
+        /// when the human avatar is shown. Returns false when the id is unknown or its model is missing.
+        /// </summary>
+        public bool SetHumanAvatar(string id)
+        {
+            var option = FindHumanOption(id);
+            if (option == null)
+            {
+                Debug.LogWarning("[AvianVoice] Unknown human avatar id: " + id);
+                return false;
+            }
+
+            if (!HasHumanAvatar(id))
+            {
+                Debug.LogWarning("[AvianVoice] Human avatar '" + id + "' has no model at Resources/" + option.resourcePath);
+                return false;
+            }
+
+            if (id == HumanAvatarId && humanRoot != null)
+                return true;
+
+            HumanAvatarId = id;
+            ActivateHumanInstance(id);
+            if (Current == AvatarKind.Human)
+                SetAvatar(AvatarKind.Human);
+            else
+                RefreshHint();
+
+            HumanAvatarChanged?.Invoke(id);
+            if (logStatus)
+                Debug.Log("[AvianVoice] Human avatar: " + id);
+            return true;
+        }
+
+        /// <summary>True when the model for this human avatar id exists in Resources (checked once, cached).</summary>
+        public bool HasHumanAvatar(string id)
+        {
+            var option = FindHumanOption(id);
+            if (option == null || string.IsNullOrEmpty(option.resourcePath))
+                return false;
+
+            if (humanInstances.ContainsKey(id))
+                return true;
+
+            if (!humanAvailability.TryGetValue(id, out var available))
+            {
+                available = Resources.Load<GameObject>(option.resourcePath) != null;
+                humanAvailability[id] = available;
+            }
+
+            return available;
+        }
+
+        public HumanAvatarOption FindHumanOption(string id)
+        {
+            if (string.IsNullOrEmpty(id) || humanAvatars == null)
+                return null;
+
+            foreach (var option in humanAvatars)
+            {
+                if (option != null && option.id == id)
+                    return option;
+            }
+
+            return null;
         }
 
         // ---------------------------------------------------------------- tracking
@@ -457,37 +572,63 @@ namespace AvianVoice.Embodiment.Avatars
             birdDriver.enabled = false;
         }
 
-        void CreateHumanAvatar()
+        /// <summary>Make the instance for this id the active human body (instantiating it on first use).</summary>
+        void ActivateHumanInstance(string id)
         {
-            if (string.IsNullOrEmpty(humanAvatarResourcePath))
-                return;
-
-            var prefab = Resources.Load<GameObject>(humanAvatarResourcePath);
-            if (prefab == null)
+            var next = GetOrCreateHumanInstance(id);
+            if (humanRoot != null && (next == null || next.root != humanRoot))
             {
-                Debug.LogWarning("[AvianVoice] Human avatar not found in Resources: " + humanAvatarResourcePath);
-                return;
+                humanRoot.SetActive(false);
+                if (humanDriver != null)
+                    humanDriver.enabled = false;
             }
 
-            humanRoot = Instantiate(prefab);
-            humanRoot.name = "HumanAvatar (" + prefab.name + ")";
-            humanRoot.SetActive(false);
+            humanRoot = next?.root;
+            humanDriver = next?.driver;
+        }
 
-            var animator = humanRoot.GetComponent<Animator>();
+        HumanInstance GetOrCreateHumanInstance(string id)
+        {
+            if (string.IsNullOrEmpty(id))
+                return null;
+            if (humanInstances.TryGetValue(id, out var existing))
+                return existing;
+
+            var option = FindHumanOption(id);
+            if (option == null || string.IsNullOrEmpty(option.resourcePath))
+                return null;
+
+            var prefab = Resources.Load<GameObject>(option.resourcePath);
+            humanAvailability[id] = prefab != null;
+            if (prefab == null)
+            {
+                Debug.LogWarning("[AvianVoice] Human avatar '" + id + "' not found in Resources: " + option.resourcePath);
+                return null;
+            }
+
+            var root = Instantiate(prefab);
+            root.name = "HumanAvatar (" + id + ": " + prefab.name + ")";
+            root.SetActive(false);
+
+            var animator = root.GetComponent<Animator>();
             if (animator == null)
-                animator = humanRoot.AddComponent<Animator>();
+                animator = root.AddComponent<Animator>();
             animator.applyRootMotion = false;
             animator.runtimeAnimatorController = null;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             if (animator.avatar == null || !animator.avatar.isHuman)
-                Debug.LogWarning("[AvianVoice] Human avatar is not imported as Humanoid; body tracking retargeting is disabled.");
+                Debug.LogWarning("[AvianVoice] Human avatar '" + id + "' is not imported as Humanoid; body tracking retargeting is disabled.");
 
             if (humanAvatarLayer >= 0 && humanAvatarLayer < 32)
-                SetLayerRecursive(humanRoot, humanAvatarLayer);
+                SetLayerRecursive(root, humanAvatarLayer);
 
-            humanDriver = humanRoot.AddComponent<HumanFirstPersonDriver>();
-            humanDriver.Configure(this, Backend, hideHumanHeadInFirstPerson);
-            humanDriver.enabled = false;
+            var driver = root.AddComponent<HumanFirstPersonDriver>();
+            driver.Configure(this, Backend, hideHumanHeadInFirstPerson);
+            driver.enabled = false;
+
+            var instance = new HumanInstance { option = option, root = root, driver = driver };
+            humanInstances[id] = instance;
+            return instance;
         }
 
         void SetBirdVisible(bool visible)
@@ -589,14 +730,16 @@ namespace AvianVoice.Embodiment.Avatars
                 trackingJa = "なし (データ無し)";
             }
 
+            var option = CurrentHumanOption;
             if (AvianUiLanguage.IsJapanese)
             {
-                var avatar = Current == AvatarKind.Bird ? "鳥" : "人間";
+                var avatar = Current == AvatarKind.Bird ? "鳥" : "人間 (" + (option != null ? option.labelJa : HumanAvatarId) + ")";
                 hintLabel.text = "アバター: " + avatar + "　V キー / 左コントローラ X で切替　　体トラッキング: " + trackingJa;
             }
             else
             {
-                hintLabel.text = "Avatar: " + Current + "   V key / left X button to switch   Body tracking: " + tracking;
+                var avatar = Current == AvatarKind.Bird ? "Bird" : "Human (" + (option != null ? option.label : HumanAvatarId) + ")";
+                hintLabel.text = "Avatar: " + avatar + "   V key / left X button to switch   Body tracking: " + tracking;
             }
         }
 

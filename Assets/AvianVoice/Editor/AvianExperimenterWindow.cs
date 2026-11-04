@@ -381,22 +381,41 @@ namespace AvianVoice.Editor
         {
             EditorGUILayout.LabelField("アバター / Avatar", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!playing || controller == null))
-            using (new EditorGUILayout.HorizontalScope())
             {
-                using (new EditorGUI.DisabledScope(controller != null && controller.Current == AvatarKind.Bird))
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("鳥 (Bird)", GUILayout.Height(30f)))
-                        controller.SetAvatar(AvatarKind.Bird);
-                }
+                    var isBird = controller != null && controller.Current == AvatarKind.Bird;
+                    using (new EditorGUI.DisabledScope(isBird))
+                    {
+                        if (GUILayout.Button((isBird ? "● " : "") + "鳥 (Bird)", GUILayout.Height(30f)))
+                            controller.SetAvatar(AvatarKind.Bird);
+                    }
 
-                using (new EditorGUI.DisabledScope(controller != null && controller.Current == AvatarKind.Human))
-                {
-                    if (GUILayout.Button("人間 (Human)", GUILayout.Height(30f)))
-                        controller.SetAvatar(AvatarKind.Human);
+                    var options = controller != null ? controller.HumanAvatars : null;
+                    if (options != null)
+                    {
+                        foreach (var option in options)
+                        {
+                            if (option == null)
+                                continue;
+
+                            var available = controller.HasHumanAvatar(option.id);
+                            var active = controller.Current == AvatarKind.Human && controller.HumanAvatarId == option.id;
+                            var label = (active ? "● " : "") + "人間 (" + option.labelJa + ")" + (available ? "" : " 未配置");
+                            using (new EditorGUI.DisabledScope(active || !available))
+                            {
+                                if (GUILayout.Button(label, GUILayout.Height(30f)))
+                                {
+                                    controller.SetHumanAvatar(option.id);
+                                    controller.SetAvatar(AvatarKind.Human);
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            EditorGUILayout.LabelField("キーボード: V で切替 (Game ビューにフォーカスがある時)", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("キーボード: V で鳥 ⇄ 人間 (選択中の人間モデル)。「未配置」はモデルが Resources に無いもの。", EditorStyles.miniLabel);
         }
 
         void DrawParticipantSection(bool playing, AvatarEmbodimentController controller)
