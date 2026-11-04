@@ -75,13 +75,23 @@ Play の前に **被験者 ID** をパネルで入力しておくと、記録フ
 `mic.wav` のサンプル番号（`mic_sample`）、`output.wav` のフレーム番号（`out_frame`）を同時に持つので、音声ファイルを
 イベントに合わせて正確に切り出せます。マイクが途中で再起動した場合は `mic_restart` イベントが入ります。
 
-### 音が聞こえないとき
+### 音が聞こえないとき（PC スピーカー / ヘッドセット）
 
 パネルの「音声出力 (PC 側)」メーターが振れていれば Unity は音を出しています。聞こえないのは出力先の問題です。
-Unity の音は **Windows の既定の再生デバイス**に出ます（ログの `XR: Error setting active audio output driver. Falling back to default.`
-はヘッドセットへの自動切替が失敗して既定デバイスに落ちた印）。Link でヘッドセット側に聞かせるには、Windows の
-サウンド設定で既定の出力を「Headphones (Oculus Virtual Audio Device)」にするか、Meta Quest Link アプリの
-設定でリンク時にオーディオを切り替えるようにしてください。PC スピーカーで聞く場合はその逆です。
+
+- Unity の音は **Windows の既定の再生デバイス**に出ます（ログの `XR: Error setting active audio output driver.
+  Falling back to default.` はヘッドセットへの自動切替が失敗して既定デバイスに落ちた印）。
+- パネルの **「Windows 既定出力」** にそのデバイス名・音量・ミュート状態が出ます。ミュート中なら警告と
+  「Windows のミュートを解除」ボタンが出ます（2026-11-05 に PC から音が出なかった原因はこれでした: Realtek スピーカーが
+  Windows 側でミュート）。Unity の Game ビューの Mute Audio も同様に検出します。
+- **PC モニター出力**（`PcAudioMonitor`、AudioListener に自動で付きます）: Unity の出力をそのまま PC のスピーカー
+  （Oculus / Virtual でない最初の waveOut デバイス）にも流します。既定の **Auto** は「Windows の既定出力がヘッドセット
+  （Oculus Virtual Audio Device など）のときだけ」ミラーするので、Link でヘッドセットに音を出しつつ実験者も PC で聞けます。
+  既定出力が PC スピーカーのときは二重になるのでミラーしません。**Always** で常時、**Off** で停止。「出力先 (名前の一部)」で
+  デバイスを指定できます。遅延は 0.1 秒程度です。
+- Link でヘッドセット側に聞かせるには、Windows のサウンド設定で既定の出力を「Headphones (Oculus Virtual Audio Device)」に
+  するか、Meta Quest Link アプリの設定でリンク時にオーディオを切り替えるようにしてください（PC モニター出力が Auto で
+  PC スピーカーにも出ます）。
 
 ### 人間アバター（男性 / 女性 / 中性マネキン）
 
@@ -91,7 +101,8 @@ Unity の音は **Windows の既定の再生デバイス**に出ます（ログ�
 | `female` | Microsoft Rocketbox `Female_Adult_01` | 同上（同じ骨格・同じ描画設定なので、性別以外の条件を揃えやすい） | `Resources/Avatars/Rocketbox/Female_Adult_01` |
 | `neutral` | MakeHuman（MPFB2）で生成した中性の **マネキン**（顔・髪・服なし、単色マット、眼球は同色の球） | MakeHuman（CC0）は CHI / IEEE VR の embodiment 研究で広く使われる無料のヒューマンジェネレータ。性別スライダ 0.5、胸なしの中性体をテクスチャ無しの単色にしたもので、顔の無いマネキン型アバター（Lugrin et al. 2015, IEEE VR; 人間型アバターとの身体所有感の比較に使われる系統）に相当。Rocketbox にも VALID にも中性モデルは無い | `Resources/Avatars/MakeHuman/Neutral_Adult_01`（下記の手順で生成） |
 
-実験者パネルの「人間 (男性 / 女性 / マネキン)」ボタンで切り替えます（V キーは鳥 ⇄ 選択中の人間）。`Avian Embodiment` の
+歌う場面では、鳥アバターでも人間アバターでも **教師の鳥（`FriendParrot`）が被験者の右隣に出て**歌います（人間アバターのときは
+鳥の自分は隠れ、人間の体と教師の鳥が見えます）。実験者パネルの「人間 (男性 / 女性 / マネキン)」ボタンで切り替えます（V キーは鳥 ⇄ 選択中の人間）。`Avian Embodiment` の
 `AvatarEmbodimentController` → `Human Avatars` に 3 体の id / 表示名 / Resources パスがあり、モデルが無い id はパネルに
 「未配置」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:female` のように id 付きで残ります。
 
@@ -158,6 +169,7 @@ FBX の単色をそのまま使用）。既定の `--style mannequin` は顔テ�
 | `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、アバター切替の記録 |
 | `Scripts/Study/SingingTrialTask.cs` | 試行形式の歌う場面（教師の 1 音 → 応答、発声検出、60 回で休む場面へ） |
 | `Scripts/Study/StudyRecorder.cs` | `events.jsonl` / `trials.csv` / `mic.wav` / `output.wav` / 試行切り出しの書き出し |
+| `Scripts/Study/PcAudioMonitor.cs` | Unity 出力の PC スピーカーへのミラー（winmm）、Windows 既定出力のミュート検出 |
 | `Scripts/Study/ListenerOutputTap.cs`, `WavWriter.cs` | AudioListener のミックス取得、16 bit WAV ストリーム書き込み |
 | `Resources/Avatars/Rocketbox/` | 人間アバター 男性・女性（MIT ライセンス、`README.md` 参照） |
 | `Resources/Avatars/MakeHuman/`, `Tools/MakeHuman/generate_neutral_avatar.py` | 中性アバター（MakeHuman / CC0、生成スクリプト） |

@@ -57,7 +57,59 @@ namespace AvianVoice.Editor
         public static void LogAvatarState()
         {
             var controller = UnityEngine.Object.FindAnyObjectByType<AvatarEmbodimentController>();
-            Debug.Log("[AvianVoice] Avatar state: " + (controller != null ? controller.DescribeState() : "no AvatarEmbodimentController (is Avian_Lab_Embodiment playing?)"));
+            var sb = new System.Text.StringBuilder("[AvianVoice] Avatar state: ");
+            sb.Append(controller != null ? controller.DescribeState() : "no AvatarEmbodimentController (is Avian_Lab_Embodiment playing?)");
+            sb.Append(" | ").Append(DescribeBird("player", AvianVoice.Embodiment.BirdSceneRoles.Player));
+            sb.Append(" | ").Append(DescribeBird("friend", AvianVoice.Embodiment.BirdSceneRoles.Friend));
+            var cam = Camera.main;
+            if (cam != null)
+                sb.Append(" | mainCamera=").Append(cam.name).Append(" pos=").Append(cam.transform.position.ToString("F2")).Append(" mask=0x").Append(cam.cullingMask.ToString("X"));
+            var monitor = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.PcAudioMonitor>();
+            if (monitor != null)
+                sb.Append(" | ").Append(monitor.Describe());
+            Debug.Log(sb.ToString());
+        }
+
+        static string DescribeBird(string label, Transform bird)
+        {
+            if (bird == null)
+                return label + "=none";
+            var renderers = bird.GetComponentsInChildren<Renderer>(true);
+            var on = 0;
+            foreach (var r in renderers)
+                if (r != null && r.enabled && r.gameObject.activeInHierarchy)
+                    on++;
+            return label + "=" + bird.name + " active=" + bird.gameObject.activeInHierarchy + " renderersOn=" + on + "/" + renderers.Length
+                   + " pos=" + bird.position.ToString("F2") + " layer=" + bird.gameObject.layer;
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Debug/PC Audio Monitor - Always (Play Mode)")]
+        public static void PcAudioMonitorAlways() => SetPcAudioMonitorMode(AvianVoice.Study.PcAudioMonitor.MonitorMode.Always);
+
+        [MenuItem("Avian Voice/Embodiment/Debug/PC Audio Monitor - Auto (Play Mode)")]
+        public static void PcAudioMonitorAuto() => SetPcAudioMonitorMode(AvianVoice.Study.PcAudioMonitor.MonitorMode.Auto);
+
+        static void SetPcAudioMonitorMode(AvianVoice.Study.PcAudioMonitor.MonitorMode mode)
+        {
+            var monitor = AvianVoice.Study.PcAudioMonitor.Instance ?? AvianVoice.Study.PcAudioMonitor.Ensure();
+            if (monitor == null)
+            {
+                Debug.LogWarning("[AvianVoice] No AudioListener / PcAudioMonitor (is the scene playing?).");
+                return;
+            }
+
+            monitor.Mode = mode;
+            Debug.Log("[AvianVoice] " + monitor.Describe());
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Capture Game View (Play Mode)")]
+        public static void CaptureGameView()
+        {
+            var dir = System.IO.Path.Combine(Application.persistentDataPath, "AvianStudy", "screenshots");
+            System.IO.Directory.CreateDirectory(dir);
+            var path = System.IO.Path.Combine(dir, "game_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png");
+            ScreenCapture.CaptureScreenshot(path);
+            Debug.Log("[AvianVoice] Game view screenshot: " + path);
         }
 
         [MenuItem("Avian Voice/Embodiment/Toggle Avatar (Play Mode)")]
@@ -142,6 +194,7 @@ namespace AvianVoice.Editor
             var sb = new System.Text.StringBuilder();
             var config = AudioSettings.GetConfiguration();
             sb.Append("[AvianVoice] Audio: listenerVolume=").Append(AudioListener.volume)
+              .Append(" editorMute=").Append(EditorUtility.audioMasterMute)
               .Append(" paused=").Append(AudioListener.pause)
               .Append(" listeners=").Append(UnityEngine.Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Length)
               .Append(" sampleRate=").Append(config.sampleRate).Append(" dsp=").Append(config.dspBufferSize)
@@ -151,6 +204,10 @@ namespace AvianVoice.Editor
             var manager = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.TaskManager>();
             sb.Append(" task=").Append(manager != null ? manager.CurrentTaskId : "none");
             sb.Append(" masterRms=").Append(MeasureListenerRms().ToString("0.0000"));
+            AvianVoice.Study.PcAudioMonitor.RefreshDefaultOutput();
+            var monitor = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.PcAudioMonitor>();
+            sb.Append(" | ").Append(monitor != null ? monitor.Describe() : "defaultOutput='" + AvianVoice.Study.PcAudioMonitor.DefaultOutputName + "' muted=" + AvianVoice.Study.PcAudioMonitor.DefaultOutputMuted);
+            sb.Append(" waveOut=[").Append(string.Join("; ", AvianVoice.Study.PcAudioMonitor.OutputDeviceNames())).Append("]");
             foreach (var source in UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
                 sb.Append(" | ").Append(source.gameObject.name)

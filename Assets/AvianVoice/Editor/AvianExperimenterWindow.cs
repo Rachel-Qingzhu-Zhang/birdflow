@@ -186,9 +186,63 @@ namespace AvianVoice.Editor
             EditorGUI.LabelField(labelRect, "音声出力 (PC 側)");
             var normalized = Mathf.Clamp01(Mathf.Log10(1f + outputLevel * 30f));
             EditorGUI.ProgressBar(barRect, normalized, outputPeakHold > 0.001f ? "音が出ています" : "無音");
+            DrawPcAudioSection();
 
             if (GUILayout.Button("詳細をコンソールに出す (Log Avatar State)"))
-                Debug.Log("[AvianVoice] Avatar state: " + controller.DescribeState());
+                AvianEmbodimentSceneSetup.LogAvatarState();
+        }
+
+        double nextOutputCheck;
+
+        void DrawPcAudioSection()
+        {
+            if (EditorApplication.timeSinceStartup >= nextOutputCheck)
+            {
+                nextOutputCheck = EditorApplication.timeSinceStartup + 2.0;
+                PcAudioMonitor.RefreshDefaultOutput();
+            }
+
+            var name = string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputName) ? "(不明" + (string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputError) ? "" : ": " + PcAudioMonitor.DefaultOutputError) + ")" : PcAudioMonitor.DefaultOutputName;
+            var vol = PcAudioMonitor.DefaultOutputVolume >= 0f ? "  音量 " + Mathf.RoundToInt(PcAudioMonitor.DefaultOutputVolume * 100f) + "%" : "";
+            EditorGUILayout.LabelField("Windows 既定出力", name + vol + (PcAudioMonitor.DefaultOutputMuted ? "  ミュート中" : ""));
+            if (PcAudioMonitor.DefaultOutputMuted)
+            {
+                EditorGUILayout.HelpBox("Windows の既定の再生デバイスがミュートされています。Unity の音はここに出るので PC から音が出ません。", MessageType.Warning);
+                if (GUILayout.Button("Windows のミュートを解除"))
+                {
+                    if (!PcAudioMonitor.UnmuteDefaultOutput())
+                        Debug.LogWarning("[AvianVoice] Could not unmute the Windows default output: " + PcAudioMonitor.DefaultOutputError);
+                }
+            }
+
+            if (EditorUtility.audioMasterMute)
+            {
+                EditorGUILayout.HelpBox("Unity の Game ビューで「Mute Audio」が有効です。", MessageType.Warning);
+                if (GUILayout.Button("Unity の Mute Audio を解除"))
+                    EditorUtility.audioMasterMute = false;
+            }
+
+            var monitor = PcAudioMonitor.Instance;
+            if (monitor == null)
+            {
+                var storedMode = PlayerPrefs.GetString(PcAudioMonitor.ModePrefKey, PcAudioMonitor.MonitorMode.Auto.ToString());
+                EditorGUILayout.LabelField("PC モニター出力", "Play 中に有効 (モード: " + storedMode + ")");
+                return;
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var newMode = (PcAudioMonitor.MonitorMode)EditorGUILayout.EnumPopup("PC モニター出力", monitor.Mode);
+                if (newMode != monitor.Mode)
+                    monitor.Mode = newMode;
+                if (GUILayout.Button("再確認", GUILayout.Width(60f)))
+                    monitor.Refresh();
+            }
+
+            EditorGUILayout.LabelField(" ", monitor.Status + (monitor.DroppedChunks > 0 ? "  (欠落 " + monitor.DroppedChunks + ")" : ""), EditorStyles.miniLabel);
+            var newDevice = EditorGUILayout.TextField("  出力先 (名前の一部)", monitor.DeviceNameContains);
+            if (newDevice != monitor.DeviceNameContains)
+                monitor.DeviceNameContains = newDevice;
         }
 
         void DrawTaskSection(bool playing, TaskManager taskManager, SingingTrialTask trials)

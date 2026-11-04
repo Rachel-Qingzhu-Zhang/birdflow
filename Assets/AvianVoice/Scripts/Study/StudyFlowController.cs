@@ -38,6 +38,11 @@ namespace AvianVoice.Study
         [SerializeField]
         string defaultParticipantId = "P000";
 
+        [Header("Audio")]
+        [Tooltip("Mirror the listener output to the PC speakers when Unity's own output goes to the headset (PcAudioMonitor on the AudioListener).")]
+        [SerializeField]
+        bool pcAudioMonitor = true;
+
         AvatarEmbodimentController avatar;
         string lastAvatarLabel = "";
 
@@ -69,6 +74,12 @@ namespace AvianVoice.Study
             {
                 Recorder = StudyRecorder.Ensure();
                 Recorder.BeginSession(ParticipantId, SceneManager.GetActiveScene().name);
+            }
+
+            if (pcAudioMonitor)
+            {
+                var monitor = PcAudioMonitor.Ensure();
+                Recorder?.LogEvent("pc_audio_monitor", j => j.Add("state", monitor != null ? monitor.Describe() : "no AudioListener"));
             }
 
             avatar = FindAnyObjectByType<AvatarEmbodimentController>();
