@@ -6,9 +6,11 @@ its macro "gender" slider lets us build an androgynous body (gender = 0.5) inste
 female model. The Rocketbox library (used for the male / female bodies) has no androgynous avatars; the
 VALID library does not have them yet either.
 
-Design choices follow the androgynous-agent guidelines of Nag & Yalcin (2020, "Gender stereotypes in virtual
-agents", IVA): neutral body proportions, no breasts, short hair, no makeup skin, loose unisex clothes
-(plain T-shirt and jeans), neutral face.
+Default style is a **mannequin**: the androgynous MakeHuman body with no face texture, no hair, no clothes and
+one plain matte colour, like the faceless mannequin avatars of VR embodiment studies (e.g. Lugrin et al. 2015,
+IEEE VR, "Anthropomorphism and illusion of virtual body ownership"). The eyeballs stay as plain geometry so the
+sockets are not hollow. `--style dressed` builds the earlier variant instead (skin texture, short hair, plain
+T-shirt and jeans, following the androgynous-agent guidelines of Nag & Yalcin 2020).
 
 Requirements
   * Blender >= 4.2 with the MPFB2 extension installed (https://static.makehumancommunity.org/mpfb.html,
@@ -67,6 +69,10 @@ def parse_args():
     parser.add_argument("--clothes", default="male_casualsuit06.mhclo", help="Plain white T-shirt and jeans")
     parser.add_argument("--shoes", default="shoes01.mhclo")
     parser.add_argument("--rig", default="mixamo_unity", help="MPFB built-in rig; mixamo_unity maps to Unity Humanoid")
+    parser.add_argument("--style", choices=["mannequin", "dressed"], default="mannequin",
+                        help="mannequin = faceless plain body (default); dressed = skin texture, hair, T-shirt and jeans")
+    parser.add_argument("--mannequin-color", default="0.74,0.72,0.70", help="Mannequin base colour, linear RGB 0-1")
+    parser.add_argument("--mannequin-roughness", type=float, default=0.62)
     parser.add_argument("--no-teeth", action="store_true")
     parser.add_argument("--keep-logo", action="store_true", help="Keep the MakeHuman print on the T-shirt texture")
     return parser.parse_args(argv)
@@ -113,6 +119,24 @@ def find_asset(asset_service, fname, subdir):
     if path is None:
         raise RuntimeError("asset not found: " + subdir + "/" + fname)
     return path
+
+
+def plain_material(name, rgb, roughness):
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf is not None:
+        bsdf.inputs["Base Color"].default_value = (rgb[0], rgb[1], rgb[2], 1.0)
+        bsdf.inputs["Roughness"].default_value = roughness
+        bsdf.inputs["Metallic"].default_value = 0.0
+    mat.diffuse_color = (rgb[0], rgb[1], rgb[2], 1.0)
+    mat.roughness = roughness
+    return mat
+
+
+def assign_material(obj, mat):
+    obj.data.materials.clear()
+    obj.data.materials.append(mat)
 
 
 def rename_materials(obj, new_name):
@@ -250,21 +274,30 @@ def main():
     basemesh = HumanService.create_human(macro_detail_dict=macro)
     basemesh.name = name
 
-    HumanService.set_character_skin(find_asset(AssetService, args.skin, "skins"), basemesh, skin_type="GAMEENGINE")
-    rename_materials(basemesh, "neutral_body")
+    mannequin = args.style == "mannequin"
+    mannequin_rgb = [float(v) for v in args.mannequin_color.split(",")]
+    if mannequin:
+        assign_material(basemesh, plain_material("neutral_body", mannequin_rgb, args.mannequin_roughness))
+    else:
+        HumanService.set_character_skin(find_asset(AssetService, args.skin, "skins"), basemesh, skin_type="GAMEENGINE")
+        rename_materials(basemesh, "neutral_body")
 
     HumanService.add_builtin_rig(basemesh, args.rig)
 
-    assets = [
-        ("eyes", args.eyes, "Eyes", "neutral_head_eyes"),
-        ("eyebrows", args.eyebrows, "Eyebrows", "neutral_head_eyebrows"),
-        ("eyelashes", args.eyelashes, "Eyelashes", "neutral_head_eyelashes"),
-        ("hair", args.hair, "Hair", "neutral_hair"),
-        ("clothes", args.clothes, "Clothes", "neutral_clothes"),
-        ("clothes", args.shoes, "Clothes", "neutral_shoes"),
-    ]
-    if not args.no_teeth:
-        assets += [("teeth", "teeth_base.mhclo", "Teeth", "neutral_head_teeth"), ("tongue", "tongue01.mhclo", "Tongue", "neutral_head_tongue")]
+    if mannequin:
+        # Eyeballs only (same plain material, named with "head" so the first-person head hider hides them).
+        assets = [("eyes", args.eyes, "Eyes", "neutral_head_eyes")]
+    else:
+        assets = [
+            ("eyes", args.eyes, "Eyes", "neutral_head_eyes"),
+            ("eyebrows", args.eyebrows, "Eyebrows", "neutral_head_eyebrows"),
+            ("eyelashes", args.eyelashes, "Eyelashes", "neutral_head_eyelashes"),
+            ("hair", args.hair, "Hair", "neutral_hair"),
+            ("clothes", args.clothes, "Clothes", "neutral_clothes"),
+            ("clothes", args.shoes, "Clothes", "neutral_shoes"),
+        ]
+        if not args.no_teeth:
+            assets += [("teeth", "teeth_base.mhclo", "Teeth", "neutral_head_teeth"), ("tongue", "tongue01.mhclo", "Tongue", "neutral_head_tongue")]
 
     for subdir, fname, atype, material_name in assets:
         if not fname:
@@ -276,7 +309,10 @@ def main():
             obj = bpy.data.objects[obj_name]
             if obj.type == "MESH":
                 obj.name = name + "_" + material_name.replace("neutral_", "")
-                rename_materials(obj, material_name)
+                if mannequin:
+                    assign_material(obj, plain_material(material_name, mannequin_rgb, args.mannequin_roughness))
+                else:
+                    rename_materials(obj, material_name)
 
     # Export copy with helpers removed and modifiers baked.
     export_root = ExportService.create_character_copy(basemesh, name_suffix="_export")
@@ -307,15 +343,18 @@ def main():
     )
     print("[neutral-avatar] wrote", fbx_path)
 
-    if not args.keep_logo:
+    if not args.keep_logo and not mannequin:
         clothes_png = os.path.join(out_dir, name + ".fbm", os.path.splitext(args.clothes)[0] + "_diffuse.png")
         if os.path.isfile(clothes_png):
             remove_print_from_shirt(clothes_png)
 
     with open(os.path.join(out_dir, "GENERATED.md"), "w", encoding="utf-8") as f:
+        look = ("Style: mannequin (no face texture, no hair, no clothes; plain colour " + args.mannequin_color
+                + ", roughness " + repr(args.mannequin_roughness) + "; eyeballs " + args.eyes + ")") if mannequin else (
+                "Style: dressed. Skin: " + args.skin + ", hair: " + args.hair + ", clothes: " + args.clothes + " + " + args.shoes)
         f.write("# " + name + "\n\nGenerated by Tools/MakeHuman/generate_neutral_avatar.py with MakeHuman (MPFB2) in Blender "
-                + bpy.app.version_string + ".\n\nMacro settings: " + repr(macro) + "\n\nSkin: " + args.skin + ", hair: " + args.hair
-                + ", clothes: " + args.clothes + " + " + args.shoes + ", rig: " + args.rig + "\n\nMakeHuman base mesh and system assets are CC0.\n")
+                + bpy.app.version_string + ".\n\nMacro settings: " + repr(macro) + "\n\n" + look + ", rig: " + args.rig
+                + "\n\nMakeHuman base mesh and system assets are CC0.\n")
 
 
 if __name__ == "__main__":

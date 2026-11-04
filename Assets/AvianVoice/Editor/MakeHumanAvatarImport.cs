@@ -69,10 +69,19 @@ namespace AvianVoice.Editor
                 return;
 
             var name = material.name.ToLowerInvariant();
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", Color.white);
             if (material.HasProperty("_Metallic"))
                 material.SetFloat("_Metallic", 0f);
+
+            if (material.mainTexture == null)
+            {
+                // Mannequin style: no textures, the plain colour from the FBX stays; matte finish.
+                if (material.HasProperty("_Smoothness"))
+                    material.SetFloat("_Smoothness", 0.35f);
+                return;
+            }
+
+            if (material.HasProperty("_BaseColor"))
+                material.SetColor("_BaseColor", Color.white);
 
             var cutout = name.Contains("hair") || name.Contains("eyebrow") || name.Contains("eyelash");
             var eyes = name.Contains("eyes");
