@@ -8,7 +8,14 @@ namespace AvianVoice.Embodiment.Avatars
     /// <summary>
     /// Hides head / hair material slots of a skinned avatar for the first-person (headset) camera only,
     /// by swapping those slots to an invisible material right before that camera renders and restoring them
-    /// afterwards. Reflection cameras (mirror, pond) still render the full head.
+    /// afterwards. Reflection cameras (mirror, pond) still render the full head, so the face shows in the mirror.
+    ///
+    /// The Fragilem17 mirror renders its reflection inside the main camera's beginCameraRendering callback
+    /// (RenderSingleCamera, no camera events of its own), so the head must still be visible when that callback
+    /// runs. Delegates run in subscription order and the mirror re-subscribes whenever it is re-enabled (scene
+    /// changes), so this component re-subscribes every frame to stay last in the chain: the reflection is drawn
+    /// with the head, then the head is hidden, then the headset view renders. Nested cameras that do raise
+    /// events (SubmitRenderRequest mirrors, reflection probes) get the head back while they render.
     /// </summary>
     public class FirstPersonHeadHider : MonoBehaviour
     {
@@ -29,6 +36,11 @@ namespace AvianVoice.Embodiment.Avatars
         Material invisible;
         bool hooked;
         bool swapped;
+        bool firstPersonRendering;
+
+        /// <summary>True while the head slots are swapped to the invisible material (debug / tests).</summary>
+        public bool HeadHidden => swapped;
+        public int HiddenSlotCount => slots.Count;
 
         void OnEnable()
         {
@@ -36,6 +48,28 @@ namespace AvianVoice.Embodiment.Avatars
             if (slots.Count == 0 || invisible == null)
                 return;
 
+            Hook();
+        }
+
+        void OnDisable()
+        {
+            Unhook();
+            firstPersonRendering = false;
+            Swap(false);
+        }
+
+        void LateUpdate()
+        {
+            // Move to the end of the render-event chain, after any mirror that (re)subscribed this frame.
+            if (hooked)
+            {
+                Unhook();
+                Hook();
+            }
+        }
+
+        void Hook()
+        {
             RenderPipelineManager.beginCameraRendering += OnBeginCamera;
             RenderPipelineManager.endCameraRendering += OnEndCamera;
             Camera.onPreRender += OnLegacyCameraPreRender;
@@ -43,18 +77,15 @@ namespace AvianVoice.Embodiment.Avatars
             hooked = true;
         }
 
-        void OnDisable()
+        void Unhook()
         {
-            if (hooked)
-            {
-                RenderPipelineManager.beginCameraRendering -= OnBeginCamera;
-                RenderPipelineManager.endCameraRendering -= OnEndCamera;
-                Camera.onPreRender -= OnLegacyCameraPreRender;
-                Camera.onPostRender -= OnLegacyCameraPostRender;
-                hooked = false;
-            }
-
-            Swap(false);
+            if (!hooked)
+                return;
+            RenderPipelineManager.beginCameraRendering -= OnBeginCamera;
+            RenderPipelineManager.endCameraRendering -= OnEndCamera;
+            Camera.onPreRender -= OnLegacyCameraPreRender;
+            Camera.onPostRender -= OnLegacyCameraPostRender;
+            hooked = false;
         }
 
         void OnDestroy()
@@ -120,29 +151,48 @@ namespace AvianVoice.Embodiment.Avatars
             return cam.stereoEnabled || cam.CompareTag("MainCamera") || cam == Camera.main;
         }
 
-        void OnBeginCamera(ScriptableRenderContext context, Camera cam)
-        {
-            if (IsFirstPersonCamera(cam))
-                Swap(true);
-        }
+        void OnBeginCamera(ScriptableRenderContext context, Camera cam) => BeginCamera(cam);
 
-        void OnEndCamera(ScriptableRenderContext context, Camera cam)
-        {
-            if (swapped)
-                Swap(false);
-        }
+        void OnEndCamera(ScriptableRenderContext context, Camera cam) => EndCamera(cam);
 
         // Built-in pipeline only (named to avoid the MonoBehaviour OnPreRender/OnPostRender messages).
         void OnLegacyCameraPreRender(Camera cam)
         {
-            if (GraphicsSettings.currentRenderPipeline == null && IsFirstPersonCamera(cam))
-                Swap(true);
+            if (GraphicsSettings.currentRenderPipeline == null)
+                BeginCamera(cam);
         }
 
         void OnLegacyCameraPostRender(Camera cam)
         {
-            if (GraphicsSettings.currentRenderPipeline == null && swapped)
+            if (GraphicsSettings.currentRenderPipeline == null)
+                EndCamera(cam);
+        }
+
+        void BeginCamera(Camera cam)
+        {
+            if (IsFirstPersonCamera(cam))
+            {
+                firstPersonRendering = true;
+                Swap(true);
+            }
+            else if (firstPersonRendering)
+            {
+                // A camera rendering inside the first-person render (mirror via SubmitRenderRequest, probes): show the head.
                 Swap(false);
+            }
+        }
+
+        void EndCamera(Camera cam)
+        {
+            if (IsFirstPersonCamera(cam))
+            {
+                firstPersonRendering = false;
+                Swap(false);
+            }
+            else if (firstPersonRendering)
+            {
+                Swap(true);
+            }
         }
 
         void Swap(bool hide)

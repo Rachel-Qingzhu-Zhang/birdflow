@@ -123,6 +123,11 @@ FBX の単色をそのまま使用）。既定の `--style mannequin` は顔テ�
 （T シャツの MakeHuman ロゴは塗りつぶし、`--keep-logo` で残せます）。体型は `--gender 0.5 --cupsize 0 --height 0.5` などで
 変えられ、設定は出力先の `GENERATED.md` に残ります。
 
+**鏡と頭部**: HMD の一人称視点では人間アバターの頭部（頭・髪・まつ毛のマテリアル）を透明にして頭の内側が見えないようにし、
+鏡（Fragilem17 の反射カメラ）には顔ごと映します（`FirstPersonHeadHider`）。鏡はメインカメラの描画開始イベントの中で反射を
+描くため、頭部非表示は毎フレーム購読をやり直してイベントの最後に回り、「反射を顔つきで描く → 頭を消す → HMD 用に描く」の順を
+保証しています（場面切替で鏡が再有効化されても崩れません）。確認は Play 中に「Debug/Capture Game View」で Game ビューを保存。
+
 人間アバターは専用レイヤー **HumanAvatar (12)** に置かれます。鏡と池の反射用の補助ライト（鳥向けに強め）はこのレイヤーに
 当たらないため、白飛びしません。髪（`m002_opacity`）はアルファカットアウト、肌は smoothness 0.3 で再インポートされます
 （`Avian Voice → Embodiment → Reimport Human Avatar`）。
