@@ -173,11 +173,17 @@ namespace AvianVoice.Study
         [SerializeField]
         float gapAfterGuideSeconds = 0.3f;
 
-        [Tooltip("Maximum time the participant has to answer after the guide note.")]
+        [Tooltip("A trial lasts from one experimenter press to the next: no response window, no auto end after the voice " +
+                 "stops, and the next press is accepted at any time (also while the guide note is still playing). " +
+                 "Off = the trial ends by itself after Response Window Seconds / End After Voice Offset Seconds.")]
+        [SerializeField]
+        bool trialUntilNextPress = true;
+
+        [Tooltip("Only when Trial Until Next Press is off: maximum time the participant has to answer after the guide note.")]
         [SerializeField]
         float responseWindowSeconds = 5f;
 
-        [Tooltip("The trial ends this long after the participant's voice stops.")]
+        [Tooltip("Only when Trial Until Next Press is off: the trial ends this long after the participant's voice stops.")]
         [SerializeField]
         float endAfterVoiceOffsetSeconds = 1.0f;
 
@@ -231,6 +237,7 @@ namespace AvianVoice.Study
         float guideEndsAt;
         bool guideEndLogged;
         float responseEndsAt;
+        float trialStartedAt;
         bool voiceActive;
         float voicedRunStart = -1f;
         float unvoicedRunStart = -1f;
@@ -258,9 +265,24 @@ namespace AvianVoice.Study
         public TrialOrder Order => order;
         public int[] Schedule => schedule;
         public bool IsVoiceActive => voiceActive;
-        public float ResponseSecondsLeft => phase == TrialPhase.Response ? Mathf.Max(0f, responseEndsAt - Time.time) : 0f;
+        /// <summary>True when trials run from one press to the next (no automatic end).</summary>
+        public bool TrialUntilNextPress => trialUntilNextPress;
+        /// <summary>Seconds left in the response window; 0 when the trial waits for the next press.</summary>
+        public float ResponseSecondsLeft => phase == TrialPhase.Response && !trialUntilNextPress ? Mathf.Max(0f, responseEndsAt - Time.time) : 0f;
+        /// <summary>Seconds since the running trial started (the last press), 0 when idle.</summary>
+        public float CurrentTrialSeconds => current != null && (phase == TrialPhase.Guide || phase == TrialPhase.Response) ? Mathf.Max(0f, Time.time - trialStartedAt) : 0f;
         public float CurrentTargetHz => current != null ? current.targetHz : (schedule != null && nextSlot < schedule.Length ? pitchesHz[schedule[nextSlot]] : 0f);
         public string CurrentNoteName => CurrentTargetHz > 0f ? BirdSongPhrase.NoteName(CurrentTargetHz) : "";
+        /// <summary>Target of the trial the next press starts (the slot after the running one), 0 after the last.</summary>
+        public float NextTargetHz
+        {
+            get
+            {
+                var slot = phase == TrialPhase.Guide || phase == TrialPhase.Response ? nextSlot + 1 : nextSlot;
+                return schedule != null && slot < schedule.Length ? pitchesHz[schedule[slot]] : 0f;
+            }
+        }
+        public string NextNoteName => NextTargetHz > 0f ? BirdSongPhrase.NoteName(NextTargetHz) : "";
         public string RestTaskId => restTaskId;
 
         /// <summary>Change the protocol before the first trial (from the experimenter panel).</summary>
@@ -305,8 +327,11 @@ namespace AvianVoice.Study
         }
 
         /// <summary>
-        /// Experimenter button / Space: the teacher bird sings the next target and the response window opens.
-        /// Ignored while the guide is playing; during a response it ends that trial and starts the next one.
+        /// Experimenter button / Space: the teacher bird sings the next target and the participant answers.
+        /// With <see cref="TrialUntilNextPress"/> (default) every press closes the running trial, whatever its
+        /// phase, and opens the next one, so each trial spans exactly the interval between two presses; the press
+        /// after the last trial closes it and finishes the protocol. Otherwise a press is ignored while the guide
+        /// plays and ends a running response.
         /// </summary>
         public bool StartNextTrial(string source)
         {
@@ -315,9 +340,9 @@ namespace AvianVoice.Study
 
             Resolve();
             EnsureSchedule();
-            if (phase == TrialPhase.Guide)
+            if (phase == TrialPhase.Guide && !trialUntilNextPress)
                 return false;
-            if (phase == TrialPhase.Response)
+            if (phase == TrialPhase.Guide || phase == TrialPhase.Response)
                 EndCurrentTrial("experimenter_next");
             if (nextSlot >= schedule.Length)
             {
@@ -343,8 +368,9 @@ namespace AvianVoice.Study
                     .AddArray("schedule_pitch_index", schedule)
                     .Add("guide_s", guideSeconds)
                     .Add("gap_s", gapAfterGuideSeconds)
-                    .Add("response_window_s", responseWindowSeconds)
-                    .Add("end_after_offset_s", endAfterVoiceOffsetSeconds)
+                    .Add("trial_until_next_press", trialUntilNextPress)
+                    .Add("response_window_s", trialUntilNextPress ? -1.0 : responseWindowSeconds)
+                    .Add("end_after_offset_s", trialUntilNextPress ? -1.0 : endAfterVoiceOffsetSeconds)
                     .Add("tolerance_hz", toleranceHz));
             }
 
@@ -367,6 +393,7 @@ namespace AvianVoice.Study
 
             ResetResponseState();
             current.start = Now();
+            trialStartedAt = Time.time;
             mapper.SetFollowVoice(false);
             mapper.PlayGuideNote(hz, guideSeconds);
             current.guideStart = Now();
@@ -408,7 +435,7 @@ namespace AvianVoice.Study
         {
             var c = CultureInfo.InvariantCulture;
             return "phase=" + phase + " next=" + NextTrialNumber + "/" + TotalTrials + " done=" + CompletedTrials
-                   + " order=" + order + " pitches=" + string.Join("/", Array.ConvertAll(pitchesHz, p => p.ToString("0", c)))
+                   + " untilNextPress=" + trialUntilNextPress + " order=" + order + " pitches=" + string.Join("/", Array.ConvertAll(pitchesHz, p => p.ToString("0", c)))
                    + " voice=" + voiceActive + " last=" + (last != null ? last.Summary() : "-");
         }
 
@@ -504,11 +531,11 @@ namespace AvianVoice.Study
         {
             phase = TrialPhase.Response;
             current.responseStart = Now();
-            responseEndsAt = Time.time + responseWindowSeconds;
+            responseEndsAt = trialUntilNextPress ? float.PositiveInfinity : Time.time + responseWindowSeconds;
             if (participantVoiceAsBird)
                 BirdVoiceMapper.Find()?.SetFollowVoice(true);
             ShowCue("sing", current.targetHz);
-            recorder?.LogEvent("response_start", j => j.Add("trial", current.trial).Add("window_s", responseWindowSeconds));
+            recorder?.LogEvent("response_start", j => j.Add("trial", current.trial).Add("window_s", trialUntilNextPress ? -1.0 : responseWindowSeconds));
         }
 
         void UpdateResponse()
@@ -570,6 +597,9 @@ namespace AvianVoice.Study
                         .Add("t_offset_unity", offset.unity).Add("mic_sample_offset", offset.micSample));
                 }
             }
+
+            if (trialUntilNextPress)
+                return; // the trial ends with the next experimenter press (or EndTrialNow)
 
             if (!voiceActive && current.voiceOffset.IsSet && now - lastOffsetAt >= endAfterVoiceOffsetSeconds)
             {

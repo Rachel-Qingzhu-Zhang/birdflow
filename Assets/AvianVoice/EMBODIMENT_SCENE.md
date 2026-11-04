@@ -7,7 +7,8 @@
 3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間。人間は **男性 / 女性 / 中性** の 3 体から選べる
    （鳥との embodiment の差を、人間アバターの性別の影響と分けて調べるため）。
 4. **4 場面の実験フロー**: 鳥に会う → 呼吸 → 歌う → 休む（元の 6 場面のうち「飛ぶ」「仲間を呼ぶ」は使わない）。
-5. **歌う場面は試行形式**: 実験者がボタンを押す → 教師の鳥が 1 音歌う → 被験者が歌い返す。3 ピッチ × 20 回 = 60 試行。
+5. **歌う場面は試行形式**: 実験者がボタンを押す → 教師の鳥が 1 音歌う → 被験者が歌い返す → 実験者が次を押す。
+   1 試行 = ボタンを押してから次に押すまで（待ち時間なし）。3 ピッチ × 20 回 = 60 試行。
    60 回終わると自動で「休む」に移って終了。
 6. **記録**: 全イベントのタイムスタンプ、試行ごとの CSV、被験者マイク音声と提示音声の WAV をセッションごとに保存。
 
@@ -40,10 +41,17 @@ Play の前に **被験者 ID** をパネルで入力しておくと、記録フ
 1. 場面 3「歌う」に切り替える。被験者には「次の音を待ってください」と出ます。
 2. パネルの **「▶ 試行 n を開始 — 教師の鳥が E4 を歌う」** を押す（または Game ビューで Space）。
    教師の鳥が目標の音を約 0.9 秒歌い、0.3 秒おいて「今度は E4 を歌ってください」に変わります。
-3. 被験者が歌う。声の始まり（60 ms 以上有声）と終わり（250 ms 以上無声）を検出して記録し、
-   声が止まって 1 秒後に試行が終わります（最長 5 秒。声が無ければ `no_voice`）。応答中は自分の声が鳥の声として聞こえます。
-4. 「次の音を待ってください」に戻るので、次の試行を押す。応答中に押した場合はその試行を打ち切って次へ進みます。
-5. 60 回目が終わると「お疲れさまでした」と出て、3 秒後に自動で「休む」場面へ移ります。
+3. 被験者が歌う。声の始まり（60 ms 以上有声）と終わり（250 ms 以上無声）を検出して記録します
+   （複数回発声してもすべて残ります）。応答中は自分の声が鳥の声として聞こえます。
+4. 実験者が **次のボタン（「▶ 次の試行 n+1」/ Space）を押した瞬間に試行が終わり、次の試行が始まります**。
+   待ち時間はなく、教師の鳥が歌っている最中でも押せます（その場合は試行が短く記録されるだけです）。
+   つまり `trials.csv` の 1 行は「ボタンを押してから次に押すまで」の区間です（`t_start_*` 〜 `t_end_*`、
+   `end_reason = experimenter_next`）。「終了 (待機)」で試行を閉じて待機に戻すこともできます（`experimenter_end`）。
+5. 60 回目の試行の後にもう一度押すと（ボタンは「■ 最後の試行を終了 → 休む場面へ」になります）
+   「お疲れさまでした」と出て、3 秒後に自動で「休む」場面へ移ります。
+
+`SingingTrialTask` の **Trial Until Next Press** を外すと以前の動作（応答は最長 5 秒、声が止まって 1 秒で自動終了、
+教師の鳥が歌っている間はボタン無効）に戻ります。
 
 ピッチ（既定 E4 330 / G4 392 / B4 494 Hz）、各ピッチの回数、順序（ブロック / 交互 / ランダム）は最初の試行を始める前なら
 パネルか `TaskRoot` の `SingingTrialTask` で変えられます。教師の音は鳥の音域に移調されますが、被験者はどのオクターブで歌っても
@@ -87,7 +95,8 @@ Unity の音は **Windows の既定の再生デバイス**に出ます（ログ�
 `AvatarEmbodimentController` → `Human Avatars` に 3 体の id / 表示名 / Resources パスがあり、モデルが無い id はパネルに
 「未配置」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:female` のように id 付きで残ります。
 
-**中性アバターの生成**（一度だけ。Blender 4.2 以上 + MPFB2 拡張 + MakeHuman system assets が必要）
+**中性アバターの生成**（生成済みのものがリポジトリに入っています。作り直すときだけ。Blender 4.2 以上 + MPFB2 拡張 +
+MakeHuman system assets が必要。2026-11-04 に Blender 5.1.2 + MPFB2 2.0.18 で生成）
 
 1. Blender に MPFB2 を入れる: Edit → Preferences → Get Extensions →「MPFB」→ Install。
 2. https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip をダウンロード。
@@ -98,6 +107,7 @@ Unity の音は **Windows の既定の再生デバイス**に出ます（ログ�
 ```
 
 `Neutral_Adult_01.fbx` とテクスチャが書き出され、Unity が `MakeHumanAvatarImport.cs` で Humanoid として取り込みます。
+T シャツのテクスチャにある MakeHuman のロゴはスクリプトが塗りつぶします（`--keep-logo` で残せます）。
 体型・肌・髪・服はスクリプトの引数（`--gender 0.5 --cupsize 0 --skin young_asian_male.mhmat --hair short04.mhclo
 --clothes male_casualsuit06.mhclo` など）で変えられ、設定は出力先の `GENERATED.md` に残ります。
 
@@ -192,9 +202,10 @@ slider 0.5, no breasts, short hair, plain T-shirt and jeans, following Nag & Yal
 `Tools/MakeHuman/generate_neutral_avatar.py`. Toggle bird / human with **V** (keyboard) or the **left X** button.
 
 The study flow is four scenes (meet, breath, singing, rest). The singing scene is experimenter-paced: each
-press of the panel button (or Space) makes the teacher bird sing one of three target pitches and opens a
-response window in which the participant's voice onset / offset are detected; 3 pitches x 20 = 60 trials, then
-the session moves to the rest scene automatically. `StudyRecorder` writes `events.jsonl`, `trials.csv`,
+press of the panel button (or Space) makes the teacher bird sing one of three target pitches and the participant
+sings back; the participant's voice onset / offset are detected. A trial lasts from one press to the next (no
+wait, the button is always available), so each row of `trials.csv` is the interval between two presses; 3 pitches
+x 20 = 60 trials, and the press after the last one moves the session to the rest scene automatically. `StudyRecorder` writes `events.jsonl`, `trials.csv`,
 `mic.wav`, `output.wav` and per-trial microphone segments under `persistentDataPath/AvianStudy/<date>_<id>/`,
 every timestamp carrying wall clock, Unity time, DSP time and the microphone sample index.
 

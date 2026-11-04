@@ -19,6 +19,14 @@ namespace AvianVoice.Editor
         public const string HumanAvatarAssetPath =
             "Assets/AvianVoice/Resources/Avatars/Rocketbox/Male_Adult_01/Male_Adult_01.fbx";
 
+        /// <summary>All selectable human bodies (see AvatarEmbodimentController.humanAvatars).</summary>
+        public static readonly string[] HumanAvatarAssetPaths =
+        {
+            HumanAvatarAssetPath,
+            "Assets/AvianVoice/Resources/Avatars/Rocketbox/Female_Adult_01/Female_Adult_01.fbx",
+            "Assets/AvianVoice/Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx",
+        };
+
         const string ImportCheckSessionKey = "AvianVoice.Embodiment.AvatarImportChecked";
 
         /// <summary>Once per editor session: make sure the human avatar was imported as Humanoid.</summary>
@@ -186,8 +194,37 @@ namespace AvianVoice.Editor
         [MenuItem("Avian Voice/Embodiment/Debug/Inspect Human Avatar Materials")]
         public static void InspectHumanAvatarMaterials()
         {
-            var sb = new System.Text.StringBuilder("[AvianVoice] Human avatar materials:");
-            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(HumanAvatarAssetPath))
+            foreach (var path in HumanAvatarAssetPaths)
+                InspectHumanAvatarMaterials(path);
+        }
+
+        static void InspectHumanAvatarMaterials(string path)
+        {
+            if (AssetImporter.GetAtPath(path) == null)
+            {
+                Debug.Log("[AvianVoice] Human avatar not present: " + path);
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder("[AvianVoice] " + System.IO.Path.GetFileNameWithoutExtension(path) + ": " + DescribeAvatar(path));
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            var animator = model != null ? model.GetComponent<Animator>() : null;
+            if (animator != null && animator.avatar != null && animator.avatar.isHuman)
+            {
+                foreach (var bone in new[] { HumanBodyBones.Hips, HumanBodyBones.Chest, HumanBodyBones.UpperChest, HumanBodyBones.Neck, HumanBodyBones.Head, HumanBodyBones.LeftEye, HumanBodyBones.Jaw, HumanBodyBones.LeftHand, HumanBodyBones.LeftIndexDistal, HumanBodyBones.LeftFoot, HumanBodyBones.LeftToes })
+                {
+                    var t = animator.GetBoneTransform(bone);
+                    sb.Append(' ').Append(bone).Append('=').Append(t != null ? t.name : "-");
+                }
+            }
+
+            if (model != null)
+            {
+                foreach (var renderer in model.GetComponentsInChildren<Renderer>(true))
+                    sb.Append(" | ").Append(renderer.name).Append(" bounds=").Append(renderer.bounds.size).Append(" mats=").Append(string.Join("+", renderer.sharedMaterials.Select(m => m != null ? m.name : "null")));
+            }
+
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
             {
                 if (asset is not Material material)
                     continue;
@@ -241,8 +278,13 @@ namespace AvianVoice.Editor
         [MenuItem("Avian Voice/Embodiment/Reimport Human Avatar (Humanoid)")]
         public static void ReimportHumanAvatar()
         {
-            AssetDatabase.ImportAsset(HumanAvatarAssetPath, ImportAssetOptions.ForceUpdate);
-            Debug.Log("[AvianVoice] Human avatar: " + DescribeAvatar());
+            foreach (var path in HumanAvatarAssetPaths)
+            {
+                if (AssetImporter.GetAtPath(path) == null)
+                    continue;
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                Debug.Log("[AvianVoice] Human avatar: " + DescribeAvatar(path));
+            }
         }
 
         [MenuItem("Avian Voice/Embodiment/Configure Everything")]
@@ -328,11 +370,13 @@ namespace AvianVoice.Editor
                 .FirstOrDefault(t => t != null);
         }
 
-        static string DescribeAvatar()
+        static string DescribeAvatar() => DescribeAvatar(HumanAvatarAssetPath);
+
+        static string DescribeAvatar(string path)
         {
-            var avatar = AssetDatabase.LoadAllAssetsAtPath(HumanAvatarAssetPath).OfType<Avatar>().FirstOrDefault();
+            var avatar = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Avatar>().FirstOrDefault();
             if (avatar == null)
-                return "no Avatar sub-asset at " + HumanAvatarAssetPath;
+                return "no Avatar sub-asset at " + path;
             return avatar.name + " isHuman=" + avatar.isHuman + " isValid=" + avatar.isValid;
         }
 

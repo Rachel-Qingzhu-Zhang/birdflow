@@ -225,7 +225,7 @@ namespace AvianVoice.Editor
             EditorGUILayout.LabelField("歌う場面の試行 / Singing trials", EditorStyles.boldLabel);
             if (!playing)
             {
-                EditorGUILayout.HelpBox("Play 中、歌う場面で「試行を開始」を押すと教師の鳥が歌い、被験者の発声を待ちます。3 ピッチ × 20 回 = 60 回で休む場面へ移ります。", MessageType.None);
+                EditorGUILayout.HelpBox("Play 中、歌う場面で「試行を開始」を押すと教師の鳥が歌い、被験者が続いて発声します。1 試行 = ボタンを押してから次に押すまで（待ち時間なし、いつでも押せます）。3 ピッチ × 20 回 = 60 回のあと、もう一度押すと最後の試行を閉じて休む場面へ移ります。", MessageType.None);
                 return;
             }
 
@@ -298,6 +298,29 @@ namespace AvianVoice.Editor
                                     + trials.CurrentNoteName + " (" + hz.ToString("0", c) + " Hz) を歌う   [Space]";
                         if (GUILayout.Button(label, bigButton, GUILayout.Height(44f)))
                             trials.StartNextTrial("experimenter_panel");
+                        break;
+                    }
+                    case TrialPhase.Guide when trials.TrialUntilNextPress:
+                    case TrialPhase.Response when trials.TrialUntilNextPress:
+                    {
+                        // One trial = from this press to the next: the button is always available.
+                        var running = trials.Current != null ? trials.Current.trial : 0;
+                        var state = trials.Phase == TrialPhase.Guide ? "教師の鳥が歌っています"
+                            : trials.IsVoiceActive ? "被験者が発声中" : trials.Current != null && trials.Current.HadVoice ? "発声終了" : "被験者の発声待ち";
+                        EditorGUILayout.LabelField("試行 " + running + " / " + total + " 進行中: " + state
+                                                   + "   経過 " + trials.CurrentTrialSeconds.ToString("0.0", c) + " s");
+                        var isLast = running >= total;
+                        var label = isLast
+                            ? "■ 最後の試行を終了 → 休む場面へ   [Space]"
+                            : "▶ 次の試行 " + (running + 1) + " / " + total + " — 教師の鳥が " + trials.NextNoteName + " (" + trials.NextTargetHz.ToString("0", c) + " Hz)   [Space]";
+                        using (new EditorGUILayout.HorizontalScope())
+                        {
+                            if (GUILayout.Button(label, bigButton, GUILayout.Height(44f)))
+                                trials.StartNextTrial("experimenter_panel");
+                            if (GUILayout.Button("終了 (待機)", GUILayout.Height(44f), GUILayout.Width(90f)))
+                                trials.EndTrialNow("experimenter_panel");
+                        }
+
                         break;
                     }
                     case TrialPhase.Guide:
