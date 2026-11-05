@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace AvianVoice.BodyTracking
@@ -20,10 +21,11 @@ namespace AvianVoice.BodyTracking
         void RequestPermissions();
 
         /// <summary>
-        /// Drive a Unity Humanoid rig from the tracked skeleton. The animator must be in T-pose when
-        /// this is called. Returns null when the backend cannot retarget.
+        /// Drive a Unity Humanoid rig from the tracked skeleton. <paramref name="beforeRestPoseCapture"/> is
+        /// invoked right before the backend records the rig's rest pose (it must put the rig into T-pose).
+        /// Returns null when the backend cannot retarget.
         /// </summary>
-        IHumanoidRetargetingHandle AttachHumanoidRetargeting(Animator humanoid);
+        IHumanoidRetargetingHandle AttachHumanoidRetargeting(Animator humanoid, Action beforeRestPoseCapture);
     }
 
     public interface IHumanoidRetargetingHandle
@@ -31,7 +33,17 @@ namespace AvianVoice.BodyTracking
         /// <summary>True when tracked data is currently being written to the humanoid bones.</summary>
         bool IsDriving { get; }
 
+        /// <summary>True while the tracker delivers body data, whether or not it is being applied.</summary>
+        bool HasTrackingData { get; }
+
+        /// <summary>Start / stop the tracker and the retargeting together.</summary>
         void SetEnabled(bool enabled);
+
+        /// <summary>
+        /// Pause / resume writing to the bones without stopping the tracker. While paused the owner poses the
+        /// rig itself (fallback pose); the SDK would otherwise keep writing stale joints.
+        /// </summary>
+        void SetRetargetingActive(bool active);
 
         void Dispose();
     }

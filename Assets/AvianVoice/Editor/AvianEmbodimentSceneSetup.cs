@@ -17,14 +17,12 @@ namespace AvianVoice.Editor
     {
         public const string ScenePath = "Assets/AvianVoice/Scenes/Avian_Lab_Embodiment.unity";
         public const string HumanAvatarAssetPath =
-            "Assets/AvianVoice/Resources/Avatars/Rocketbox/Male_Adult_01/Male_Adult_01.fbx";
+            "Assets/AvianVoice/Resources/Avatars/UnityArmature/Armature.fbx";
 
         /// <summary>All selectable human bodies (see AvatarEmbodimentController.humanAvatars).</summary>
         public static readonly string[] HumanAvatarAssetPaths =
         {
             HumanAvatarAssetPath,
-            "Assets/AvianVoice/Resources/Avatars/Rocketbox/Female_Adult_01/Female_Adult_01.fbx",
-            "Assets/AvianVoice/Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx",
         };
 
         const string ImportCheckSessionKey = "AvianVoice.Embodiment.AvatarImportChecked";
@@ -51,6 +49,32 @@ namespace AvianVoice.Editor
 
                 Debug.Log("[AvianVoice] Human avatar import: " + DescribeAvatar());
             };
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Condition/Bird + bird voice (Play Mode)")]
+        public static void ConditionBirdVoice() => SetCondition(AvatarKind.Bird, true);
+
+        [MenuItem("Avian Voice/Embodiment/Condition/Bird + own voice only (Play Mode)")]
+        public static void ConditionBirdOwn() => SetCondition(AvatarKind.Bird, false);
+
+        [MenuItem("Avian Voice/Embodiment/Condition/Human + human voice (Play Mode)")]
+        public static void ConditionHumanVoice() => SetCondition(AvatarKind.Human, true);
+
+        [MenuItem("Avian Voice/Embodiment/Condition/Human + own voice only (Play Mode)")]
+        public static void ConditionHumanOwn() => SetCondition(AvatarKind.Human, false);
+
+        /// <summary>Same as the Condition buttons of the experimenter panel (avatar x voice feedback).</summary>
+        static void SetCondition(AvatarKind kind, bool convertedVoice)
+        {
+            var flow = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.StudyFlowController>();
+            if (flow == null)
+            {
+                Debug.LogWarning("[AvianVoice] No StudyFlowController (enter Play mode in Avian_Lab_Embodiment first).");
+                return;
+            }
+
+            flow.SetCondition(kind, convertedVoice);
+            Debug.Log("[AvianVoice] Condition set from the menu: " + flow.ConditionLabel);
         }
 
         [MenuItem("Avian Voice/Embodiment/Log Avatar State (Play Mode)")]
@@ -168,6 +192,20 @@ namespace AvianVoice.Editor
         public static void DebugReplayGuideNote()
         {
             ReplayGuideNote();
+        }
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Play Human Voice Test Note (Play Mode)")]
+        public static void DebugPlayHumanVoiceNote()
+        {
+            var mapper = AvianVoice.Audio.BirdVoiceMapper.Find();
+            if (mapper == null)
+            {
+                Debug.LogWarning("[AvianVoice] No BirdVoiceMapper (enter Play mode first).");
+                return;
+            }
+
+            mapper.PlayGuideNote(330f, 1.5f, AvianVoice.Core.VoiceFeedback.Human);
+            Debug.Log("[AvianVoice] Human voice test note: E4 (330 Hz) for 1.5 s through HumanVoiceSynth.");
         }
 
         /// <summary>Same as the participant pressing Space / R: the teacher bird sings the current note again.</summary>

@@ -6,6 +6,17 @@ namespace AvianVoice.Core
         Transform
     }
 
+    /// <summary>
+    /// What the participant hears of their own voice: bird chirps (bird avatar), a sung human vowel
+    /// (human avatar), or nothing (only their natural voice).
+    /// </summary>
+    public enum VoiceFeedback
+    {
+        Bird,
+        Human,
+        None
+    }
+
     public struct VoiceFrame
     {
         public float pitchHz;

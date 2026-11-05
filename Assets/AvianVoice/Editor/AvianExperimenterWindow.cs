@@ -16,7 +16,7 @@ namespace AvianVoice.Editor
 {
     /// <summary>
     /// Experimenter panel (PC side). While the participant wears the headset, the experimenter drives the
-    /// study from here: scene (task) transitions, the singing trials (3 pitches x 20), bird / human avatar,
+    /// study from here: scene (task) transitions, the singing trials (3 pitches x 10), bird / human avatar,
     /// participant input policy, recording status. Menu: Avian Voice / Experimenter Panel.
     /// The panel is in English; the participant-facing text in the headset stays bilingual (AvianUiCopy).
     /// </summary>
@@ -35,7 +35,7 @@ namespace AvianVoice.Editor
             { "reflection", "Rest" }
         };
 
-        static readonly string[] OrderLabels = { "Blocked (A×20 → B×20 → C×20)", "Alternating (A B C A B C …)", "Random (20 each)" };
+        static readonly string[] OrderLabels = { "Blocked (A×10 → B×10 → C×10)", "Alternating (A B C A B C …)", "Random (10 each)" };
 
         double nextRepaint;
         Vector2 scroll;
@@ -94,6 +94,7 @@ namespace AvianVoice.Editor
             var controller = playing ? FindAnyObjectByType<AvatarEmbodimentController>() : null;
             var trials = playing ? FindAnyObjectByType<SingingTrialTask>(FindObjectsInactive.Include) : null;
             var recorder = playing ? StudyRecorder.Instance : null;
+            var flow = playing ? FindAnyObjectByType<StudyFlowController>() : null;
 
             DrawStatusSection(playing, taskManager, controller);
             EditorGUILayout.Space(8f);
@@ -103,7 +104,7 @@ namespace AvianVoice.Editor
             EditorGUILayout.Space(8f);
             DrawRecordingSection(playing, recorder);
             EditorGUILayout.Space(8f);
-            DrawAvatarSection(playing, controller);
+            DrawConditionSection(playing, controller, flow);
             EditorGUILayout.Space(8f);
             DrawParticipantSection(playing, controller);
             EditorGUILayout.EndScrollView();
@@ -177,7 +178,10 @@ namespace AvianVoice.Editor
                 : controller.Backend == null ? "none (no backend)"
                 : !controller.Backend.IsRunning ? "none (tracker not running)"
                 : "none (waiting for data: is the headset worn?)";
-            EditorGUILayout.LabelField("Avatar", controller.Current == AvatarKind.Bird ? "Bird" : "Human");
+            EditorGUILayout.LabelField("Avatar", controller.Current == AvatarKind.Bird ? "Bird" : "Human (" + controller.HumanAvatarId + ")");
+            var flowForStatus = FindAnyObjectByType<StudyFlowController>();
+            if (flowForStatus != null)
+                EditorGUILayout.LabelField("Condition", flowForStatus.ConditionLabel + "   (the participant's voice is heard as: " + flowForStatus.EffectiveFeedbackName + ")");
             EditorGUILayout.LabelField("Body tracking", tracking);
             EditorGUILayout.LabelField("Participant controllers", ParticipantInputPolicy.ControllersEnabled ? "enabled" : "disabled (hands, head and voice only)");
 
@@ -299,7 +303,7 @@ namespace AvianVoice.Editor
             EditorGUILayout.LabelField("Singing trials", EditorStyles.boldLabel);
             if (!playing)
             {
-                EditorGUILayout.HelpBox("In Play mode, in the Singing scene, press \"Start trial\": the teacher bird sings and the participant sings back. One trial = from one press to the next (no waiting; the button is always available). After 3 pitches × 20 = 60 trials, one more press closes the last trial and moves on to the Rest scene.", MessageType.None);
+                EditorGUILayout.HelpBox("In Play mode, in the Singing scene, press \"Start trial\": the teacher bird sings and the participant sings back. One trial = from one press to the next (no waiting; the button is always available). After 3 pitches × 10 = 30 trials, one more press closes the last trial and moves on to the Rest scene.", MessageType.None);
                 return;
             }
 
@@ -474,45 +478,63 @@ namespace AvianVoice.Editor
             }
         }
 
-        void DrawAvatarSection(bool playing, AvatarEmbodimentController controller)
+        void DrawConditionSection(bool playing, AvatarEmbodimentController controller, StudyFlowController flow)
         {
-            EditorGUILayout.LabelField("Avatar", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Condition (avatar × voice feedback)", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!playing || controller == null))
             {
-                using (new EditorGUILayout.HorizontalScope())
+                var humanAvailable = controller != null && controller.HasHumanAvatar(controller.HumanAvatarId);
+                DrawConditionRow(controller, flow, AvatarKind.Bird, "Bird + bird voice", "Bird + own voice only", true);
+                DrawConditionRow(controller, flow, AvatarKind.Human, "Human + human voice", "Human + own voice only", humanAvailable);
+
+                var options = controller != null ? controller.HumanAvatars : null;
+                if (options != null && options.Length > 1)
                 {
-                    var isBird = controller != null && controller.Current == AvatarKind.Bird;
-                    using (new EditorGUI.DisabledScope(isBird))
+                    var names = new string[options.Length];
+                    var index = 0;
+                    for (var i = 0; i < options.Length; i++)
                     {
-                        if (GUILayout.Button((isBird ? "● " : "") + "Bird", GUILayout.Height(30f)))
-                            controller.SetAvatar(AvatarKind.Bird);
+                        names[i] = options[i].label + (controller.HasHumanAvatar(options[i].id) ? "" : " (missing)");
+                        if (options[i].id == controller.HumanAvatarId)
+                            index = i;
                     }
 
-                    var options = controller != null ? controller.HumanAvatars : null;
-                    if (options != null)
-                    {
-                        foreach (var option in options)
-                        {
-                            if (option == null)
-                                continue;
+                    var chosen = EditorGUILayout.Popup("Human body", index, names);
+                    if (chosen != index)
+                        controller.SetHumanAvatar(options[chosen].id);
+                }
+            }
 
-                            var available = controller.HasHumanAvatar(option.id);
-                            var active = controller.Current == AvatarKind.Human && controller.HumanAvatarId == option.id;
-                            var label = (active ? "● " : "") + "Human (" + option.label + ")" + (available ? "" : " missing");
-                            using (new EditorGUI.DisabledScope(active || !available))
-                            {
-                                if (GUILayout.Button(label, GUILayout.Height(30f)))
-                                {
-                                    controller.SetHumanAvatar(option.id);
-                                    controller.SetAvatar(AvatarKind.Human);
-                                }
-                            }
+            EditorGUILayout.LabelField(
+                "Converted voice = the participant's own voice heard as the avatar's voice (bird chirps / sung human vowel). " +
+                "Own voice only = nothing from the app. The teacher bird sings the guide note in every condition. " +
+                "Keyboard: V = bird ⇄ human (keeps the voice setting). \"missing\" = model not found in Resources.",
+                EditorStyles.wordWrappedMiniLabel);
+        }
+
+        void DrawConditionRow(AvatarEmbodimentController controller, StudyFlowController flow, AvatarKind kind,
+            string labelConverted, string labelOwn, bool available)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                for (var i = 0; i < 2; i++)
+                {
+                    var converted = i == 0;
+                    var active = controller != null && controller.Current == kind
+                                 && (flow == null ? converted : flow.VoiceFeedbackOn == converted);
+                    var label = (active ? "● " : "") + (converted ? labelConverted : labelOwn) + (available ? "" : "  (model missing)");
+                    using (new EditorGUI.DisabledScope(active || !available))
+                    {
+                        if (GUILayout.Button(label, GUILayout.Height(30f)))
+                        {
+                            if (flow != null)
+                                flow.SetCondition(kind, converted);
+                            else if (controller != null)
+                                controller.SetAvatar(kind);
                         }
                     }
                 }
             }
-
-            EditorGUILayout.LabelField("Keyboard: V = bird ⇄ human (the selected human model). \"missing\" = model not found in Resources.", EditorStyles.miniLabel);
         }
 
         void DrawParticipantSection(bool playing, AvatarEmbodimentController controller)

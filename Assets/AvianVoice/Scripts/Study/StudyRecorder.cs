@@ -241,6 +241,9 @@ namespace AvianVoice.Study
         public string ParticipantId { get; private set; } = "";
         public string CurrentTaskId { get; private set; } = "";
         public string CurrentAvatar { get; set; } = "";
+
+        /// <summary>"bird" / "human" / "none": what the participant hears of their own voice (set by StudyFlowController).</summary>
+        public string CurrentVoiceFeedback { get; set; } = "";
         public bool WriteTrialSegments => writeTrialSegments;
         public bool MicrophoneRecording => micWav != null && micWav.IsOpen;
         public bool OutputRecording => outWav != null && outWav.IsOpen;
@@ -429,7 +432,8 @@ namespace AvianVoice.Study
                 .Add("mic_sample", t.micSample)
                 .Add("out_frame", t.outFrame)
                 .Add("task", CurrentTaskId)
-                .Add("avatar", CurrentAvatar);
+                .Add("avatar", CurrentAvatar)
+                .Add("voice_feedback", CurrentVoiceFeedback);
             fill?.Invoke(j);
             events.WriteLine(j.ToString());
         }

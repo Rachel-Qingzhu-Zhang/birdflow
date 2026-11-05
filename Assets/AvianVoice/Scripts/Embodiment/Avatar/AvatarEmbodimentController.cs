@@ -28,21 +28,29 @@ namespace AvianVoice.Embodiment.Avatars
         AvatarKind startAvatar = AvatarKind.Bird;
 
         [Tooltip("Human avatars the experimenter can choose from (Resources paths of Humanoid-rigged models, no extension). " +
-                 "Missing models are reported and skipped.")]
+                 "One gender-neutral mannequin by default: the Unity Starter Assets robot that Meta uses as the stylized " +
+                 "body of its body-tracking samples. Missing models are reported and skipped.")]
         [SerializeField]
         HumanAvatarOption[] humanAvatars =
         {
-            new() { id = "male", label = "male", labelJa = "男性", resourcePath = "Avatars/Rocketbox/Male_Adult_01/Male_Adult_01" },
-            new() { id = "female", label = "female", labelJa = "女性", resourcePath = "Avatars/Rocketbox/Female_Adult_01/Female_Adult_01" },
-            new() { id = "neutral", label = "mannequin", labelJa = "マネキン", resourcePath = "Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01" }
+            new()
+            {
+                id = "neutral", label = "mannequin", labelJa = "マネキン",
+                resourcePath = "Avatars/UnityArmature/Armature",
+                eyeOffsetFromHeadBone = new Vector3(0f, 0.09f, 0.11f)
+            }
         };
 
         [Tooltip("Which human avatar is shown first when switching to Human.")]
         [SerializeField]
-        string startHumanAvatarId = "male";
+        string startHumanAvatarId = "neutral";
 
         [SerializeField]
         bool hideHumanHeadInFirstPerson = true;
+
+        [Tooltip("Hide the bird's own head (head bone, beak, eyes) for the headset camera; it still shows in the mirror.")]
+        [SerializeField]
+        bool hideBirdHeadInFirstPerson = true;
 
         [Tooltip("Layer for the human avatar. HumanAvatar (12) is rendered by every camera, shows in the mirror and " +
                  "pond reflections, and is skipped by the bird-tuned reflection fill lights that otherwise wash it out.")]
@@ -83,6 +91,9 @@ namespace AvianVoice.Embodiment.Avatars
             public string label = "";
             public string labelJa = "";
             public string resourcePath = "";
+
+            [Tooltip("Eye point relative to the Humanoid head bone in the avatar root frame (meters, T-pose): where the headset camera sits.")]
+            public Vector3 eyeOffsetFromHeadBone = new(0f, 0.07f, 0.09f);
         }
 
         sealed class HumanInstance
@@ -180,6 +191,7 @@ namespace AvianVoice.Embodiment.Avatars
             if (humanRoot != null)
                 sb.Append(" humanActive=").Append(humanRoot.activeSelf).Append(" humanPos=").Append(humanRoot.transform.position.ToString("F2"))
                   .Append(" humanTracked=").Append(humanDriver != null && humanDriver.IsTracked)
+                  .Append(" human[").Append(humanDriver != null ? humanDriver.Describe() : "").Append(']')
                   .Append(" humanLayer=").Append(humanRoot.layer);
             var handVisuals = GetComponent<ParticipantHandVisuals>();
             sb.Append(" controllers=").Append(Core.ParticipantInputPolicy.ControllersEnabled)
@@ -570,6 +582,9 @@ namespace AvianVoice.Embodiment.Avatars
                 birdDriver = birdRoot.gameObject.AddComponent<BirdFirstPersonDriver>();
             birdDriver.Configure(this);
             birdDriver.enabled = false;
+
+            if (hideBirdHeadInFirstPerson && birdRoot.GetComponent<FirstPersonHeadHider>() == null)
+                birdRoot.gameObject.AddComponent<FirstPersonHeadHider>();
         }
 
         /// <summary>Make the instance for this id the active human body (instantiating it on first use).</summary>
@@ -623,7 +638,7 @@ namespace AvianVoice.Embodiment.Avatars
                 SetLayerRecursive(root, humanAvatarLayer);
 
             var driver = root.AddComponent<HumanFirstPersonDriver>();
-            driver.Configure(this, Backend, hideHumanHeadInFirstPerson);
+            driver.Configure(this, Backend, hideHumanHeadInFirstPerson, option.eyeOffsetFromHeadBone);
             driver.enabled = false;
 
             var instance = new HumanInstance { option = option, root = root, driver = driver };

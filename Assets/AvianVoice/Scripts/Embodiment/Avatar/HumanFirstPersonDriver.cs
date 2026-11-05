@@ -5,19 +5,38 @@ namespace AvianVoice.Embodiment.Avatars
 {
     /// <summary>
     /// First-person human avatar. With body tracking the backend retargets the tracked skeleton onto the
-    /// Humanoid rig and this driver places the avatar root at the tracking-space origin, so the avatar head
-    /// coincides with the headset. Without body tracking the avatar stands with arms down, head on the camera.
+    /// Humanoid rig (rotations, plus the hips position; the avatar keeps its own proportions) and this driver
+    /// places the avatar root at the tracking-space origin and then shifts the whole body so the avatar's
+    /// eyes sit on the headset. Without body tracking the avatar stands with arms down, head on the camera.
+    ///
+    /// The retargeter takes one snapshot of the rig's T-pose when it starts; this driver re-poses the rig
+    /// into T-pose right before that (muscle-space neutral pose) and never writes bones while the retargeter
+    /// is driving them. When tracking data stops, retargeting is paused (the SDK would keep writing stale
+    /// joints) and the fallback pose takes over.
     /// </summary>
     [DefaultExecutionOrder(31000)]
     public class HumanFirstPersonDriver : MonoBehaviour
     {
-        [Tooltip("Eye point relative to the head bone in the avatar root frame (meters). Used without body tracking.")]
+        [Tooltip("Eye point relative to the head bone in the avatar root frame (meters), measured in T-pose.")]
         [SerializeField]
         Vector3 eyeOffsetFromHeadBone = new(0f, 0.07f, 0.09f);
 
         [Tooltip("Humanoid muscle value for Arm Down-Up without body tracking (-1 = arms at the sides).")]
         [SerializeField]
         float fallbackArmDownUp = -0.9f;
+
+        [Tooltip("With body tracking: shift the whole avatar so its eyes sit on the headset (the tracked hips keep the " +
+                 "avatar's own proportions, so its head would otherwise sit at the avatar's height, not the user's).")]
+        [SerializeField]
+        bool alignEyesToCameraWhileTracked = true;
+
+        [Tooltip("How much of the horizontal part of that shift to apply (1 = eyes exactly on the camera, 0 = vertical only).")]
+        [SerializeField, Range(0f, 1f)]
+        float trackedEyeHorizontalWeight = 1f;
+
+        [Tooltip("Pause retargeting (and use the fallback pose) when no tracking data arrived for this long.")]
+        [SerializeField]
+        float noDataPauseSeconds = 0.5f;
 
         AvatarEmbodimentController controller;
         IHumanoidRetargetingHandle handle;
@@ -33,14 +52,28 @@ namespace AvianVoice.Embodiment.Avatars
         int leftArmMuscle = -1;
         int rightArmMuscle = -1;
         bool trackedLastFrame;
+        bool retargetingActive = true;
+        float noDataSince = -1f;
+        int restPoseCount;
 
+        /// <summary>Tracked joints are being applied and the tracking space is solved.</summary>
         public bool IsTracked =>
             handle != null && handle.IsDriving && controller != null && controller.TrackingToWorldValid;
 
-        public void Configure(AvatarEmbodimentController owner, IBodyTrackingBackend backend, bool hideHead)
+        /// <summary>The SDK writes the bones (tracking data present), even if the world alignment is not solved yet.</summary>
+        public bool IsRetargeting => handle != null && handle.IsDriving;
+
+        public bool RetargetingPaused => handle != null && !retargetingActive;
+
+        /// <summary>Distance between the avatar's eye point and the camera after this frame's placement (diagnostics).</summary>
+        public float EyeError { get; private set; }
+
+        public void Configure(AvatarEmbodimentController owner, IBodyTrackingBackend backend, bool hideHead, Vector3? eyeOffset = null)
         {
             controller = owner;
             animator = GetComponent<Animator>();
+            if (eyeOffset.HasValue)
+                eyeOffsetFromHeadBone = eyeOffset.Value;
 
             if (animator != null && animator.avatar != null && animator.avatar.isHuman)
             {
@@ -52,16 +85,25 @@ namespace AvianVoice.Embodiment.Avatars
                 CaptureRest();
 
                 if (backend != null)
-                    handle = backend.AttachHumanoidRetargeting(animator);
+                    handle = backend.AttachHumanoidRetargeting(animator, ForceTPose);
             }
 
             if (hideHead && GetComponent<FirstPersonHeadHider>() == null)
                 gameObject.AddComponent<FirstPersonHeadHider>();
         }
 
+        public string Describe()
+        {
+            return "retargeting=" + (handle == null ? "none" : handle.IsDriving ? "driving" : handle.HasTrackingData ? "data" : "no data")
+                   + (RetargetingPaused ? " (paused)" : "")
+                   + " tracked=" + IsTracked + " eyeErr=" + EyeError.ToString("0.00") + " tposes=" + restPoseCount;
+        }
+
         void OnEnable()
         {
             Application.onBeforeRender += OnBeforeRender;
+            retargetingActive = true;
+            noDataSince = -1f;
             handle?.SetEnabled(true);
         }
 
@@ -85,14 +127,27 @@ namespace AvianVoice.Embodiment.Avatars
             if (cam == null)
                 return;
 
+            UpdateRetargetingGate();
+
             if (IsTracked)
             {
                 PlaceAtTrackingOrigin();
+                if (alignEyesToCameraWhileTracked)
+                    AlignEyeToCamera(cam);
                 trackedLastFrame = true;
                 return;
             }
 
             trackedLastFrame = false;
+            if (IsRetargeting)
+            {
+                // The SDK poses the body but the tracking-space solution is not there yet: do not touch bones,
+                // stand in the shared tracking space and put the eyes on the camera.
+                PlaceInSharedTrackingSpace();
+                AlignEyeToCamera(cam);
+                return;
+            }
+
             ApplyFallbackPose();
             AlignHeadToCamera(cam);
         }
@@ -107,15 +162,76 @@ namespace AvianVoice.Embodiment.Avatars
                 return;
 
             if (trackedLastFrame && IsTracked)
+            {
                 PlaceAtTrackingOrigin();
+                if (alignEyesToCameraWhileTracked)
+                    AlignEyeToCamera(cam);
+            }
+            else if (IsRetargeting)
+            {
+                AlignEyeToCamera(cam);
+            }
             else
+            {
                 AlignHeadToCamera(cam);
+            }
+        }
+
+        /// <summary>Pause the SDK retargeter while no tracking data arrives (it would keep writing stale joints).</summary>
+        void UpdateRetargetingGate()
+        {
+            if (handle == null)
+                return;
+
+            if (handle.HasTrackingData)
+            {
+                noDataSince = -1f;
+                if (!retargetingActive)
+                {
+                    retargetingActive = true;
+                    handle.SetRetargetingActive(true);
+                }
+                return;
+            }
+
+            if (noDataSince < 0f)
+                noDataSince = Time.unscaledTime;
+            if (retargetingActive && Time.unscaledTime - noDataSince >= noDataPauseSeconds)
+            {
+                retargetingActive = false;
+                handle.SetRetargetingActive(false);
+            }
         }
 
         void PlaceAtTrackingOrigin()
         {
             var pose = controller.TrackingToWorld;
             transform.SetPositionAndRotation(pose.position, pose.rotation);
+        }
+
+        void PlaceInSharedTrackingSpace()
+        {
+            var space = controller.TrackingSpace;
+            if (space != null)
+                transform.SetPositionAndRotation(space.position, space.rotation);
+        }
+
+        /// <summary>Shift the whole avatar (bones untouched) so its eye point sits on the camera.</summary>
+        void AlignEyeToCamera(Camera cam)
+        {
+            if (headBone == null || !restCaptured)
+                return;
+
+            var eyeWorld = headBone.TransformPoint(eyeOffsetInHead);
+            var delta = cam.transform.position - eyeWorld;
+            EyeError = delta.magnitude;
+            if (trackedEyeHorizontalWeight < 1f)
+            {
+                var horizontal = new Vector3(delta.x, 0f, delta.z) * trackedEyeHorizontalWeight;
+                delta = Vector3.up * delta.y + horizontal;
+            }
+
+            transform.position += delta;
         }
 
         void AlignHeadToCamera(Camera cam)
@@ -133,9 +249,15 @@ namespace AvianVoice.Embodiment.Avatars
 
             headBone.rotation = camTransform.rotation * headLocalFromRoot;
             var eyeWorld = headBone.TransformPoint(eyeOffsetInHead);
-            transform.position += camTransform.position - eyeWorld;
+            var delta = camTransform.position - eyeWorld;
+            EyeError = 0f;
+            transform.position += delta;
         }
 
+        /// <summary>
+        /// Unity's muscle-space neutral pose (all muscles 0): the Humanoid T-pose with arms horizontal, legs
+        /// straight, fingers flat. This is what the retargeter must see when it records the rig.
+        /// </summary>
         void ForceTPose()
         {
             if (poseHandler == null)
@@ -148,9 +270,19 @@ namespace AvianVoice.Embodiment.Avatars
                     humanPose.muscles[i] = 0f;
             }
 
-            tPoseBodyPosition = humanPose.bodyPosition;
-            tPoseBodyRotation = humanPose.bodyRotation;
+            if (restPoseCount == 0)
+            {
+                tPoseBodyPosition = humanPose.bodyPosition;
+                tPoseBodyRotation = humanPose.bodyRotation;
+            }
+            else
+            {
+                humanPose.bodyPosition = tPoseBodyPosition;
+                humanPose.bodyRotation = tPoseBodyRotation;
+            }
+
             poseHandler.SetHumanPose(ref humanPose);
+            restPoseCount++;
         }
 
         void ApplyFallbackPose()

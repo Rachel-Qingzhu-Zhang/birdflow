@@ -6,6 +6,7 @@ using System.Text;
 using AvianVoice.Audio;
 using AvianVoice.Core;
 using AvianVoice.Embodiment;
+using AvianVoice.Embodiment.Avatars;
 using AvianVoice.Tasks;
 using AvianVoice.UI;
 using UnityEngine;
@@ -47,6 +48,7 @@ namespace AvianVoice.Study
         public string order = "";
         public string source = "";
         public string avatar = "";
+        public string voiceFeedback = "";
         public StudyTime start;
         public StudyTime guideStart;
         public StudyTime guideEnd;
@@ -67,7 +69,7 @@ namespace AvianVoice.Study
         public bool HadVoice => voiceOnset.IsSet;
 
         public const string CsvHeader =
-            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,"
+            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,voice_feedback,"
             + "t_start_utc,t_start_local,t_start_unity,t_start_dsp,mic_sample_start,out_frame_start,"
             + "t_guide_start_unity,mic_sample_guide_start,t_guide_end_unity,mic_sample_guide_end,"
             + "t_response_start_unity,mic_sample_response_start,"
@@ -82,7 +84,7 @@ namespace AvianVoice.Study
             var sb = new StringBuilder();
             sb.Append(trial).Append(',').Append(attempt).Append(',').Append(block).Append(',').Append(pitchIndex).Append(',')
               .Append(targetHz.ToString("0.###", c)).Append(',').Append(Csv(note)).Append(',').Append(Csv(order)).Append(',')
-              .Append(Csv(source)).Append(',').Append(Csv(avatar)).Append(',')
+              .Append(Csv(source)).Append(',').Append(Csv(avatar)).Append(',').Append(Csv(voiceFeedback)).Append(',')
               .Append(Csv(start.utc)).Append(',').Append(Csv(start.local)).Append(',').Append(Num(start.unity)).Append(',').Append(Num(start.dsp)).Append(',')
               .Append(start.micSample).Append(',').Append(start.outFrame).Append(',')
               .Append(Num(guideStart.unity)).Append(',').Append(guideStart.micSample).Append(',')
@@ -103,7 +105,7 @@ namespace AvianVoice.Study
         {
             return new JsonLine()
                 .Add("trial", trial).Add("attempt", attempt).Add("block", block).Add("pitch_index", pitchIndex)
-                .Add("target_hz", targetHz).Add("note", note).Add("order", order).Add("source", source).Add("avatar", avatar)
+                .Add("target_hz", targetHz).Add("note", note).Add("order", order).Add("source", source).Add("avatar", avatar).Add("voice_feedback", voiceFeedback)
                 .Add("start", start).Add("guide_start", guideStart).Add("guide_end", guideEnd)
                 .Add("response_start", responseStart).Add("voice_onset", voiceOnset).Add("voice_offset", voiceOffset).Add("end", end)
                 .Add("end_reason", endReason).Add("voice_segments", voiceSegments)
@@ -140,9 +142,18 @@ namespace AvianVoice.Study
         }
     }
 
+    /// <summary>Voice of the teacher's guide note.</summary>
+    public enum TeacherVoice
+    {
+        /// <summary>Always the bird chirp (the teacher bird is the visible singer in every condition).</summary>
+        Bird,
+        /// <summary>The human vowel while the human avatar is shown, the bird chirp otherwise.</summary>
+        FollowAvatar
+    }
+
     /// <summary>
     /// Singing scene for the study: the experimenter starts each trial, the teacher bird sings one of
-    /// three target pitches, the participant sings it back. 3 pitches x trialsPerPitch (20) = 60 trials.
+    /// three target pitches, the participant sings it back. 3 pitches x trialsPerPitch (10) = 30 trials.
     /// Every phase and the participant's voice onset / offset are timestamped through
     /// <see cref="StudyRecorder"/>; after the last trial the session moves to the rest scene.
     /// Replaces <see cref="SingingBranchTask"/> for the "singing" task id (see <see cref="StudyFlowController"/>).
@@ -157,7 +168,7 @@ namespace AvianVoice.Study
         float[] pitchesHz = { 330f, 392f, 494f };
 
         [SerializeField, Min(1)]
-        int trialsPerPitch = 20;
+        int trialsPerPitch = 10;
 
         [SerializeField]
         TrialOrder order = TrialOrder.Blocked;
@@ -198,9 +209,14 @@ namespace AvianVoice.Study
         float toleranceHz = 40f;
 
         [Header("Behaviour")]
-        [Tooltip("During the response the participant hears their own voice as the bird (same as the original singing scene).")]
+        [Tooltip("During the response the participant hears their own voice through the condition's feedback: bird chirps with the " +
+                 "bird avatar, a human voice with the human avatar, or nothing (StudyFlowController / Experimenter Panel).")]
         [SerializeField]
-        bool participantVoiceAsBird = true;
+        bool participantVoiceFeedback = true;
+
+        [Tooltip("Voice of the teacher's guide note: always the bird, or the human voice while the human avatar is shown.")]
+        [SerializeField]
+        TeacherVoice teacherVoice = TeacherVoice.Bird;
 
         [Tooltip("Space / R on the PC keyboard also starts the next trial (same key as the old replay).")]
         [SerializeField]
@@ -218,6 +234,7 @@ namespace AvianVoice.Study
         TaskManager taskManager;
         VoiceAnalyzer analyzer;
         StudyRecorder recorder;
+        AvatarEmbodimentController avatarController;
         ParrotMatchVisuals friendVisuals;
         FriendBreathVisual friendPose;
         ParrotBreathEmbodiment playerPose;
@@ -388,14 +405,16 @@ namespace AvianVoice.Study
                 note = BirdSongPhrase.NoteName(hz),
                 order = order.ToString(),
                 source = source ?? "",
-                avatar = recorder != null ? recorder.CurrentAvatar : ""
+                avatar = recorder != null ? recorder.CurrentAvatar : "",
+                voiceFeedback = recorder != null ? recorder.CurrentVoiceFeedback : ""
             };
 
             ResetResponseState();
             current.start = Now();
             trialStartedAt = Time.time;
             mapper.SetFollowVoice(false);
-            mapper.PlayGuideNote(hz, guideSeconds);
+            var guideVoice = GuideVoice();
+            mapper.PlayGuideNote(hz, guideSeconds, guideVoice);
             current.guideStart = Now();
             guideEndsAt = Time.time + guideSeconds;
             guideEndLogged = false;
@@ -404,7 +423,7 @@ namespace AvianVoice.Study
             recorder?.LogEvent("trial_start", j => j
                 .Add("trial", current.trial).Add("attempt", current.attempt).Add("block", current.block)
                 .Add("pitch_index", pitchIndex).Add("target_hz", hz).Add("note", current.note).Add("source", current.source));
-            recorder?.LogEvent("guide_start", j => j.Add("trial", current.trial).Add("target_hz", hz).Add("guide_s", guideSeconds));
+            recorder?.LogEvent("guide_start", j => j.Add("trial", current.trial).Add("target_hz", hz).Add("guide_s", guideSeconds).Add("teacher_voice", guideVoice.ToString()));
             UpdateProgressUi();
             return true;
         }
@@ -532,7 +551,7 @@ namespace AvianVoice.Study
             phase = TrialPhase.Response;
             current.responseStart = Now();
             responseEndsAt = trialUntilNextPress ? float.PositiveInfinity : Time.time + responseWindowSeconds;
-            if (participantVoiceAsBird)
+            if (participantVoiceFeedback)
                 BirdVoiceMapper.Find()?.SetFollowVoice(true);
             ShowCue("sing", current.targetHz);
             recorder?.LogEvent("response_start", j => j.Add("trial", current.trial).Add("window_s", trialUntilNextPress ? -1.0 : responseWindowSeconds));
@@ -741,6 +760,15 @@ namespace AvianVoice.Study
                 analyzer = FindAnyObjectByType<VoiceAnalyzer>();
             if (recorder == null)
                 recorder = StudyRecorder.Instance != null ? StudyRecorder.Instance : FindAnyObjectByType<StudyRecorder>();
+            if (avatarController == null)
+                avatarController = FindAnyObjectByType<AvatarEmbodimentController>();
+        }
+
+        VoiceFeedback GuideVoice()
+        {
+            return teacherVoice == TeacherVoice.FollowAvatar && avatarController != null && avatarController.Current == AvatarKind.Human
+                ? VoiceFeedback.Human
+                : VoiceFeedback.Bird;
         }
 
         void EnsureSchedule()

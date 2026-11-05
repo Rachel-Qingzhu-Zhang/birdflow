@@ -1,6 +1,5 @@
 #if AVIAN_META_XR_CORE
 using System;
-using System.Reflection;
 using AvianVoice.BodyTracking;
 using UnityEngine;
 
@@ -216,7 +215,7 @@ namespace AvianVoice.MetaBody
             return frame.IsValid;
         }
 
-        public IHumanoidRetargetingHandle AttachHumanoidRetargeting(Animator humanoid)
+        public IHumanoidRetargetingHandle AttachHumanoidRetargeting(Animator humanoid, Action beforeRestPoseCapture)
         {
             if (humanoid == null || humanoid.avatar == null || !humanoid.avatar.isHuman)
             {
@@ -235,24 +234,17 @@ namespace AvianVoice.MetaBody
                 provider = go.AddComponent<OVRBody>();
             provider.ProvidedSkeletonType = OVRPlugin.BodyJointSet.FullBody;
 
-            var retargeter = go.GetComponent<OVRUnityHumanoidSkeletonRetargeter>();
+            // AvianHumanoidRetargeter: full body, rotation-only (hips position), fingers kept, no pelvis tweak,
+            // and the rig is re-posed into T-pose right before the SDK snapshots it.
+            var retargeter = go.GetComponent<AvianHumanoidRetargeter>();
             if (retargeter == null)
-                retargeter = go.AddComponent<OVRUnityHumanoidSkeletonRetargeter>();
-            SetSkeletonType(retargeter, OVRSkeleton.SkeletonType.FullBody);
+                retargeter = go.AddComponent<AvianHumanoidRetargeter>();
+            retargeter.BeforeCaptureRestPose = beforeRestPoseCapture;
 
             if (wasActive)
                 go.SetActive(true);
 
             return new Handle(provider, retargeter);
-        }
-
-        static void SetSkeletonType(OVRSkeleton skeleton, OVRSkeleton.SkeletonType type)
-        {
-            var field = typeof(OVRSkeleton).GetField("_skeletonType", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field != null)
-                field.SetValue(skeleton, type);
-            else
-                Debug.LogWarning("[AvianVoice] Could not set OVRSkeleton._skeletonType (SDK layout changed?).");
         }
 
         static void EnsureOvrManager()
@@ -303,12 +295,21 @@ namespace AvianVoice.MetaBody
             public bool IsDriving =>
                 retargeter != null && retargeter.isActiveAndEnabled && retargeter.IsInitialized && retargeter.IsDataValid;
 
+            public bool HasTrackingData =>
+                provider != null && provider.isActiveAndEnabled && provider.BodyState.HasValue;
+
             public void SetEnabled(bool enabled)
             {
                 if (provider != null)
                     provider.enabled = enabled;
                 if (retargeter != null)
                     retargeter.enabled = enabled;
+            }
+
+            public void SetRetargetingActive(bool active)
+            {
+                if (retargeter != null)
+                    retargeter.enabled = active;
             }
 
             public void Dispose()

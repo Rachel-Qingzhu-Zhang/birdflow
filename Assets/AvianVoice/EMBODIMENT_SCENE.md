@@ -4,12 +4,13 @@
 
 1. **Quest の体トラッキング（IOBT / Full Body）** で、ユーザーの体の向き・腕・（対応機種では）脚がアバターに反映される。
 2. **視点がアバターの目に一致する**（アバターの目が XR カメラの位置に来るように毎フレーム合わせる）。
-3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間。人間は **男性 / 女性 / 中性マネキン** の 3 体から選べる
-   （鳥との embodiment の差を、人間アバターの性別や顔の影響と分けて調べるため）。
+3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間。人間は **中性のマネキン 1 体**（Unity Starter Assets の
+   ロボット型アバター。Meta が体トラッキングのサンプルで使っている体で、顔・髪・服・性差がない）。
+   **実験条件は アバター（鳥 / 人間）× 声のフィードバック（自分の声がアバターの声に変換されて聞こえる / 自分の声しか聞こえない）の 4 条件**。
 4. **4 場面の実験フロー**: 鳥に会う → 呼吸 → 歌う → 休む（元の 6 場面のうち「飛ぶ」「仲間を呼ぶ」は使わない）。
 5. **歌う場面は試行形式**: 実験者がボタンを押す → 教師の鳥が 1 音歌う → 被験者が歌い返す → 実験者が次を押す。
-   1 試行 = ボタンを押してから次に押すまで（待ち時間なし）。3 ピッチ × 20 回 = 60 試行。
-   60 回終わると自動で「休む」に移って終了。
+   1 試行 = ボタンを押してから次に押すまで（待ち時間なし）。3 ピッチ × 10 回 = 30 試行。
+   30 回終わると自動で「休む」に移って終了。
 6. **記録**: 全イベントのタイムスタンプ、試行ごとの CSV、被験者マイク音声と提示音声の WAV をセッションごとに保存。
 
 シーン内の `Avian Embodiment` オブジェクトに `AvatarEmbodimentController`（体トラッキング・アバター）と
@@ -31,24 +32,43 @@ XR リグの手メッシュ・関節・レイ表示も既定で非表示です�
 
 - 場面 1〜4 のボタン / 前の場面・次の場面
 - 歌う場面の試行: 「Start trial n」ボタン（被験者の Space / R と同じ）、進捗バー、やり直し（Repeat the last trial）、リセット
-- アバター: 鳥 / 人間
+- 条件: 鳥 + 鳥の声 / 鳥 + 自分の声のみ / 人間 + 人間の声 / 人間 + 自分の声のみ（4 つのボタン）
 - 被験者コントローラの有効/無効、手の表示、視界下の状態カードの表示
 - 現在の場面・アバター・体トラッキング状態の表示、**音声出力メーター**、記録の状態、詳細ログ出力
 
 Play の前に **Participant ID** をパネルで入力しておくと、記録フォルダ名に入ります。
 
-### 歌う場面の試行（3 ピッチ × 20 回）
+### 4 条件（アバター × 声のフィードバック）
+
+パネルの **Condition** に 4 つのボタンがあります（`StudyFlowController.SetCondition`）。
+
+| ボタン | アバター | 被験者が聞く自分の声 | 記録（`voice_feedback` / `condition`） |
+|--------|----------|----------------------|------------------------------------------|
+| Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、音程に合わせた鳥の鳴き声） | `bird` / `Bird+bird` |
+| Bird + own voice only | 鳥 | なし（アプリは何も出さない。地声だけ） | `none` / `Bird+own` |
+| Human + human voice | 人間（マネキン） | 人間の声（`HumanVoiceSynth`、同じ音程で歌う母音「あ」） | `human` / `Human:neutral+human` |
+| Human + own voice only | 人間（マネキン） | なし | `none` / `Human:neutral+own` |
+
+- 声のフィードバックは `BirdVoiceMapper.SetFeedback` で切り替わり、歌う場面の応答中だけでなく、どの場面でも同じ設定です。
+  V キーで鳥 ⇄ 人間を切り替えても「変換あり / なし」は保たれます（鳥なら鳥の声、人間なら人間の声になります）。
+- 教師の鳥の手本（guide note）は **どの条件でも鳥の声**です（`SingingTrialTask.teacherVoice = Bird`）。
+  人間アバターのときに手本も人間の声にしたい場合は `Teacher Voice` を `FollowAvatar` にします（`events.jsonl` の
+  `guide_start` に `teacher_voice` が残ります）。
+- `events.jsonl` の全イベントに `voice_feedback`、`trials.csv` に `voice_feedback` 列、条件を変えたときに
+  `voice_feedback` イベント（`condition` 付き）が入ります。
+
+### 歌う場面の試行（3 ピッチ × 10 回）
 
 1. 場面 3「歌う」に切り替える。被験者には「次の音を待ってください」と出ます。
-2. パネルの **「▶ Start trial n / 60 — teacher bird sings E4」** を押す（または Game ビューで Space）。
+2. パネルの **「▶ Start trial n / 30 — teacher bird sings E4」** を押す（または Game ビューで Space）。
    教師の鳥が目標の音を約 0.9 秒歌い、0.3 秒おいて「今度は E4 を歌ってください」に変わります。
 3. 被験者が歌う。声の始まり（60 ms 以上有声）と終わり（250 ms 以上無声）を検出して記録します
-   （複数回発声してもすべて残ります）。応答中は自分の声が鳥の声として聞こえます。
+   （複数回発声してもすべて残ります）。応答中は条件に応じて自分の声が鳥の声 / 人間の声として聞こえます（または何も出ません）。
 4. 実験者が **次のボタン（「▶ Next trial n+1」/ Space）を押した瞬間に試行が終わり、次の試行が始まります**。
    待ち時間はなく、教師の鳥が歌っている最中でも押せます（その場合は試行が短く記録されるだけです）。
    つまり `trials.csv` の 1 行は「ボタンを押してから次に押すまで」の区間です（`t_start_*` 〜 `t_end_*`、
    `end_reason = experimenter_next`）。「End (idle)」で試行を閉じて待機に戻すこともできます（`experimenter_end`）。
-5. 60 回目の試行の後にもう一度押すと（ボタンは「■ End the last trial → Rest scene」になります）
+5. 30 回目の試行の後にもう一度押すと（ボタンは「■ End the last trial → Rest scene」になります）
    「お疲れさまでした」と出て、3 秒後に自動で「休む」場面へ移ります。
 
 `SingingTrialTask` の **Trial Until Next Press** を外すと以前の動作（応答は最長 5 秒、声が止まって 1 秒で自動終了、
@@ -100,38 +120,35 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
   するか、Meta Quest Link アプリの設定でリンク時にオーディオを切り替えるようにしてください（PC モニター出力が Auto で
   PC スピーカーにも出ます）。
 
-### 人間アバター（男性 / 女性 / 中性マネキン）
+### 人間アバター（中性マネキン 1 体）
 
-| Id | モデル | 出典・実績 | 置き場所 |
-|----|--------|------------|----------|
-| `male` | Microsoft Rocketbox `Male_Adult_01` | Rocketbox ライブラリ（MIT）。Gonzalez-Franco et al. 2020, *Frontiers in VR*。Maselli & Slater 2013 以来、VR の身体所有感・embodiment 研究（IEEE VR / CHI / UIST 系）の標準的な刺激 | `Resources/Avatars/Rocketbox/Male_Adult_01` |
-| `female` | Microsoft Rocketbox `Female_Adult_01` | 同上（同じ骨格・同じ描画設定なので、性別以外の条件を揃えやすい） | `Resources/Avatars/Rocketbox/Female_Adult_01` |
-| `neutral` | MakeHuman（MPFB2）で生成した中性の **マネキン**（顔・髪・服なし、単色マット、眼球は同色の球） | MakeHuman（CC0）は CHI / IEEE VR の embodiment 研究で広く使われる無料のヒューマンジェネレータ。性別スライダ 0.5、胸なしの中性体をテクスチャ無しの単色にしたもので、顔の無いマネキン型アバター（Lugrin et al. 2015, IEEE VR; 人間型アバターとの身体所有感の比較に使われる系統）に相当。Rocketbox にも VALID にも中性モデルは無い | `Resources/Avatars/MakeHuman/Neutral_Adult_01`（下記の手順で生成） |
+| Id | モデル | 出典・ライセンス | 置き場所 |
+|----|--------|------------------|----------|
+| `neutral` | Unity **Starter Assets の Armature**（白いロボット型マネキン。顔・髪・服・性差なし、指まで Humanoid にマッピング済み） | Unity Companion License（`LICENSE.md` 同梱）。Meta が **Movement SDK の体トラッキングサンプルの「Stylized」キャラクター**としてそのまま配布・使用しているモデルで（oculus-samples/Unity-Movement `Shared/ThirdParty/Unity/`）、Meta のリターゲットで体や手が崩れないことが保証されている。機械的・無性のアバターは Lugrin et al. 2015 (IEEE VR) / Gorisse et al. 2019 の系統 | `Resources/Avatars/UnityArmature/Armature.fbx`（`UnityArmatureAvatarImport.cs` が Humanoid・Read/Write 有効・URP マット材質で取り込み） |
+
+2026-11-05 まで使っていた Rocketbox の男性 / 女性と MakeHuman の中性体は外しました（MakeHuman の中性体は女性に見える、
+Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使われる「無性のマネキン / ロボット」アバターに統一）。
+別の Humanoid モデルを試すには Resources 配下に置いて `Avian Embodiment` → `Human Avatars` に id / Resources パス /
+目の位置（`Eye Offset From Head Bone`、頭ボーン基準の T ポーズでの目の位置）を足します。モデルが無い id はパネルに
+「missing」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:neutral` のように id 付きで残ります。
 
 歌う場面では、鳥アバターでも人間アバターでも **教師の鳥（`FriendParrot`）が被験者の右隣に出て**歌います（人間アバターのときは
-鳥の自分は隠れ、人間の体と教師の鳥が見えます）。実験者パネルの「Human (male / female / mannequin)」ボタンで切り替えます（V キーは鳥 ⇄ 選択中の人間）。`Avian Embodiment` の
-`AvatarEmbodimentController` → `Human Avatars` に 3 体の id / 表示名 / Resources パスがあり、モデルが無い id はパネルに
-「missing」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:female` のように id 付きで残ります。
+鳥の自分は隠れ、人間の体と教師の鳥が見えます）。実験者パネルの Condition のボタンで切り替えます（V キーは鳥 ⇄ 人間）。
 
-**中性アバターの生成**（生成済みのものがリポジトリに入っています。作り直すときだけ。Blender 4.2 以上 + MPFB2 拡張 +
-MakeHuman system assets が必要。2026-11-04 に Blender 5.1.2 + MPFB2 2.0.18 で生成）
+**IOBT と人間アバターの崩れ対策**（`AvianHumanoidRetargeter`、2026-11-05）: Meta XR Core SDK の
+`OVRUnityHumanoidSkeletonRetargeter` は既定で ほぼ全関節の **位置** を被験者の関節位置で上書きし（体格が違うと体が伸び縮みして
+崩れる）、**指** も個別にリターゲットし（指の軸が違うと手が潰れる）、さらに骨盤に 60° の回転補正（Meta のサンプル用）を
+掛けます。本プロジェクトの派生クラスはこれを **回転のみ（腰の位置だけ追従）、指は T ポーズのまま手首に追従、骨盤補正なし** に
+変え、SDK が T ポーズのスナップショットを取る直前に `HumanFirstPersonDriver` がリグを T ポーズ（Humanoid の筋肉値 0）に
+戻します。体格差で頭の高さがずれる分は、毎フレーム体全体を平行移動して目をヘッドセットに合わせます（骨は触りません）。
+トラッキングが途切れたらリターゲットを一時停止して腕を下ろした姿勢に戻します。
 
-1. Blender に MPFB2 を入れる: Edit → Preferences → Get Extensions →「MPFB」→ Install。
-2. https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip をダウンロード。
-3. リポジトリのルートで次を実行（Blender のパスは環境に合わせる）:
-
-```
-"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" -b --python Tools\MakeHuman\generate_neutral_avatar.py -- --out Assets\AvianVoice\Resources\Avatars\MakeHuman\Neutral_Adult_01 --asset-zip <zip のパス>
-```
-
-`Neutral_Adult_01.fbx` が書き出され、Unity が `MakeHumanAvatarImport.cs` で Humanoid として取り込みます（テクスチャ無し、
-FBX の単色をそのまま使用）。既定の `--style mannequin` は顔テクスチャ・髪・服なしの単色（`--mannequin-color 0.74,0.72,0.70`、
-`--mannequin-roughness 0.62`）。`--style dressed` にすると肌テクスチャ・短髪・白 T シャツとジーンズの中性体になります
-（T シャツの MakeHuman ロゴは塗りつぶし、`--keep-logo` で残せます）。体型は `--gender 0.5 --cupsize 0 --height 0.5` などで
-変えられ、設定は出力先の `GENERATED.md` に残ります。
-
-**鏡と頭部**: HMD の一人称視点では人間アバターの頭部（頭・髪・まつ毛のマテリアル）を透明にして頭の内側が見えないようにし、
-鏡（Fragilem17 の反射カメラ）には顔ごと映します（`FirstPersonHeadHider`）。鏡はメインカメラの描画開始イベントの中で反射を
+**鏡と頭部**: HMD の一人称視点では **自分のアバターの頭部が見えない**ようにし、鏡（Fragilem17 の反射カメラ）には顔ごと
+映します（`FirstPersonHeadHider`、鳥・人間の両方に付きます）。頭ボーン（Humanoid の Head、鳥は `parrot_Head_bone`）と
+その子（くちばし・目・あご）にウェイトが付いた三角形をスキンメッシュから別のサブメッシュに分けて、一人称カメラの描画中だけ
+透明マテリアルに差し替えます（マテリアル名に head / hair / opacity / eyelash を含むスロットと、頭ボーン下の別メッシュも同様）。
+鳥の目の位置（`BirdFirstPersonDriver.eyeOffsetFromHeadBone`）はそのままで、頭・くちばしが視界に入らなくなります。
+モデルは Read/Write 有効で取り込む必要があります（無い場合は警告を出して頭が見えたままになります）。鏡はメインカメラの描画開始イベントの中で反射を
 描くため、頭部非表示は毎フレーム購読をやり直してイベントの最後に回り、「反射を顔つきで描く → 頭を消す → HMD 用に描く」の順を
 保証しています（場面切替で鏡が再有効化されても崩れません）。確認は Play 中に「Debug/Capture Game View」で Game ビューを保存。
 
@@ -155,7 +172,7 @@ FBX の単色をそのまま使用）。既定の `--style mannequin` は顔テ�
 1. プロジェクトを開くと Package Manager が **Meta XR Core SDK (com.meta.xr.sdk.core 207.0.1)** を
    `https://npm.developer.oculus.com` から取得します（`Packages/manifest.json` に scoped registry を追加済み）。
 2. メニュー **Avian Voice → Embodiment → Configure Everything** を実行する。これで
-   - Rocketbox FBX を Humanoid として再インポート（`RocketboxAvatarImport.cs`）
+   - 人間アバター（Armature FBX）を Humanoid として再インポート（`UnityArmatureAvatarImport.cs`）
    - OpenXR の **Meta XR Feature** を Android / Standalone で有効化
    - `OVRProjectConfig.bodyTrackingSupport = Supported`（ビルド時に `com.oculus.permission.BODY_TRACKING` と
      `com.oculus.software.body_tracking` が AndroidManifest に入る）
@@ -176,16 +193,17 @@ FBX の単色をそのまま使用）。既定の `--style mannequin` は顔テ�
 | `Scripts/MetaBody/Editor/MetaBodyTrackingProjectSetup.cs` | 上記の OpenXR / Oculus 設定を一括適用 |
 | `Scripts/Embodiment/Avatar/AvatarEmbodimentController.cs` | アバター切替、カメラ・手の位置から体トラッキング空間を合わせる、ヒント表示 |
 | `Scripts/Embodiment/Avatar/BirdFirstPersonDriver.cs` | 鳥: 目をカメラに、頭を HMD の向きに、体の向きを肩のラインに、翼を腕の上げ下げに |
-| `Scripts/Embodiment/Avatar/HumanFirstPersonDriver.cs` | 人間: リターゲット結果のルートをトラッキング原点に置く。トラッキング無しのフォールバック姿勢 |
-| `Scripts/Embodiment/Avatar/FirstPersonHeadHider.cs` | 一人称カメラだけ頭・髪のマテリアルを非表示（鏡・池の反射には映る） |
-| `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、アバター切替の記録 |
-| `Scripts/Study/SingingTrialTask.cs` | 試行形式の歌う場面（教師の 1 音 → 応答、発声検出、60 回で休む場面へ） |
+| `Scripts/MetaBody/AvianHumanoidRetargeter.cs` | Meta のリターゲッタの派生: 回転のみ・腰の位置だけ追従・指は固定・骨盤補正なし・T ポーズ取得直前のコールバック |
+| `Scripts/Embodiment/Avatar/HumanFirstPersonDriver.cs` | 人間: ルートをトラッキング原点に置き目をカメラに合わせる。T ポーズの再適用、トラッキング無しのフォールバック姿勢、データ途切れ時のリターゲット一時停止 |
+| `Scripts/Embodiment/Avatar/FirstPersonHeadHider.cs` | 一人称カメラだけ頭部（頭ボーン以下の三角形 / 頭・髪のマテリアル）を非表示（鏡・池の反射には映る）。鳥と人間の両方 |
+| `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、**条件（アバター × 声のフィードバック）** の設定と記録 |
+| `Scripts/Study/SingingTrialTask.cs` | 試行形式の歌う場面（教師の 1 音 → 応答、発声検出、30 回で休む場面へ） |
+| `Scripts/Audio/HumanVoiceSynth.cs` | 人間の声のフィードバック: 被験者の音程・音量に追従して歌う母音「あ」（フォルマント合成）。`BirdVoiceMapper.SetFeedback` で鳥の声 / 人間の声 / なしを切替 |
 | `Scripts/Study/StudyRecorder.cs` | `events.jsonl` / `trials.csv` / `mic.wav` / `output.wav` / 試行切り出しの書き出し |
 | `Scripts/Study/PcAudioMonitor.cs` | Unity 出力の PC スピーカーへのミラー（winmm）、Windows 既定出力のミュート検出 |
 | `Scripts/Study/ListenerOutputTap.cs`, `WavWriter.cs` | AudioListener のミックス取得、16 bit WAV ストリーム書き込み |
-| `Resources/Avatars/Rocketbox/` | 人間アバター 男性・女性（MIT ライセンス、`README.md` 参照） |
-| `Resources/Avatars/MakeHuman/`, `Tools/MakeHuman/generate_neutral_avatar.py` | 中性アバター（MakeHuman / CC0、生成スクリプト） |
-| `Editor/MakeHumanAvatarImport.cs` | MakeHuman FBX の Humanoid 取り込みとマテリアル設定 |
+| `Resources/Avatars/UnityArmature/` | 中性マネキン（Unity Starter Assets Armature、Unity Companion License、`LICENSE.md` 参照） |
+| `Editor/UnityArmatureAvatarImport.cs` | Armature FBX の Humanoid 取り込み（Read/Write 有効）とマテリアル設定 |
 
 鳥の「目」の位置は `BirdFirstPersonDriver.eyeOffsetFromHeadBone`（頭ボーン基準、ルート座標系）で調整できます。
 人間アバターを追加するには、Humanoid モデルを Resources 配下に置いて `Human Avatars` に id と Resources パスを足してください。
@@ -220,17 +238,20 @@ Quest Link 経由のエディタ再生で、鳥・人間とも体トラッキン
 # English summary
 
 `Avian_Lab_Embodiment.unity` is a copy of `Avian_Lab.unity` plus: Meta Quest body tracking (IOBT) driving the
-avatar, the avatar eyes locked to the XR camera, and an avatar switch (bird `PlayerParrot` ⇄ human). Three human
-bodies are selectable from the experimenter panel: Microsoft Rocketbox `Male_Adult_01` and `Female_Adult_01`
-(MIT; the standard rigged avatars of VR embodiment research) and a gender-neutral MakeHuman mannequin (CC0, gender
-slider 0.5, no breasts, no face texture, no hair, no clothes, one plain matte colour, in the line of the faceless
-mannequin avatars of Lugrin et al. 2015) generated with `Tools/MakeHuman/generate_neutral_avatar.py`. Toggle bird / human with **V** (keyboard) or the **left X** button.
+avatar, the avatar eyes locked to the XR camera, and an avatar switch (bird `PlayerParrot` ⇄ human). The human body
+is one gender-neutral mannequin: the Unity Starter Assets "Armature" robot (Unity Companion License), the same model
+Meta ships as the stylized character of its body-tracking samples, so Meta's retargeting is known to keep its body and
+hands intact. Retargeting is rotation-only (hips position only, fingers kept, no pelvis tweak, T-pose re-applied right
+before the SDK snapshot) so the avatar keeps its proportions. The study has four conditions, avatar (bird / human) x
+voice feedback (the participant's own voice heard as bird chirps / as a sung human vowel, or not at all), chosen from the
+experimenter panel; the participant's own head (bird or human) is hidden from the headset camera but visible in the
+mirror. Toggle bird / human with **V** (keyboard).
 
 The study flow is four scenes (meet, breath, singing, rest). The singing scene is experimenter-paced: each
 press of the panel button (or Space) makes the teacher bird sing one of three target pitches and the participant
 sings back; the participant's voice onset / offset are detected. A trial lasts from one press to the next (no
 wait, the button is always available), so each row of `trials.csv` is the interval between two presses; 3 pitches
-x 20 = 60 trials, and the press after the last one moves the session to the rest scene automatically. `StudyRecorder` writes `events.jsonl`, `trials.csv`,
+x 10 = 30 trials, and the press after the last one moves the session to the rest scene automatically. `StudyRecorder` writes `events.jsonl`, `trials.csv`,
 `mic.wav`, `output.wav` and per-trial microphone segments under `persistentDataPath/AvianStudy/<date>_<id>/`,
 every timestamp carrying wall clock, Unity time, DSP time and the microphone sample index.
 

@@ -16,7 +16,9 @@ namespace AvianVoice.Audio
         AudioSource assistiveMonitorSource;
         BirdCallLibrary library;
         BirdSongSynth synth;
+        HumanVoiceSynth humanSynth;
         float lastSynthPitchHz;
+        VoiceFeedback feedback = VoiceFeedback.Bird;
 
         VoiceMapMode mode = VoiceMapMode.Transform;
         float lastAssistiveUpdate;
@@ -29,6 +31,27 @@ namespace AvianVoice.Audio
 
         public VoiceMapMode Mode => mode;
 
+        /// <summary>What the participant's own voice is turned into: bird chirps, a human vowel, or nothing.</summary>
+        public VoiceFeedback Feedback => feedback;
+
+        /// <summary>True while a guide note or the voice feedback is still sounding.</summary>
+        public bool IsSounding => (synth != null && synth.IsSounding) || (humanSynth != null && humanSynth.IsSounding);
+
+        /// <summary>
+        /// Choose the feedback voice for the study condition. Takes effect at once (the current feedback
+        /// sound stops); guide notes are not affected.
+        /// </summary>
+        public void SetFeedback(VoiceFeedback newFeedback)
+        {
+            if (feedback == newFeedback)
+                return;
+
+            feedback = newFeedback;
+            synth?.Silence();
+            humanSynth?.Silence();
+            Debug.Log("[AvianVoice] Voice feedback: " + feedback);
+        }
+
         /// <summary>
         /// When false, the microphone does not make bird sound. Guide notes still play.
         /// </summary>
@@ -39,17 +62,37 @@ namespace AvianVoice.Audio
 
             followVoice = enabled;
             if (!enabled)
+            {
                 synth?.Silence();
+                humanSynth?.Release();
+            }
         }
 
         /// <summary>
-        /// One note in the same synth voice the player will answer with.
-        /// Microphone playback stays off until SetFollowVoice(true).
+        /// One guide note in the bird voice. Microphone playback stays off until SetFollowVoice(true).
         /// </summary>
         public void PlayGuideNote(float humanHz, float seconds)
         {
-            EnsureSynth();
+            PlayGuideNote(humanHz, seconds, VoiceFeedback.Bird);
+        }
+
+        /// <summary>
+        /// One guide note in the bird voice (chirp, transposed into the bird register) or in the human voice
+        /// (sung vowel at the given pitch). Microphone playback stays off until SetFollowVoice(true).
+        /// </summary>
+        public void PlayGuideNote(float humanHz, float seconds, VoiceFeedback voice)
+        {
             followVoice = false;
+            if (voice == VoiceFeedback.Human)
+            {
+                EnsureHumanSynth();
+                synth?.Silence();
+                humanSynth?.PlayNote(humanHz, seconds);
+                return;
+            }
+
+            EnsureSynth();
+            humanSynth?.Silence();
             synth?.PlayChirp(humanHz, 0.92f, seconds);
         }
 
@@ -108,6 +151,25 @@ namespace AvianVoice.Audio
 
             var v = analyzer.Current;
 
+            if (feedback == VoiceFeedback.None)
+            {
+                // Own voice only: nothing is synthesized from the microphone.
+                synth?.Silence();
+                humanSynth?.Release();
+                lastFrameLoudness = v.loudness;
+                return;
+            }
+
+            if (feedback == VoiceFeedback.Human)
+            {
+                EnsureHumanSynth();
+                synth?.Silence();
+                UpdateHumanSynth(v);
+                lastFrameLoudness = v.loudness;
+                return;
+            }
+
+            humanSynth?.Release();
             if (mode == VoiceMapMode.Transform && settings.useSynthTransform)
                 EnsureSynth();
 
@@ -158,6 +220,37 @@ namespace AvianVoice.Audio
 
             var parent = transformSource != null ? transformSource.transform : transform;
             synth = BirdSongSynth.Ensure(parent, transformSource, settings);
+        }
+
+        void EnsureHumanSynth()
+        {
+            if (humanSynth != null)
+                return;
+
+            var parent = transformSource != null ? transformSource.transform : transform;
+            humanSynth = HumanVoiceSynth.Ensure(parent, transformSource);
+        }
+
+        /// <summary>Continuous vowel at the singer's own pitch: open while voiced, released when the voice stops.</summary>
+        void UpdateHumanSynth(VoiceFrame v)
+        {
+            if (humanSynth == null)
+                return;
+
+            var loud = v.loudness;
+            var voiced = loud >= 0.05f && (v.voiced > 0.5f || v.pitchHz > 0f);
+            if (v.pitchHz > 0f)
+                lastSynthPitchHz = v.pitchHz;
+            else if (lastSynthPitchHz <= 0f)
+                lastSynthPitchHz = settings.referencePitchHz;
+
+            if (!voiced)
+            {
+                humanSynth.Release();
+                return;
+            }
+
+            humanSynth.Follow(lastSynthPitchHz, loud);
         }
 
         void UpdateSynth(VoiceFrame v)
