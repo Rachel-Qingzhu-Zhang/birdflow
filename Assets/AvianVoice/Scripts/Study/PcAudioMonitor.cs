@@ -96,6 +96,18 @@ namespace AvianVoice.Study
         public static float DefaultOutputVolume { get; private set; } = -1f;
         public static string DefaultOutputError { get; private set; } = "";
 
+        /// <summary>
+        /// Playback device that Unity's own audio session is on (empty when not found). This is not always the
+        /// Windows default: with Quest Link the Oculus runtime moves Unity onto "Oculus Virtual Audio Device".
+        /// </summary>
+        public static string UnityOutputName { get; private set; } = "";
+        public static bool UnityOutputMuted { get; private set; }
+        public static float UnityOutputVolume { get; private set; } = -1f;
+
+        /// <summary>Device Unity's audio actually goes to: its own session's device, else the Windows default.</summary>
+        public static string EffectiveOutputName => string.IsNullOrEmpty(UnityOutputName) ? DefaultOutputName : UnityOutputName;
+        public static bool EffectiveOutputMuted => string.IsNullOrEmpty(UnityOutputName) ? DefaultOutputMuted : UnityOutputMuted;
+
         public static PcAudioMonitor Ensure()
         {
             if (Instance != null)
@@ -138,10 +150,11 @@ namespace AvianVoice.Study
         public void Refresh()
         {
             RefreshDefaultOutput();
-            var want = mode == MonitorMode.Always || (mode == MonitorMode.Auto && IsHeadsetDevice(DefaultOutputName));
+            var unityOut = EffectiveOutputName;
+            var want = mode == MonitorMode.Always || (mode == MonitorMode.Auto && IsHeadsetDevice(unityOut));
             if (!want)
             {
-                Status = mode == MonitorMode.Off ? "off" : "not needed (Unity already plays on the PC default output)";
+                Status = mode == MonitorMode.Off ? "off" : "not needed (Unity already plays on '" + unityOut + "')";
                 StopMirror();
                 return;
             }
@@ -181,6 +194,55 @@ namespace AvianVoice.Study
                 DefaultOutputVolume = -1f;
                 DefaultOutputMuted = false;
             }
+
+            try
+            {
+                // The mirror's own waveOut stream is also a session of this process, on the PC device: ignore
+                // that device while mirroring, and keep the last known answer if it was the only match.
+                var exclude = Instance != null && Instance.mirroring ? Instance.MirrorDeviceName : "";
+                if (WindowsDefaultOutput.QueryProcessOutput(System.Diagnostics.Process.GetCurrentProcess().Id, exclude, out var uname, out var umuted, out var uvol, out var onlyExcluded))
+                {
+                    UnityOutputName = uname;
+                    UnityOutputMuted = umuted;
+                    UnityOutputVolume = uvol;
+                }
+                else if (!onlyExcluded)
+                {
+                    UnityOutputName = "";
+                    UnityOutputMuted = false;
+                    UnityOutputVolume = -1f;
+                }
+            }
+            catch (Exception e)
+            {
+                UnityOutputName = "";
+                UnityOutputMuted = false;
+                UnityOutputVolume = -1f;
+                if (string.IsNullOrEmpty(DefaultOutputError))
+                    DefaultOutputError = "session: " + e.GetType().Name + ": " + e.Message;
+            }
+#endif
+        }
+
+        /// <summary>Unmute the device Unity's own audio session is on (e.g. the muted Oculus virtual device).</summary>
+        public static bool UnmuteUnityOutput()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            try
+            {
+                if (string.IsNullOrEmpty(UnityOutputName))
+                    return UnmuteDefaultOutput();
+                WindowsDefaultOutput.SetMuteForProcessOutput(System.Diagnostics.Process.GetCurrentProcess().Id, UnityOutputName, false);
+                RefreshDefaultOutput();
+                return !UnityOutputMuted;
+            }
+            catch (Exception e)
+            {
+                DefaultOutputError = e.GetType().Name + ": " + e.Message;
+                return false;
+            }
+#else
+            return false;
 #endif
         }
 
@@ -208,6 +270,7 @@ namespace AvianVoice.Study
         {
             return "pcMonitor mode=" + mode + " mirroring=" + mirroring + " device='" + MirrorDeviceName + "' status='" + Status
                    + "' defaultOutput='" + DefaultOutputName + "' muted=" + DefaultOutputMuted + " vol=" + DefaultOutputVolume.ToString("0.00")
+                   + " unityOutput='" + UnityOutputName + "' unityMuted=" + UnityOutputMuted + " unityVol=" + UnityOutputVolume.ToString("0.00")
                    + (string.IsNullOrEmpty(DefaultOutputError) ? "" : " err=" + DefaultOutputError) + " dropped=" + dropped;
         }
 
@@ -242,9 +305,9 @@ namespace AvianVoice.Study
             if (Time.unscaledTime < nextStatusCheck)
                 return;
             nextStatusCheck = Time.unscaledTime + 5f;
-            var before = DefaultOutputName;
+            var before = EffectiveOutputName;
             RefreshDefaultOutput();
-            if (before != DefaultOutputName && mode == MonitorMode.Auto)
+            if (before != EffectiveOutputName && mode == MonitorMode.Auto)
                 Refresh();
         }
 
@@ -525,8 +588,49 @@ namespace AvianVoice.Study
             [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
             interface IMMDeviceEnumerator
             {
-                int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+                int EnumAudioEndpoints(int dataFlow, int stateMask, out IMMDeviceCollection devices);
                 int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
+            }
+
+            [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+            interface IMMDeviceCollection
+            {
+                [PreserveSig] int GetCount(out int count);
+                [PreserveSig] int Item(int index, out IMMDevice device);
+            }
+
+            [ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+            interface IAudioSessionManager2
+            {
+                [PreserveSig] int GetAudioSessionControl(IntPtr sessionGuid, int flags, out IntPtr control);
+                [PreserveSig] int GetSimpleAudioVolume(IntPtr sessionGuid, int flags, out IntPtr volume);
+                [PreserveSig] int GetSessionEnumerator(out IAudioSessionEnumerator enumerator);
+            }
+
+            [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+            interface IAudioSessionEnumerator
+            {
+                [PreserveSig] int GetCount(out int count);
+                [PreserveSig] int GetSession(int index, out IAudioSessionControl2 session);
+            }
+
+            [ComImport, Guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+            interface IAudioSessionControl2
+            {
+                [PreserveSig] int GetState(out int state);
+                [PreserveSig] int GetDisplayName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+                [PreserveSig] int SetDisplayName([MarshalAs(UnmanagedType.LPWStr)] string name, IntPtr context);
+                [PreserveSig] int GetIconPath([MarshalAs(UnmanagedType.LPWStr)] out string path);
+                [PreserveSig] int SetIconPath([MarshalAs(UnmanagedType.LPWStr)] string path, IntPtr context);
+                [PreserveSig] int GetGroupingParam(out Guid grouping);
+                [PreserveSig] int SetGroupingParam(ref Guid grouping, IntPtr context);
+                [PreserveSig] int RegisterAudioSessionNotification(IntPtr notification);
+                [PreserveSig] int UnregisterAudioSessionNotification(IntPtr notification);
+                [PreserveSig] int GetSessionIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
+                [PreserveSig] int GetSessionInstanceIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
+                [PreserveSig] int GetProcessId(out int processId);
+                [PreserveSig] int IsSystemSoundsSession();
+                [PreserveSig] int SetDuckingPreference([MarshalAs(UnmanagedType.Bool)] bool optOut);
             }
 
             [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -611,6 +715,118 @@ namespace AvianVoice.Study
             {
                 var context = Guid.Empty;
                 Marshal.ThrowExceptionForHR(Volume(DefaultDevice()).SetMute(mute, ref context));
+            }
+
+            static string FriendlyName(IMMDevice device)
+            {
+                Marshal.ThrowExceptionForHR(device.OpenPropertyStore(0, out var store));
+                var key = new PROPERTYKEY { fmtid = FriendlyNameFmtid, pid = 14 };
+                Marshal.ThrowExceptionForHR(store.GetValue(ref key, out var value));
+                return value.vt == 31 && value.pointerValue != IntPtr.Zero ? Marshal.PtrToStringUni(value.pointerValue) : "";
+            }
+
+            /// <summary>
+            /// -1 = no session of the process on this device; otherwise the best session state found
+            /// (1 = active stream, 0 = inactive: a stream that was closed, e.g. an earlier mirror).
+            /// </summary>
+            static int SessionStateOf(IMMDevice device, int processId)
+            {
+                const int SessionActive = 1;
+                const int SessionExpired = 2;
+                var managerIid = typeof(IAudioSessionManager2).GUID;
+                if (device.Activate(ref managerIid, ClsctxAll, IntPtr.Zero, out var obj) != 0)
+                    return -1;
+                var manager = (IAudioSessionManager2)obj;
+                if (manager.GetSessionEnumerator(out var sessions) != 0 || sessions.GetCount(out var sessionCount) != 0)
+                    return -1;
+                var best = -1;
+                for (var j = 0; j < sessionCount; j++)
+                {
+                    if (sessions.GetSession(j, out var session) != 0 || session == null)
+                        continue;
+                    if (session.GetProcessId(out var pid) != 0 || pid != processId || session.GetState(out var state) != 0 || state == SessionExpired)
+                        continue;
+                    best = Math.Max(best, state == SessionActive ? 1 : 0);
+                }
+                return best;
+            }
+
+            static bool HasSessionOf(IMMDevice device, int processId)
+            {
+                return SessionStateOf(device, processId) >= 0;
+            }
+
+            /// <summary>
+            /// The active render endpoint that has an audio session of the given process, skipping the device
+            /// named <paramref name="excludeName"/> (the mirror's own output). <paramref name="onlyExcluded"/>
+            /// is true when the excluded device was the only match.
+            /// </summary>
+            static IMMDevice ProcessDevice(int processId, string excludeName, out string name, out bool onlyExcluded)
+            {
+                const int DeviceStateActive = 1;
+                name = "";
+                onlyExcluded = false;
+                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(ERender, DeviceStateActive, out var devices));
+                Marshal.ThrowExceptionForHR(devices.GetCount(out var count));
+                // Unity's own (FMOD) stream is always active, even when silent; a device where this process only
+                // has an inactive session is one it used to play on (an earlier mirror), so it ranks lower.
+                IMMDevice best = null;
+                var bestState = -1;
+                var excludedSeen = false;
+                for (var i = 0; i < count; i++)
+                {
+                    if (devices.Item(i, out var device) != 0 || device == null)
+                        continue;
+                    var state = SessionStateOf(device, processId);
+                    if (state < 0)
+                        continue;
+                    var friendly = FriendlyName(device);
+                    if (!string.IsNullOrEmpty(excludeName) && friendly == excludeName)
+                    {
+                        excludedSeen = true;
+                        continue;
+                    }
+                    if (state > bestState)
+                    {
+                        best = device;
+                        bestState = state;
+                        name = friendly;
+                    }
+                }
+                onlyExcluded = best == null && excludedSeen;
+                return best;
+            }
+
+            public static bool QueryProcessOutput(int processId, string excludeName, out string name, out bool muted, out float volume, out bool onlyExcluded)
+            {
+                muted = false;
+                volume = -1f;
+                var device = ProcessDevice(processId, excludeName, out name, out onlyExcluded);
+                if (device == null)
+                    return false;
+                var vol = Volume(device);
+                Marshal.ThrowExceptionForHR(vol.GetMute(out muted));
+                Marshal.ThrowExceptionForHR(vol.GetMasterVolumeLevelScalar(out volume));
+                return true;
+            }
+
+            /// <summary>Mute / unmute the device named <paramref name="deviceName"/> among those this process plays on.</summary>
+            public static void SetMuteForProcessOutput(int processId, string deviceName, bool mute)
+            {
+                const int DeviceStateActive = 1;
+                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(ERender, DeviceStateActive, out var devices));
+                Marshal.ThrowExceptionForHR(devices.GetCount(out var count));
+                for (var i = 0; i < count; i++)
+                {
+                    if (devices.Item(i, out var device) != 0 || device == null || FriendlyName(device) != deviceName || !HasSessionOf(device, processId))
+                        continue;
+                    var context = Guid.Empty;
+                    Marshal.ThrowExceptionForHR(Volume(device).SetMute(mute, ref context));
+                    return;
+                }
+                throw new InvalidOperationException("no audio session of this process on '" + deviceName + "'");
             }
         }
 #endif

@@ -216,6 +216,25 @@ namespace AvianVoice.Editor
                 }
             }
 
+            if (!string.IsNullOrEmpty(PcAudioMonitor.UnityOutputName))
+            {
+                var uvol = PcAudioMonitor.UnityOutputVolume >= 0f ? "  volume " + Mathf.RoundToInt(PcAudioMonitor.UnityOutputVolume * 100f) + "%" : "";
+                EditorGUILayout.LabelField("Unity output device", PcAudioMonitor.UnityOutputName + uvol + (PcAudioMonitor.UnityOutputMuted ? "  MUTED" : ""));
+                if (PcAudioMonitor.UnityOutputMuted)
+                {
+                    EditorGUILayout.HelpBox("Unity's audio goes to \"" + PcAudioMonitor.UnityOutputName + "\", which is muted in Windows, so nothing is heard there (the headset over Link). The PC speakers only get sound through the PC monitor output below.", MessageType.Warning);
+                    if (GUILayout.Button("Unmute Unity's output device"))
+                    {
+                        if (!PcAudioMonitor.UnmuteUnityOutput())
+                            Debug.LogWarning("[AvianVoice] Could not unmute Unity's output device: " + PcAudioMonitor.DefaultOutputError);
+                    }
+                }
+                else if (PcAudioMonitor.UnityOutputName != PcAudioMonitor.DefaultOutputName)
+                {
+                    EditorGUILayout.LabelField(" ", "Unity does not follow the Windows default here (the Oculus runtime routes it to the headset device). The PC monitor output below mirrors it to the PC speakers.", EditorStyles.wordWrappedMiniLabel);
+                }
+            }
+
             if (EditorUtility.audioMasterMute)
             {
                 EditorGUILayout.HelpBox("\"Mute Audio\" is enabled in the Unity Game view.", MessageType.Warning);

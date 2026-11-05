@@ -85,10 +85,16 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 - パネルの **「Windows default output」** にそのデバイス名・音量・ミュート状態（MUTED）が出ます。ミュート中なら警告と
   「Unmute the Windows output」ボタンが出ます（2026-11-05 に PC から音が出なかった原因はこれでした: Realtek スピーカーが
   Windows 側でミュート）。Unity の Game ビューの Mute Audio も同様に検出します。
+- **Unity は Windows の既定出力に従わないことがあります。** Quest Link が有効だと Oculus ランタイムが Unity の出力を
+  「ヘッドホン (Oculus Virtual Audio Device)」に付け替えます（Windows の既定が Realtek スピーカーのままでも）。パネルの
+  **「Unity output device」** に Unity のオーディオセッションが実際に乗っているデバイスとそのミュート状態が出ます
+  （2026-11-05 に PC から音が出なかった 2 つ目の原因: Unity は Oculus 仮想デバイスに出ていて、それが Windows 側でミュート）。
+  ミュートなら「Unmute Unity's output device」ボタンで解除できます（ヘッドセット側に聞かせるにはこれが必要です）。
 - **PC monitor output**（`PcAudioMonitor`、AudioListener に自動で付きます）: Unity の出力をそのまま PC のスピーカー
-  （Oculus / Virtual でない最初の waveOut デバイス）にも流します。既定の **Auto** は「Windows の既定出力がヘッドセット
-  （Oculus Virtual Audio Device など）のときだけ」ミラーするので、Link でヘッドセットに音を出しつつ実験者も PC で聞けます。
-  既定出力が PC スピーカーのときは二重になるのでミラーしません。**Always** で常時、**Off** で停止。「Device (part of the name)」で
+  （Oculus / Virtual でない最初の waveOut デバイス）にも流します。既定の **Auto** は「Unity の実際の出力先（上の Unity output
+  device、見つからなければ Windows の既定出力）がヘッドセット（Oculus Virtual Audio Device など）のときだけ」ミラーするので、
+  Link でヘッドセットに音を出しつつ実験者も PC で聞けます。Unity が PC スピーカーに出ているときは二重になるのでミラーしません
+  （判定はミラー自身の出力ストリームを除外し、Active なセッションを優先します）。**Always** で常時、**Off** で停止。「Device (part of the name)」で
   デバイスを指定できます。遅延は 0.1 秒程度です。
 - Link でヘッドセット側に聞かせるには、Windows のサウンド設定で既定の出力を「Headphones (Oculus Virtual Audio Device)」に
   するか、Meta Quest Link アプリの設定でリンク時にオーディオを切り替えるようにしてください（PC モニター出力が Auto で
