@@ -1,3 +1,4 @@
+using System.Threading;
 using AvianVoice.Core;
 using UnityEngine;
 
@@ -30,7 +31,10 @@ namespace AvianVoice.Audio
         volatile float noiseLevel = 0.06f;
         volatile float volume = 0.5f;
         volatile float pitchSmoothSeconds = 0.04f;
-        volatile int chirpFramesLeft;
+        // Main thread writes with Interlocked; the audio thread reads a snapshot at the start of a callback
+        // and writes the decremented value back only if nobody started a new chirp in the meantime
+        // (a plain write-back could overwrite a chirp requested during the callback and drop it).
+        int chirpFramesLeft;
 
         // Audio thread state.
         int sampleRate = 48000;
@@ -44,7 +48,7 @@ namespace AvianVoice.Audio
         float svfBand;
         uint noiseState = 0x9E3779B9u;
 
-        public bool IsSounding => chirpFramesLeft > 0 || envelope > 0.02f;
+        public bool IsSounding => Volatile.Read(ref chirpFramesLeft) > 0 || envelope > 0.02f;
 
         public static BirdSongSynth Ensure(Transform parent, AudioSource template, AvianVoiceSettings voiceSettings)
         {
@@ -116,15 +120,15 @@ namespace AvianVoice.Audio
             var hold = holdSeconds > 0f
                 ? holdSeconds
                 : (settings != null ? Mathf.Max(0.05f, settings.synthChirpSeconds) : 0.14f);
-            chirpFramesLeft = Mathf.Max(1, Mathf.RoundToInt(hold * sampleRate));
             targetGate = 1f;
+            Interlocked.Exchange(ref chirpFramesLeft, Mathf.Max(1, Mathf.RoundToInt(hold * sampleRate)));
             EnsurePlaying();
         }
 
         public void Silence()
         {
             targetGate = 0f;
-            chirpFramesLeft = 0;
+            Interlocked.Exchange(ref chirpFramesLeft, 0);
         }
 
         void Awake()
@@ -194,7 +198,8 @@ namespace AvianVoice.Audio
 
             var fs = (float)sampleRate;
             var dt = 1f / fs;
-            var framesLeft = chirpFramesLeft;
+            var framesSnapshot = Volatile.Read(ref chirpFramesLeft);
+            var framesLeft = framesSnapshot;
             var gateOpen = framesLeft > 0;
             var goalHz = targetHz;
             var level = targetLevel;
@@ -274,7 +279,7 @@ namespace AvianVoice.Audio
                     data[n * channels + c] = sample;
             }
 
-            chirpFramesLeft = framesLeft;
+            Interlocked.CompareExchange(ref chirpFramesLeft, framesLeft, framesSnapshot);
         }
 
         float NextNoise()

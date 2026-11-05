@@ -37,7 +37,9 @@ namespace AvianVoice.Embodiment.Avatars
             {
                 id = "neutral", label = "mannequin", labelJa = "マネキン",
                 resourcePath = "Avatars/UnityArmature/Armature",
-                eyeOffsetFromHeadBone = new Vector3(0f, 0.09f, 0.11f)
+                // Measured on the Armature in muscle T-pose (menu: Debug / Measure Human Avatar Eye Point): head bone
+                // at 1.59 m, head top 0.15 m above it, face front 0.11 m ahead -> eye line ~0.035 m up, ~0.09 m forward.
+                eyeOffsetFromHeadBone = new Vector3(0f, 0.035f, 0.09f)
             }
         };
 
@@ -77,8 +79,10 @@ namespace AvianVoice.Embodiment.Avatars
         bool participantHandsVisible;
 
         [Header("UI")]
+        [Tooltip("Head-locked status card below the participant's view (avatar, switch keys, body tracking state). " +
+                 "Off for the study: the participant should not see the manipulation; the experimenter panel can turn it on.")]
         [SerializeField]
-        bool showSwitchHint = true;
+        bool showSwitchHint;
 
         [SerializeField]
         bool logStatus = true;

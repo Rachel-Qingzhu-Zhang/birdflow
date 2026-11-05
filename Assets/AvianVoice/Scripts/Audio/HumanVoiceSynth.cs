@@ -1,3 +1,4 @@
+using System.Threading;
 using UnityEngine;
 
 namespace AvianVoice.Audio
@@ -56,8 +57,10 @@ namespace AvianVoice.Audio
         [SerializeField, Range(0f, 0.3f)]
         float breathNoise = 0.03f;
 
+        [Tooltip("Output level. 1 = a held note lands at about -11 dBFS, the level of the bird chirp guide note (BirdSongSynth), " +
+                 "so the human-voice and bird-voice conditions are equally loud.")]
         [SerializeField, Range(0f, 1f)]
-        float volume = 0.7f;
+        float volume = 1f;
 
         [SerializeField]
         float minHz = 70f;
@@ -71,7 +74,9 @@ namespace AvianVoice.Audio
         volatile float targetHz = 220f;
         volatile float targetLevel = 0.8f;
         volatile bool followGate;
-        volatile int holdFramesLeft;
+        // Main thread writes with Interlocked; the audio thread reads a snapshot at the start of a callback
+        // and writes the decremented value back only if no new note was requested in the meantime.
+        int holdFramesLeft;
 
         // Audio thread state.
         int sampleRate = 48000;
@@ -92,7 +97,7 @@ namespace AvianVoice.Audio
         readonly float[] a2 = new float[FormantCount];
         uint noiseState = 0x2545F491u;
 
-        public bool IsSounding => holdFramesLeft > 0 || followGate || envelope > 0.02f;
+        public bool IsSounding => Volatile.Read(ref holdFramesLeft) > 0 || followGate || envelope > 0.02f;
 
         public static HumanVoiceSynth Ensure(Transform parent, AudioSource template)
         {
@@ -143,14 +148,14 @@ namespace AvianVoice.Audio
 
             targetHz = Mathf.Clamp(hz, minHz, maxHz);
             targetLevel = Mathf.Lerp(0.35f, 1f, Mathf.Clamp01(loudness));
-            holdFramesLeft = Mathf.Max(1, Mathf.RoundToInt(Mathf.Max(0.05f, seconds) * sampleRate));
+            Interlocked.Exchange(ref holdFramesLeft, Mathf.Max(1, Mathf.RoundToInt(Mathf.Max(0.05f, seconds) * sampleRate)));
             EnsurePlaying();
         }
 
         public void Silence()
         {
             followGate = false;
-            holdFramesLeft = 0;
+            Interlocked.Exchange(ref holdFramesLeft, 0);
         }
 
         void Awake()
@@ -224,7 +229,8 @@ namespace AvianVoice.Audio
             var dt = 1f / fs;
             UpdateFormantCoefficients(fs);
 
-            var framesLeft = holdFramesLeft;
+            var framesSnapshot = Volatile.Read(ref holdFramesLeft);
+            var framesLeft = framesSnapshot;
             var goalHz = targetHz;
             var goalLevel = targetLevel;
             var follow = followGate;
@@ -296,15 +302,16 @@ namespace AvianVoice.Audio
                             + Resonator(2, excitation) * g2
                             + Resonator(3, excitation) * g3;
 
-                // Soft limit so loud passages stay round instead of clipping.
-                var sample = voice * 2.2f * envelope * level * gain;
+                // Soft limit so loud passages stay round instead of clipping. The 4.0 pre-gain puts a full-level note
+                // at about -11 dBFS after the limiter (measured 2026-11-05), matching the bird chirp guide note.
+                var sample = voice * 4.0f * envelope * level * gain;
                 sample = sample / (1f + Mathf.Abs(sample) * 0.6f);
 
                 for (var c = 0; c < channels; c++)
                     data[n * channels + c] = sample;
             }
 
-            holdFramesLeft = framesLeft;
+            Interlocked.CompareExchange(ref holdFramesLeft, framesLeft, framesSnapshot);
         }
 
         float Resonator(int i, float x)

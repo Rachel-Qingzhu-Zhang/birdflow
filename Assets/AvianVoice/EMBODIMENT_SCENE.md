@@ -54,6 +54,8 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 - 教師の鳥の手本（guide note）は **どの条件でも鳥の声**です（`SingingTrialTask.teacherVoice = Bird`）。
   人間アバターのときに手本も人間の声にしたい場合は `Teacher Voice` を `FollowAvatar` にします（`events.jsonl` の
   `guide_start` に `teacher_voice` が残ります）。
+- 人間の声（`HumanVoiceSynth`）の音量は鳥の手本と同じ約 -11 dBFS に合わせてあります（2026-11-05 に `output.wav` で実測。
+  変えるときは `HumanVoiceSynth.volume`）。鳥 / 人間の声の条件で聞こえる大きさが揃うようにしています。
 - `events.jsonl` の全イベントに `voice_feedback`、`trials.csv` に `voice_feedback` 列、条件を変えたときに
   `voice_feedback` イベント（`condition` 付き）が入ります。
 
@@ -129,7 +131,8 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 2026-11-05 まで使っていた Rocketbox の男性 / 女性と MakeHuman の中性体は外しました（MakeHuman の中性体は女性に見える、
 Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使われる「無性のマネキン / ロボット」アバターに統一）。
 別の Humanoid モデルを試すには Resources 配下に置いて `Avian Embodiment` → `Human Avatars` に id / Resources パス /
-目の位置（`Eye Offset From Head Bone`、頭ボーン基準の T ポーズでの目の位置）を足します。モデルが無い id はパネルに
+目の位置（`Eye Offset From Head Bone`、頭ボーン基準の T ポーズでの目の位置。`Avian Voice/Embodiment/Debug/Measure Human Avatar Eye Point`
+で頭ボーン・頭頂・顔前面の位置を Console に出せます。Armature は頭ボーンから +0.035 m 上 / +0.09 m 前）を足します。モデルが無い id はパネルに
 「missing」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:neutral` のように id 付きで残ります。
 
 歌う場面では、鳥アバターでも人間アバターでも **教師の鳥（`FriendParrot`）が被験者の右隣に出て**歌います（人間アバターのときは
@@ -165,7 +168,8 @@ Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使�
 | アバターを切り替える | **V** | Bird / Human ボタン |
 | コントローラを一時的に有効化 | — | Enable XR controllers トグル |
 
-視界の下に「アバター: 鳥 / 人間 … 体トラッキング: 全身 / 上半身 / なし」のカードが出ます（パネルまたは `showSwitchHint` で非表示可）。
+視界の下の「アバター: 鳥 / 人間 … 体トラッキング: 全身 / 上半身 / なし」のカードは既定で非表示です（被験者に操作を見せないため）。
+動作確認のときはパネルの Show the status card、または `showSwitchHint` で表示できます。
 
 ## 初回セットアップ
 

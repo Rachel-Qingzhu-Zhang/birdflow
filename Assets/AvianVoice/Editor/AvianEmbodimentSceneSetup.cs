@@ -178,6 +178,91 @@ namespace AvianVoice.Editor
             Debug.LogWarning("[AvianVoice] No other human avatar model is available.");
         }
 
+        [MenuItem("Avian Voice/Embodiment/Debug/Measure Human Avatar Eye Point")]
+        public static void MeasureHumanAvatarEyePoint()
+        {
+            var prefab = Resources.Load<GameObject>("Avatars/UnityArmature/Armature");
+            if (prefab == null)
+            {
+                Debug.LogWarning("[AvianVoice] Human avatar model not found in Resources/Avatars/UnityArmature/Armature.");
+                return;
+            }
+
+            var go = UnityEngine.Object.Instantiate(prefab);
+            try
+            {
+                go.hideFlags = HideFlags.HideAndDontSave;
+                var root = go.transform;
+                root.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                root.localScale = Vector3.one;
+                var animator = go.GetComponent<Animator>();
+                if (animator == null || animator.avatar == null || !animator.avatar.isHuman)
+                {
+                    Debug.LogWarning("[AvianVoice] Human avatar is not Humanoid.");
+                    return;
+                }
+
+                // Muscle-space neutral pose = the T-pose HumanFirstPersonDriver measures the eye offset in.
+                using (var handler = new HumanPoseHandler(animator.avatar, root))
+                {
+                    var pose = new HumanPose();
+                    handler.GetHumanPose(ref pose);
+                    for (var i = 0; i < pose.muscles.Length; i++)
+                        pose.muscles[i] = 0f;
+                    handler.SetHumanPose(ref pose);
+                }
+
+                var head = animator.GetBoneTransform(HumanBodyBones.Head);
+                var eye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
+                var sb = new System.Text.StringBuilder("[AvianVoice] Human avatar eye point (root frame, muscle T-pose): ");
+                sb.Append("headBone=").Append(head != null ? head.position.ToString("F3") : "none");
+                sb.Append(" leftEyeBone=").Append(eye != null ? eye.position.ToString("F3") : "none");
+                foreach (var skinned in go.GetComponentsInChildren<SkinnedMeshRenderer>())
+                {
+                    var baked = new Mesh();
+                    skinned.BakeMesh(baked, true);
+                    var vertices = baked.vertices;
+                    var weights = skinned.sharedMesh.boneWeights;
+                    var bones = skinned.bones;
+                    var isHead = new bool[bones.Length];
+                    for (var i = 0; i < bones.Length; i++)
+                        isHead[i] = head != null && bones[i] != null && (bones[i] == head || bones[i].IsChildOf(head));
+                    Vector3 min = Vector3.one * 1e9f, max = -min, allMin = min, allMax = max;
+                    var count = 0;
+                    for (var i = 0; i < vertices.Length; i++)
+                    {
+                        var p = skinned.transform.TransformPoint(vertices[i]);
+                        allMin = Vector3.Min(allMin, p);
+                        allMax = Vector3.Max(allMax, p);
+                        var w = weights[i];
+                        var headWeight = 0f;
+                        if (isHead[w.boneIndex0]) headWeight += w.weight0;
+                        if (isHead[w.boneIndex1]) headWeight += w.weight1;
+                        if (isHead[w.boneIndex2]) headWeight += w.weight2;
+                        if (isHead[w.boneIndex3]) headWeight += w.weight3;
+                        if (headWeight < 0.5f)
+                            continue;
+                        min = Vector3.Min(min, p);
+                        max = Vector3.Max(max, p);
+                        count++;
+                    }
+
+                    sb.Append(" | ").Append(skinned.name).Append(": body ").Append(allMin.ToString("F3")).Append("..").Append(allMax.ToString("F3"))
+                      .Append(" head(").Append(count).Append(" verts) ").Append(min.ToString("F3")).Append("..").Append(max.ToString("F3"));
+                    if (head != null && count > 0)
+                        sb.Append(" headTop-headBone=").Append((max.y - head.position.y).ToString("F3"))
+                          .Append(" headFront-headBone=").Append((max.z - head.position.z).ToString("F3"));
+                    UnityEngine.Object.DestroyImmediate(baked);
+                }
+
+                Debug.Log(sb.ToString());
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Load Task 3 Singing (Play Mode)")]
         public static void DebugLoadSinging()
         {

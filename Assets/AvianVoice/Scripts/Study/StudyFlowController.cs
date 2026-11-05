@@ -114,7 +114,13 @@ namespace AvianVoice.Study
                 mapper = BirdVoiceMapper.Find();
             mapper?.SetFeedback(effective);
             if (Recorder != null)
+            {
                 Recorder.CurrentVoiceFeedback = FeedbackName(effective);
+                // The avatar may have changed in this same call (SetCondition): label the events that follow
+                // with the new avatar at once instead of waiting for the next Update.
+                if (avatar != null)
+                    Recorder.CurrentAvatar = avatar.CurrentLabel;
+            }
 
             if (lastFeedback == effective)
                 return;
