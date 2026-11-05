@@ -26,28 +26,29 @@
 XR リグの手メッシュ・関節・レイ表示も既定で非表示です（`Participant Hands Visible`、トラッキング自体は動き続け、
 翼や人間アバターの腕がその代わりに見えます）。
 
-実験者は PC 側で操作します。メニュー **Avian Voice → Experimenter Panel (実験者パネル)** を開くと、Play 中に
+実験者は PC 側で操作します。メニュー **Avian Voice → Experimenter Panel** を開くと、Play 中に
+（パネルの表示は英語です。被験者がヘッドセットで見る文言は日英のままです）
 
 - 場面 1〜4 のボタン / 前の場面・次の場面
-- 歌う場面の試行: 「試行 n を開始」ボタン（被験者の Space / R と同じ）、進捗バー、やり直し、リセット
+- 歌う場面の試行: 「Start trial n」ボタン（被験者の Space / R と同じ）、進捗バー、やり直し（Repeat the last trial）、リセット
 - アバター: 鳥 / 人間
 - 被験者コントローラの有効/無効、手の表示、視界下の状態カードの表示
 - 現在の場面・アバター・体トラッキング状態の表示、**音声出力メーター**、記録の状態、詳細ログ出力
 
-Play の前に **被験者 ID** をパネルで入力しておくと、記録フォルダ名に入ります。
+Play の前に **Participant ID** をパネルで入力しておくと、記録フォルダ名に入ります。
 
 ### 歌う場面の試行（3 ピッチ × 20 回）
 
 1. 場面 3「歌う」に切り替える。被験者には「次の音を待ってください」と出ます。
-2. パネルの **「▶ 試行 n を開始 — 教師の鳥が E4 を歌う」** を押す（または Game ビューで Space）。
+2. パネルの **「▶ Start trial n / 60 — teacher bird sings E4」** を押す（または Game ビューで Space）。
    教師の鳥が目標の音を約 0.9 秒歌い、0.3 秒おいて「今度は E4 を歌ってください」に変わります。
 3. 被験者が歌う。声の始まり（60 ms 以上有声）と終わり（250 ms 以上無声）を検出して記録します
    （複数回発声してもすべて残ります）。応答中は自分の声が鳥の声として聞こえます。
-4. 実験者が **次のボタン（「▶ 次の試行 n+1」/ Space）を押した瞬間に試行が終わり、次の試行が始まります**。
+4. 実験者が **次のボタン（「▶ Next trial n+1」/ Space）を押した瞬間に試行が終わり、次の試行が始まります**。
    待ち時間はなく、教師の鳥が歌っている最中でも押せます（その場合は試行が短く記録されるだけです）。
    つまり `trials.csv` の 1 行は「ボタンを押してから次に押すまで」の区間です（`t_start_*` 〜 `t_end_*`、
-   `end_reason = experimenter_next`）。「終了 (待機)」で試行を閉じて待機に戻すこともできます（`experimenter_end`）。
-5. 60 回目の試行の後にもう一度押すと（ボタンは「■ 最後の試行を終了 → 休む場面へ」になります）
+   `end_reason = experimenter_next`）。「End (idle)」で試行を閉じて待機に戻すこともできます（`experimenter_end`）。
+5. 60 回目の試行の後にもう一度押すと（ボタンは「■ End the last trial → Rest scene」になります）
    「お疲れさまでした」と出て、3 秒後に自動で「休む」場面へ移ります。
 
 `SingingTrialTask` の **Trial Until Next Press** を外すと以前の動作（応答は最長 5 秒、声が止まって 1 秒で自動終了、
@@ -55,12 +56,12 @@ Play の前に **被験者 ID** をパネルで入力しておくと、記録フ
 
 ピッチ（既定 E4 330 / G4 392 / B4 494 Hz）、各ピッチの回数、順序（ブロック / 交互 / ランダム）は最初の試行を始める前なら
 パネルか `TaskRoot` の `SingingTrialTask` で変えられます。教師の音は鳥の音域に移調されますが、被験者はどのオクターブで歌っても
-同じ音名なら一致と判定します（`pitch_match`）。「直前の試行をやり直す」で同じ目標をもう一度行えます（`attempt` が増え、両方とも記録に残ります）。
+同じ音名なら一致と判定します（`pitch_match`）。「Repeat the last trial」で同じ目標をもう一度行えます（`attempt` が増え、両方とも記録に残ります）。
 
 ### 記録データ
 
 `StudyRecorder` が Play 開始から終了までを `persistentDataPath/AvianStudy/<日時>_<被験者ID>/` に書きます
-（Windows では `%USERPROFILE%\AppData\LocalLow\<会社名>\<製品名>\AvianStudy\…`。パネルの「フォルダを開く」で開けます）。
+（Windows では `%USERPROFILE%\AppData\LocalLow\<会社名>\<製品名>\AvianStudy\…`。パネルの「Open the recordings folder」で開けます）。
 
 | ファイル | 内容 |
 |----------|------|
@@ -77,17 +78,17 @@ Play の前に **被験者 ID** をパネルで入力しておくと、記録フ
 
 ### 音が聞こえないとき（PC スピーカー / ヘッドセット）
 
-パネルの「音声出力 (PC 側)」メーターが振れていれば Unity は音を出しています。聞こえないのは出力先の問題です。
+パネルの「Audio output (PC)」メーターが振れていれば Unity は音を出しています。聞こえないのは出力先の問題です。
 
 - Unity の音は **Windows の既定の再生デバイス**に出ます（ログの `XR: Error setting active audio output driver.
   Falling back to default.` はヘッドセットへの自動切替が失敗して既定デバイスに落ちた印）。
-- パネルの **「Windows 既定出力」** にそのデバイス名・音量・ミュート状態が出ます。ミュート中なら警告と
-  「Windows のミュートを解除」ボタンが出ます（2026-11-05 に PC から音が出なかった原因はこれでした: Realtek スピーカーが
+- パネルの **「Windows default output」** にそのデバイス名・音量・ミュート状態（MUTED）が出ます。ミュート中なら警告と
+  「Unmute the Windows output」ボタンが出ます（2026-11-05 に PC から音が出なかった原因はこれでした: Realtek スピーカーが
   Windows 側でミュート）。Unity の Game ビューの Mute Audio も同様に検出します。
-- **PC モニター出力**（`PcAudioMonitor`、AudioListener に自動で付きます）: Unity の出力をそのまま PC のスピーカー
+- **PC monitor output**（`PcAudioMonitor`、AudioListener に自動で付きます）: Unity の出力をそのまま PC のスピーカー
   （Oculus / Virtual でない最初の waveOut デバイス）にも流します。既定の **Auto** は「Windows の既定出力がヘッドセット
   （Oculus Virtual Audio Device など）のときだけ」ミラーするので、Link でヘッドセットに音を出しつつ実験者も PC で聞けます。
-  既定出力が PC スピーカーのときは二重になるのでミラーしません。**Always** で常時、**Off** で停止。「出力先 (名前の一部)」で
+  既定出力が PC スピーカーのときは二重になるのでミラーしません。**Always** で常時、**Off** で停止。「Device (part of the name)」で
   デバイスを指定できます。遅延は 0.1 秒程度です。
 - Link でヘッドセット側に聞かせるには、Windows のサウンド設定で既定の出力を「Headphones (Oculus Virtual Audio Device)」に
   するか、Meta Quest Link アプリの設定でリンク時にオーディオを切り替えるようにしてください（PC モニター出力が Auto で
@@ -102,9 +103,9 @@ Play の前に **被験者 ID** をパネルで入力しておくと、記録フ
 | `neutral` | MakeHuman（MPFB2）で生成した中性の **マネキン**（顔・髪・服なし、単色マット、眼球は同色の球） | MakeHuman（CC0）は CHI / IEEE VR の embodiment 研究で広く使われる無料のヒューマンジェネレータ。性別スライダ 0.5、胸なしの中性体をテクスチャ無しの単色にしたもので、顔の無いマネキン型アバター（Lugrin et al. 2015, IEEE VR; 人間型アバターとの身体所有感の比較に使われる系統）に相当。Rocketbox にも VALID にも中性モデルは無い | `Resources/Avatars/MakeHuman/Neutral_Adult_01`（下記の手順で生成） |
 
 歌う場面では、鳥アバターでも人間アバターでも **教師の鳥（`FriendParrot`）が被験者の右隣に出て**歌います（人間アバターのときは
-鳥の自分は隠れ、人間の体と教師の鳥が見えます）。実験者パネルの「人間 (男性 / 女性 / マネキン)」ボタンで切り替えます（V キーは鳥 ⇄ 選択中の人間）。`Avian Embodiment` の
+鳥の自分は隠れ、人間の体と教師の鳥が見えます）。実験者パネルの「Human (male / female / mannequin)」ボタンで切り替えます（V キーは鳥 ⇄ 選択中の人間）。`Avian Embodiment` の
 `AvatarEmbodimentController` → `Human Avatars` に 3 体の id / 表示名 / Resources パスがあり、モデルが無い id はパネルに
-「未配置」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:female` のように id 付きで残ります。
+「missing」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:female` のように id 付きで残ります。
 
 **中性アバターの生成**（生成済みのものがリポジトリに入っています。作り直すときだけ。Blender 4.2 以上 + MPFB2 拡張 +
 MakeHuman system assets が必要。2026-11-04 に Blender 5.1.2 + MPFB2 2.0.18 で生成）
@@ -136,10 +137,10 @@ FBX の単色をそのまま使用）。既定の `--style mannequin` は顔テ�
 
 | したいこと | PC キーボード | 実験者パネル |
 |------------|---------------|--------------|
-| 場面を変える | **1〜4**、**N**（次）、←（前） | 場面ボタン |
-| 歌う場面で次の試行を始める | **Space** / **R** | 試行を開始ボタン |
-| アバターを切り替える | **V** | 鳥 / 人間ボタン |
-| コントローラを一時的に有効化 | — | トグル |
+| 場面を変える | **1〜4**、**N**（次）、←（前） | Scene flow のボタン |
+| 歌う場面で次の試行を始める | **Space** / **R** | Start trial / Next trial ボタン |
+| アバターを切り替える | **V** | Bird / Human ボタン |
+| コントローラを一時的に有効化 | — | Enable XR controllers トグル |
 
 視界の下に「アバター: 鳥 / 人間 … 体トラッキング: 全身 / 上半身 / なし」のカードが出ます（パネルまたは `showSwitchHint` で非表示可）。
 

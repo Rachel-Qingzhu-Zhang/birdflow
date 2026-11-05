@@ -34,7 +34,7 @@ namespace AvianVoice.Embodiment.Avatars
         {
             new() { id = "male", label = "male", labelJa = "男性", resourcePath = "Avatars/Rocketbox/Male_Adult_01/Male_Adult_01" },
             new() { id = "female", label = "female", labelJa = "女性", resourcePath = "Avatars/Rocketbox/Female_Adult_01/Female_Adult_01" },
-            new() { id = "neutral", label = "neutral mannequin", labelJa = "マネキン", resourcePath = "Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01" }
+            new() { id = "neutral", label = "mannequin", labelJa = "マネキン", resourcePath = "Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01" }
         };
 
         [Tooltip("Which human avatar is shown first when switching to Human.")]

@@ -18,23 +18,24 @@ namespace AvianVoice.Editor
     /// Experimenter panel (PC side). While the participant wears the headset, the experimenter drives the
     /// study from here: scene (task) transitions, the singing trials (3 pitches x 20), bird / human avatar,
     /// participant input policy, recording status. Menu: Avian Voice / Experimenter Panel.
+    /// The panel is in English; the participant-facing text in the headset stays bilingual (AvianUiCopy).
     /// </summary>
     public class AvianExperimenterWindow : EditorWindow
     {
         const string EmbodimentScenePath = AvianEmbodimentSceneSetup.ScenePath;
         const string ParticipantIdEditorKey = "AvianVoice.Experimenter.ParticipantId";
 
-        static readonly Dictionary<string, string> TaskLabelsJa = new()
+        static readonly Dictionary<string, string> TaskLabels = new()
         {
-            { "meet", "鳥に会う" },
-            { "breath_sync", "呼吸" },
-            { "singing", "歌う" },
-            { "flying", "飛ぶ" },
-            { "call_friends", "仲間を呼ぶ" },
-            { "reflection", "休む" }
+            { "meet", "Meet the bird" },
+            { "breath_sync", "Breathing" },
+            { "singing", "Singing" },
+            { "flying", "Flying" },
+            { "call_friends", "Call friends" },
+            { "reflection", "Rest" }
         };
 
-        static readonly string[] OrderLabels = { "ブロック (A×20 → B×20 → C×20)", "交互 (A B C A B C …)", "ランダム (各 20 回)" };
+        static readonly string[] OrderLabels = { "Blocked (A×20 → B×20 → C×20)", "Alternating (A B C A B C …)", "Random (20 each)" };
 
         double nextRepaint;
         Vector2 scroll;
@@ -43,7 +44,7 @@ namespace AvianVoice.Editor
         string participantId;
         GUIStyle bigButton;
 
-        [MenuItem("Avian Voice/Experimenter Panel (実験者パネル)")]
+        [MenuItem("Avian Voice/Experimenter Panel")]
         public static void Open()
         {
             var window = GetWindow<AvianExperimenterWindow>();
@@ -110,14 +111,14 @@ namespace AvianVoice.Editor
 
         void DrawSceneSection()
         {
-            EditorGUILayout.LabelField("シーン / Scene", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Scene", EditorStyles.boldLabel);
             var active = SceneManager.GetActiveScene();
             var isEmbodiment = active.path == EmbodimentScenePath;
-            EditorGUILayout.LabelField("開いているシーン", active.name + (isEmbodiment ? "" : "  ← 体トラッキングは Avian_Lab_Embodiment だけ"));
+            EditorGUILayout.LabelField("Open scene", active.name + (isEmbodiment ? "" : "  ← body tracking only works in Avian_Lab_Embodiment"));
 
             using (new EditorGUI.DisabledScope(EditorApplication.isPlaying))
             {
-                var id = EditorGUILayout.TextField("被験者 ID (Play 前に設定)", participantId);
+                var id = EditorGUILayout.TextField("Participant ID (set before Play)", participantId);
                 if (id != participantId)
                 {
                     participantId = id;
@@ -130,7 +131,7 @@ namespace AvianVoice.Editor
             {
                 using (new EditorGUI.DisabledScope(EditorApplication.isPlaying || isEmbodiment))
                 {
-                    if (GUILayout.Button("Avian_Lab_Embodiment を開く"))
+                    if (GUILayout.Button("Open Avian_Lab_Embodiment"))
                     {
                         if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
                             EditorSceneManager.OpenScene(EmbodimentScenePath);
@@ -145,7 +146,7 @@ namespace AvianVoice.Editor
                         EditorApplication.isPlaying = true;
                     }
                 }
-                else if (GUILayout.Button("■ Stop (記録を閉じる)"))
+                else if (GUILayout.Button("■ Stop (closes the recording)"))
                 {
                     EditorApplication.isPlaying = false;
                 }
@@ -154,41 +155,41 @@ namespace AvianVoice.Editor
 
         void DrawStatusSection(bool playing, TaskManager taskManager, AvatarEmbodimentController controller)
         {
-            EditorGUILayout.LabelField("状態 / Status", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Status", EditorStyles.boldLabel);
             if (!playing)
             {
-                EditorGUILayout.HelpBox("Play 中にここから場面・試行・アバターを操作できます。", MessageType.Info);
+                EditorGUILayout.HelpBox("Enter Play mode to control the scene, the trials and the avatar from here.", MessageType.Info);
                 return;
             }
 
-            EditorGUILayout.LabelField("場面", taskManager != null
+            EditorGUILayout.LabelField("Scene", taskManager != null
                 ? (taskManager.CurrentIndex + 1) + " / " + taskManager.TaskCount + "  " + LabelFor(taskManager.CurrentTaskId) + "  (" + taskManager.CurrentTaskId + ")"
-                : "TaskManager なし");
+                : "no TaskManager");
 
             if (controller == null)
             {
-                EditorGUILayout.HelpBox("AvatarEmbodimentController がありません。Avian_Lab_Embodiment を Play してください。", MessageType.Warning);
+                EditorGUILayout.HelpBox("No AvatarEmbodimentController. Play Avian_Lab_Embodiment.", MessageType.Warning);
                 return;
             }
 
             var tracking = controller.BodyTrackingValid
-                ? (controller.Frame.IsFullBody ? "全身" : "上半身") + "  (信頼度 " + controller.Frame.Confidence.ToString("0.00") + ")"
-                : controller.Backend == null ? "なし (バックエンド無し)"
-                : !controller.Backend.IsRunning ? "なし (トラッカー未起動)"
-                : "なし (データ待ち: ヘッドセット装着?)";
-            EditorGUILayout.LabelField("アバター", controller.Current == AvatarKind.Bird ? "鳥 (Bird)" : "人間 (Human)");
-            EditorGUILayout.LabelField("体トラッキング", tracking);
-            EditorGUILayout.LabelField("被験者コントローラ", ParticipantInputPolicy.ControllersEnabled ? "有効" : "無効 (手・頭・声のみ)");
+                ? (controller.Frame.IsFullBody ? "full body" : "upper body") + "  (confidence " + controller.Frame.Confidence.ToString("0.00") + ")"
+                : controller.Backend == null ? "none (no backend)"
+                : !controller.Backend.IsRunning ? "none (tracker not running)"
+                : "none (waiting for data: is the headset worn?)";
+            EditorGUILayout.LabelField("Avatar", controller.Current == AvatarKind.Bird ? "Bird" : "Human");
+            EditorGUILayout.LabelField("Body tracking", tracking);
+            EditorGUILayout.LabelField("Participant controllers", ParticipantInputPolicy.ControllersEnabled ? "enabled" : "disabled (hands, head and voice only)");
 
             var meterRect = EditorGUILayout.GetControlRect(false, 16f);
             var labelRect = new Rect(meterRect.x, meterRect.y, EditorGUIUtility.labelWidth, meterRect.height);
             var barRect = new Rect(meterRect.x + EditorGUIUtility.labelWidth, meterRect.y, meterRect.width - EditorGUIUtility.labelWidth, meterRect.height);
-            EditorGUI.LabelField(labelRect, "音声出力 (PC 側)");
+            EditorGUI.LabelField(labelRect, "Audio output (PC)");
             var normalized = Mathf.Clamp01(Mathf.Log10(1f + outputLevel * 30f));
-            EditorGUI.ProgressBar(barRect, normalized, outputPeakHold > 0.001f ? "音が出ています" : "無音");
+            EditorGUI.ProgressBar(barRect, normalized, outputPeakHold > 0.001f ? "sound playing" : "silent");
             DrawPcAudioSection();
 
-            if (GUILayout.Button("詳細をコンソールに出す (Log Avatar State)"))
+            if (GUILayout.Button("Log details to the Console (Log Avatar State)"))
                 AvianEmbodimentSceneSetup.LogAvatarState();
         }
 
@@ -202,13 +203,13 @@ namespace AvianVoice.Editor
                 PcAudioMonitor.RefreshDefaultOutput();
             }
 
-            var name = string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputName) ? "(不明" + (string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputError) ? "" : ": " + PcAudioMonitor.DefaultOutputError) + ")" : PcAudioMonitor.DefaultOutputName;
-            var vol = PcAudioMonitor.DefaultOutputVolume >= 0f ? "  音量 " + Mathf.RoundToInt(PcAudioMonitor.DefaultOutputVolume * 100f) + "%" : "";
-            EditorGUILayout.LabelField("Windows 既定出力", name + vol + (PcAudioMonitor.DefaultOutputMuted ? "  ミュート中" : ""));
+            var name = string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputName) ? "(unknown" + (string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputError) ? "" : ": " + PcAudioMonitor.DefaultOutputError) + ")" : PcAudioMonitor.DefaultOutputName;
+            var vol = PcAudioMonitor.DefaultOutputVolume >= 0f ? "  volume " + Mathf.RoundToInt(PcAudioMonitor.DefaultOutputVolume * 100f) + "%" : "";
+            EditorGUILayout.LabelField("Windows default output", name + vol + (PcAudioMonitor.DefaultOutputMuted ? "  MUTED" : ""));
             if (PcAudioMonitor.DefaultOutputMuted)
             {
-                EditorGUILayout.HelpBox("Windows の既定の再生デバイスがミュートされています。Unity の音はここに出るので PC から音が出ません。", MessageType.Warning);
-                if (GUILayout.Button("Windows のミュートを解除"))
+                EditorGUILayout.HelpBox("The Windows default playback device is muted. Unity's audio goes there, so nothing is heard on the PC.", MessageType.Warning);
+                if (GUILayout.Button("Unmute the Windows output"))
                 {
                     if (!PcAudioMonitor.UnmuteDefaultOutput())
                         Debug.LogWarning("[AvianVoice] Could not unmute the Windows default output: " + PcAudioMonitor.DefaultOutputError);
@@ -217,8 +218,8 @@ namespace AvianVoice.Editor
 
             if (EditorUtility.audioMasterMute)
             {
-                EditorGUILayout.HelpBox("Unity の Game ビューで「Mute Audio」が有効です。", MessageType.Warning);
-                if (GUILayout.Button("Unity の Mute Audio を解除"))
+                EditorGUILayout.HelpBox("\"Mute Audio\" is enabled in the Unity Game view.", MessageType.Warning);
+                if (GUILayout.Button("Disable Unity's Mute Audio"))
                     EditorUtility.audioMasterMute = false;
             }
 
@@ -226,28 +227,28 @@ namespace AvianVoice.Editor
             if (monitor == null)
             {
                 var storedMode = PlayerPrefs.GetString(PcAudioMonitor.ModePrefKey, PcAudioMonitor.MonitorMode.Auto.ToString());
-                EditorGUILayout.LabelField("PC モニター出力", "Play 中に有効 (モード: " + storedMode + ")");
+                EditorGUILayout.LabelField("PC monitor output", "active in Play mode (mode: " + storedMode + ")");
                 return;
             }
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                var newMode = (PcAudioMonitor.MonitorMode)EditorGUILayout.EnumPopup("PC モニター出力", monitor.Mode);
+                var newMode = (PcAudioMonitor.MonitorMode)EditorGUILayout.EnumPopup("PC monitor output", monitor.Mode);
                 if (newMode != monitor.Mode)
                     monitor.Mode = newMode;
-                if (GUILayout.Button("再確認", GUILayout.Width(60f)))
+                if (GUILayout.Button("Recheck", GUILayout.Width(60f)))
                     monitor.Refresh();
             }
 
-            EditorGUILayout.LabelField(" ", monitor.Status + (monitor.DroppedChunks > 0 ? "  (欠落 " + monitor.DroppedChunks + ")" : ""), EditorStyles.miniLabel);
-            var newDevice = EditorGUILayout.TextField("  出力先 (名前の一部)", monitor.DeviceNameContains);
+            EditorGUILayout.LabelField(" ", monitor.Status + (monitor.DroppedChunks > 0 ? "  (dropped " + monitor.DroppedChunks + ")" : ""), EditorStyles.miniLabel);
+            var newDevice = EditorGUILayout.TextField("  Device (part of the name)", monitor.DeviceNameContains);
             if (newDevice != monitor.DeviceNameContains)
                 monitor.DeviceNameContains = newDevice;
         }
 
         void DrawTaskSection(bool playing, TaskManager taskManager, SingingTrialTask trials)
         {
-            EditorGUILayout.LabelField("場面の遷移 / Scene flow", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Scene flow", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!playing || taskManager == null))
             {
                 var ids = taskManager != null ? taskManager.TaskIds : StudyFlowController.FourSceneFlow;
@@ -256,7 +257,7 @@ namespace AvianVoice.Editor
                     var current = taskManager != null && taskManager.CurrentTaskId == ids[i];
                     var label = (i + 1) + " " + LabelFor(ids[i]) + "   (" + ids[i] + ")";
                     if (ids[i] == SingingTrialTask.TaskId && trials != null)
-                        label += "  " + trials.TotalTrials + " 回";
+                        label += "  " + trials.TotalTrials + " trials";
                     using (new EditorGUI.DisabledScope(current))
                     {
                         if (GUILayout.Button((current ? "● " : "   ") + label, GUILayout.Height(26f)))
@@ -266,9 +267,9 @@ namespace AvianVoice.Editor
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("◀ 前の場面"))
+                    if (GUILayout.Button("◀ Previous scene"))
                         taskManager.StepTask(-1);
-                    if (GUILayout.Button("次の場面 ▶"))
+                    if (GUILayout.Button("Next scene ▶"))
                         taskManager.StepTask(1);
                 }
             }
@@ -276,16 +277,16 @@ namespace AvianVoice.Editor
 
         void DrawTrialSection(bool playing, TaskManager taskManager, SingingTrialTask trials)
         {
-            EditorGUILayout.LabelField("歌う場面の試行 / Singing trials", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Singing trials", EditorStyles.boldLabel);
             if (!playing)
             {
-                EditorGUILayout.HelpBox("Play 中、歌う場面で「試行を開始」を押すと教師の鳥が歌い、被験者が続いて発声します。1 試行 = ボタンを押してから次に押すまで（待ち時間なし、いつでも押せます）。3 ピッチ × 20 回 = 60 回のあと、もう一度押すと最後の試行を閉じて休む場面へ移ります。", MessageType.None);
+                EditorGUILayout.HelpBox("In Play mode, in the Singing scene, press \"Start trial\": the teacher bird sings and the participant sings back. One trial = from one press to the next (no waiting; the button is always available). After 3 pitches × 20 = 60 trials, one more press closes the last trial and moves on to the Rest scene.", MessageType.None);
                 return;
             }
 
             if (trials == null)
             {
-                EditorGUILayout.HelpBox("SingingTrialTask がありません（Avian Embodiment の StudyFlowController / Use Singing Trials を確認）。", MessageType.Warning);
+                EditorGUILayout.HelpBox("No SingingTrialTask (check StudyFlowController / Use Singing Trials on Avian Embodiment).", MessageType.Warning);
                 return;
             }
 
@@ -298,7 +299,7 @@ namespace AvianVoice.Editor
                 var changed = false;
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    EditorGUILayout.PrefixLabel("ピッチ (Hz)");
+                    EditorGUILayout.PrefixLabel("Pitches (Hz)");
                     for (var i = 0; i < pitches.Length; i++)
                     {
                         var v = EditorGUILayout.FloatField(pitches[i], GUILayout.MinWidth(50f));
@@ -315,11 +316,11 @@ namespace AvianVoice.Editor
                     noteNames[i] = BirdSongPhrase.NoteName(pitches[i]);
                 EditorGUILayout.LabelField(" ", string.Join("  /  ", noteNames), EditorStyles.miniLabel);
 
-                var perPitch = EditorGUILayout.IntField("各ピッチの回数", trials.TrialsPerPitch);
+                var perPitch = EditorGUILayout.IntField("Trials per pitch", trials.TrialsPerPitch);
                 if (perPitch != trials.TrialsPerPitch && perPitch > 0)
                     changed = true;
 
-                var order = (TrialOrder)EditorGUILayout.Popup("順序", (int)trials.Order, OrderLabels);
+                var order = (TrialOrder)EditorGUILayout.Popup("Order", (int)trials.Order, OrderLabels);
                 if (order != trials.Order)
                     changed = true;
 
@@ -331,13 +332,13 @@ namespace AvianVoice.Editor
             var total = trials.TotalTrials;
             var done = trials.CompletedTrials;
             var progressRect = EditorGUILayout.GetControlRect(false, 20f);
-            EditorGUI.ProgressBar(progressRect, total > 0 ? done / (float)total : 0f, "試行 " + done + " / " + total + " 完了");
+            EditorGUI.ProgressBar(progressRect, total > 0 ? done / (float)total : 0f, "Trials " + done + " / " + total + " done");
 
             if (!singingActive)
             {
                 EditorGUILayout.HelpBox(trials.IsFinished
-                    ? "全 " + total + " 回が完了しています。「最初からやり直す」で再開できます。"
-                    : "歌う場面 (3) に切り替えると試行を開始できます。", MessageType.Info);
+                    ? "All " + total + " trials are done. \"Restart from trial 1\" starts over."
+                    : "Switch to the Singing scene (3) to start the trials.", MessageType.Info);
             }
 
             using (new EditorGUI.DisabledScope(!singingActive))
@@ -348,8 +349,8 @@ namespace AvianVoice.Editor
                     case TrialPhase.Idle:
                     {
                         var hz = trials.CurrentTargetHz;
-                        var label = "▶ 試行 " + trials.NextTrialNumber + " / " + total + " を開始 — 教師の鳥が "
-                                    + trials.CurrentNoteName + " (" + hz.ToString("0", c) + " Hz) を歌う   [Space]";
+                        var label = "▶ Start trial " + trials.NextTrialNumber + " / " + total + " — teacher bird sings "
+                                    + trials.CurrentNoteName + " (" + hz.ToString("0", c) + " Hz)   [Space]";
                         if (GUILayout.Button(label, bigButton, GUILayout.Height(44f)))
                             trials.StartNextTrial("experimenter_panel");
                         break;
@@ -359,19 +360,19 @@ namespace AvianVoice.Editor
                     {
                         // One trial = from this press to the next: the button is always available.
                         var running = trials.Current != null ? trials.Current.trial : 0;
-                        var state = trials.Phase == TrialPhase.Guide ? "教師の鳥が歌っています"
-                            : trials.IsVoiceActive ? "被験者が発声中" : trials.Current != null && trials.Current.HadVoice ? "発声終了" : "被験者の発声待ち";
-                        EditorGUILayout.LabelField("試行 " + running + " / " + total + " 進行中: " + state
-                                                   + "   経過 " + trials.CurrentTrialSeconds.ToString("0.0", c) + " s");
+                        var state = trials.Phase == TrialPhase.Guide ? "teacher bird singing"
+                            : trials.IsVoiceActive ? "participant singing" : trials.Current != null && trials.Current.HadVoice ? "voice ended" : "waiting for the participant's voice";
+                        EditorGUILayout.LabelField("Trial " + running + " / " + total + " running: " + state
+                                                   + "   elapsed " + trials.CurrentTrialSeconds.ToString("0.0", c) + " s");
                         var isLast = running >= total;
                         var label = isLast
-                            ? "■ 最後の試行を終了 → 休む場面へ   [Space]"
-                            : "▶ 次の試行 " + (running + 1) + " / " + total + " — 教師の鳥が " + trials.NextNoteName + " (" + trials.NextTargetHz.ToString("0", c) + " Hz)   [Space]";
+                            ? "■ End the last trial → Rest scene   [Space]"
+                            : "▶ Next trial " + (running + 1) + " / " + total + " — teacher bird sings " + trials.NextNoteName + " (" + trials.NextTargetHz.ToString("0", c) + " Hz)   [Space]";
                         using (new EditorGUILayout.HorizontalScope())
                         {
                             if (GUILayout.Button(label, bigButton, GUILayout.Height(44f)))
                                 trials.StartNextTrial("experimenter_panel");
-                            if (GUILayout.Button("終了 (待機)", GUILayout.Height(44f), GUILayout.Width(90f)))
+                            if (GUILayout.Button("End (idle)", GUILayout.Height(44f), GUILayout.Width(90f)))
                                 trials.EndTrialNow("experimenter_panel");
                         }
 
@@ -379,25 +380,25 @@ namespace AvianVoice.Editor
                     }
                     case TrialPhase.Guide:
                         using (new EditorGUI.DisabledScope(true))
-                            GUILayout.Button("♪ 教師の鳥が " + trials.CurrentNoteName + " を歌っています…", bigButton, GUILayout.Height(44f));
+                            GUILayout.Button("♪ Teacher bird is singing " + trials.CurrentNoteName + "…", bigButton, GUILayout.Height(44f));
                         break;
                     case TrialPhase.Response:
                     {
-                        var voice = trials.IsVoiceActive ? "発声中" : trials.Current != null && trials.Current.HadVoice ? "発声終了、待機中" : "被験者の発声待ち";
-                        EditorGUILayout.LabelField("試行 " + (trials.Current != null ? trials.Current.trial : 0) + ": " + voice
-                                                   + "   残り " + trials.ResponseSecondsLeft.ToString("0.0", c) + " s");
+                        var voice = trials.IsVoiceActive ? "singing" : trials.Current != null && trials.Current.HadVoice ? "voice ended, waiting" : "waiting for the participant's voice";
+                        EditorGUILayout.LabelField("Trial " + (trials.Current != null ? trials.Current.trial : 0) + ": " + voice
+                                                   + "   " + trials.ResponseSecondsLeft.ToString("0.0", c) + " s left");
                         using (new EditorGUILayout.HorizontalScope())
                         {
-                            if (GUILayout.Button("この試行を終了して次へ ▶", bigButton, GUILayout.Height(36f)))
+                            if (GUILayout.Button("End this trial and start the next ▶", bigButton, GUILayout.Height(36f)))
                                 trials.StartNextTrial("experimenter_panel_next");
-                            if (GUILayout.Button("この試行を終了 (待機)", GUILayout.Height(36f), GUILayout.Width(150f)))
+                            if (GUILayout.Button("End this trial (idle)", GUILayout.Height(36f), GUILayout.Width(150f)))
                                 trials.EndTrialNow("experimenter_panel");
                         }
 
                         break;
                     }
                     case TrialPhase.Finished:
-                        EditorGUILayout.LabelField("全 " + total + " 回完了。" + (singingActive ? "休む場面へ移ります。" : ""), EditorStyles.boldLabel);
+                        EditorGUILayout.LabelField("All " + total + " trials done." + (singingActive ? " Moving on to the Rest scene." : ""), EditorStyles.boldLabel);
                         break;
                 }
 
@@ -405,48 +406,48 @@ namespace AvianVoice.Editor
                 {
                     using (new EditorGUI.DisabledScope(trials.Phase != TrialPhase.Idle || done == 0))
                     {
-                        if (GUILayout.Button("直前の試行をやり直す"))
+                        if (GUILayout.Button("Repeat the last trial"))
                             trials.RepeatLastTrial("experimenter_panel");
                     }
 
                     using (new EditorGUI.DisabledScope(!trials.HasStarted))
                     {
-                        if (GUILayout.Button("最初からやり直す (リセット)")
-                            && EditorUtility.DisplayDialog("試行をリセット", "試行を 1 から始め直します。記録済みのデータはファイルに残ります。", "リセット", "キャンセル"))
+                        if (GUILayout.Button("Restart from trial 1 (reset)")
+                            && EditorUtility.DisplayDialog("Reset trials", "Start again from trial 1. Data already recorded stays in the files.", "Reset", "Cancel"))
                             trials.ResetProtocol("experimenter_panel");
                     }
                 }
             }
 
             if (trials.Last != null)
-                EditorGUILayout.LabelField("前の試行", trials.Last.Summary(), EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.LabelField("キーボード: Space / R で次の試行 (Game ビューにフォーカスがある時)", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField("Last trial", trials.Last.Summary(), EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField("Keyboard: Space / R = next trial (when the Game view has focus)", EditorStyles.miniLabel);
         }
 
         void DrawRecordingSection(bool playing, StudyRecorder recorder)
         {
-            EditorGUILayout.LabelField("記録 / Recording", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Recording", EditorStyles.boldLabel);
             var root = Path.Combine(Application.persistentDataPath, StudyRecorder.RootFolderName);
             if (playing && recorder != null && recorder.SessionOpen)
             {
                 var c = CultureInfo.InvariantCulture;
-                EditorGUILayout.LabelField("セッション", recorder.SessionId);
-                EditorGUILayout.LabelField("マイク", recorder.MicrophoneRecording
+                EditorGUILayout.LabelField("Session", recorder.SessionId);
+                EditorGUILayout.LabelField("Microphone", recorder.MicrophoneRecording
                     ? recorder.MicSecondsWritten.ToString("0", c) + " s  @" + recorder.MicSampleRate + " Hz  " + recorder.MicDeviceName
-                    : "待機中 (マイク未開始)");
-                EditorGUILayout.LabelField("出力音声", recorder.OutputRecording
+                    : "idle (microphone not started)");
+                EditorGUILayout.LabelField("Output audio", recorder.OutputRecording
                     ? recorder.OutputSecondsWritten.ToString("0", c) + " s  @" + recorder.OutputSampleRate + " Hz"
-                    : "待機中");
-                EditorGUILayout.LabelField("試行の行数", recorder.TrialRowsWritten.ToString(c));
-                EditorGUILayout.LabelField("保存先", recorder.SessionDirectory, EditorStyles.wordWrappedMiniLabel);
-                if (GUILayout.Button("このセッションのフォルダを開く"))
+                    : "idle");
+                EditorGUILayout.LabelField("Trial rows", recorder.TrialRowsWritten.ToString(c));
+                EditorGUILayout.LabelField("Folder", recorder.SessionDirectory, EditorStyles.wordWrappedMiniLabel);
+                if (GUILayout.Button("Open this session's folder"))
                     EditorUtility.RevealInFinder(Path.Combine(recorder.SessionDirectory, "session.json"));
             }
             else
             {
-                EditorGUILayout.LabelField("保存先", root, EditorStyles.wordWrappedMiniLabel);
-                EditorGUILayout.HelpBox("Play すると events.jsonl / trials.csv / mic.wav / output.wav / segments/ をセッションごとのフォルダに書きます。", MessageType.None);
-                if (GUILayout.Button("記録フォルダを開く"))
+                EditorGUILayout.LabelField("Folder", root, EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.HelpBox("Play mode writes events.jsonl / trials.csv / mic.wav / output.wav / segments/ into a folder per session.", MessageType.None);
+                if (GUILayout.Button("Open the recordings folder"))
                 {
                     Directory.CreateDirectory(root);
                     EditorUtility.RevealInFinder(root);
@@ -456,7 +457,7 @@ namespace AvianVoice.Editor
 
         void DrawAvatarSection(bool playing, AvatarEmbodimentController controller)
         {
-            EditorGUILayout.LabelField("アバター / Avatar", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Avatar", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!playing || controller == null))
             {
                 using (new EditorGUILayout.HorizontalScope())
@@ -464,7 +465,7 @@ namespace AvianVoice.Editor
                     var isBird = controller != null && controller.Current == AvatarKind.Bird;
                     using (new EditorGUI.DisabledScope(isBird))
                     {
-                        if (GUILayout.Button((isBird ? "● " : "") + "鳥 (Bird)", GUILayout.Height(30f)))
+                        if (GUILayout.Button((isBird ? "● " : "") + "Bird", GUILayout.Height(30f)))
                             controller.SetAvatar(AvatarKind.Bird);
                     }
 
@@ -478,7 +479,7 @@ namespace AvianVoice.Editor
 
                             var available = controller.HasHumanAvatar(option.id);
                             var active = controller.Current == AvatarKind.Human && controller.HumanAvatarId == option.id;
-                            var label = (active ? "● " : "") + "人間 (" + option.labelJa + ")" + (available ? "" : " 未配置");
+                            var label = (active ? "● " : "") + "Human (" + option.label + ")" + (available ? "" : " missing");
                             using (new EditorGUI.DisabledScope(active || !available))
                             {
                                 if (GUILayout.Button(label, GUILayout.Height(30f)))
@@ -492,46 +493,46 @@ namespace AvianVoice.Editor
                 }
             }
 
-            EditorGUILayout.LabelField("キーボード: V で鳥 ⇄ 人間 (選択中の人間モデル)。「未配置」はモデルが Resources に無いもの。", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("Keyboard: V = bird ⇄ human (the selected human model). \"missing\" = model not found in Resources.", EditorStyles.miniLabel);
         }
 
         void DrawParticipantSection(bool playing, AvatarEmbodimentController controller)
         {
-            EditorGUILayout.LabelField("被験者側の入力 / Participant input", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Participant input", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!playing))
             {
                 var controllers = EditorGUILayout.ToggleLeft(
-                    "XR コントローラを有効にする (スティック旋回・メニュー・X/B ボタン)",
+                    "Enable XR controllers (stick turning, menu, X/B buttons)",
                     ParticipantInputPolicy.ControllersEnabled);
                 if (controllers != ParticipantInputPolicy.ControllersEnabled)
                     ParticipantInputPolicy.ControllersEnabled = controllers;
 
                 var hands = EditorGUILayout.ToggleLeft(
-                    "手のメッシュ・レイを表示する (トラッキングは常に有効)",
+                    "Show hand meshes and rays (tracking is always on)",
                     ParticipantInputPolicy.HandsVisible);
                 if (hands != ParticipantInputPolicy.HandsVisible)
                     ParticipantInputPolicy.HandsVisible = hands;
 
                 if (controller != null)
                 {
-                    var hint = EditorGUILayout.ToggleLeft("視界下の状態カードを表示する", controller.HintVisible);
+                    var hint = EditorGUILayout.ToggleLeft("Show the status card below the participant's view", controller.HintVisible);
                     if (hint != controller.HintVisible)
                         controller.HintVisible = hint;
                 }
 
-                if (GUILayout.Button("音声の状態をコンソールに出す"))
+                if (GUILayout.Button("Log audio state to the Console"))
                     AvianEmbodimentSceneSetup.LogAudioState();
             }
 
             EditorGUILayout.HelpBox(
-                "既定ではコントローラ入力は無視されます（Avian Embodiment の Participant Controllers Enabled）。" +
-                "被験者は頭・手・体・声だけで参加し、場面・試行・アバターはこのパネルか PC のキーボード (1-4, N, Space, V) で操作します。",
+                "Controller input is ignored by default (Participant Controllers Enabled on Avian Embodiment). " +
+                "The participant takes part with head, hands, body and voice only; scenes, trials and the avatar are driven from this panel or the PC keyboard (1-4, N, Space, V).",
                 MessageType.None);
         }
 
         static string LabelFor(string taskId)
         {
-            return taskId != null && TaskLabelsJa.TryGetValue(taskId, out var label) ? label : taskId ?? "";
+            return taskId != null && TaskLabels.TryGetValue(taskId, out var label) ? label : taskId ?? "";
         }
     }
 }

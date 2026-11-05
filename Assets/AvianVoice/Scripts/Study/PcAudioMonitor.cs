@@ -141,7 +141,7 @@ namespace AvianVoice.Study
             var want = mode == MonitorMode.Always || (mode == MonitorMode.Auto && IsHeadsetDevice(DefaultOutputName));
             if (!want)
             {
-                Status = mode == MonitorMode.Off ? "オフ" : "不要 (Unity の音は既に PC の既定出力へ)";
+                Status = mode == MonitorMode.Off ? "off" : "not needed (Unity already plays on the PC default output)";
                 StopMirror();
                 return;
             }
@@ -149,7 +149,7 @@ namespace AvianVoice.Study
             var index = PickDevice(out var name);
             if (index < 0)
             {
-                Status = "PC 用の出力デバイスが見つかりません";
+                Status = "no PC output device found";
                 StopMirror();
                 return;
             }
@@ -302,7 +302,7 @@ namespace AvianVoice.Study
             worker.Start();
             mirroring = true;
             MirrorDeviceName = name;
-            Status = "PC へ出力中: " + name;
+            Status = "mirroring to " + name;
             Debug.Log("[AvianVoice] PC audio monitor: mirroring the listener to '" + name + "' (" + sampleRate + " Hz, " + channels + " ch). Windows default output: '" + DefaultOutputName + "'.");
 #else
             Status = "Windows only";

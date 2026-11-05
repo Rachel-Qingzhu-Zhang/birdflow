@@ -126,16 +126,16 @@ namespace AvianVoice.Study
         public string Summary()
         {
             var c = CultureInfo.InvariantCulture;
-            var s = "#" + trial + (attempt > 1 ? " (再 " + attempt + ")" : "") + " " + note + " " + targetHz.ToString("0", c) + " Hz: ";
+            var s = "#" + trial + (attempt > 1 ? " (retry " + attempt + ")" : "") + " " + note + " " + targetHz.ToString("0", c) + " Hz: ";
             if (!HadVoice)
-                return s + "発声なし (" + endReason + ")";
-            s += "発声あり";
+                return s + "no voice (" + endReason + ")";
+            s += "voice";
             if (!float.IsNaN(onsetLatencySeconds))
-                s += " 遅延 " + onsetLatencySeconds.ToString("0.00", c) + " s";
-            s += " 長さ " + voicedSeconds.ToString("0.00", c) + " s";
+                s += " onset " + onsetLatencySeconds.ToString("0.00", c) + " s";
+            s += " voiced " + voicedSeconds.ToString("0.00", c) + " s";
             if (!float.IsNaN(medianPitchHz))
-                s += " 中央値 " + medianPitchHz.ToString("0", c) + " Hz";
-            s += " 一致 " + pitchMatch.ToString("0.00", c) + " (" + endReason + ")";
+                s += " median " + medianPitchHz.ToString("0", c) + " Hz";
+            s += " match " + pitchMatch.ToString("0.00", c) + " (" + endReason + ")";
             return s;
         }
     }
