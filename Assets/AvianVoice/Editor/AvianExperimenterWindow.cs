@@ -42,6 +42,20 @@ namespace AvianVoice.Editor
         double nextRepaint;
         Vector2 scroll;
         float practiceCustomHz = 440f;
+
+        // Scene lookups and the OS microphone list are refreshed on a timer, not on every repaint: a repaint
+        // runs several GUI events, and Microphone.devices / FindAnyObjectByType on each of them stalled the
+        // main thread enough to make the avatar stutter in the headset.
+        double nextSceneScan;
+        TaskManager cachedTaskManager;
+        AvatarEmbodimentController cachedController;
+        StudyFlowController cachedFlow;
+        SingingTrialTask cachedTrials;
+        SingingTrialTask cachedPractice;
+        MicrophoneCapture cachedMic;
+        VoiceAnalyzer cachedAnalyzer;
+        double nextDeviceScan;
+        string[] cachedDevices = new string[0];
         float outputLevel;
         float outputPeakHold;
         string participantId;
@@ -165,11 +179,12 @@ namespace AvianVoice.Editor
             EditorGUILayout.Space(8f);
 
             var playing = EditorApplication.isPlaying && !EditorApplication.isCompiling;
-            var taskManager = playing ? FindAnyObjectByType<TaskManager>() : null;
-            var controller = playing ? FindAnyObjectByType<AvatarEmbodimentController>() : null;
-            var flow = playing ? FindAnyObjectByType<StudyFlowController>() : null;
-            var trials = playing ? (flow != null && flow.Trials != null ? flow.Trials : FindTrialTask(false)) : null;
-            var practice = playing ? (flow != null && flow.Practice != null ? flow.Practice : FindTrialTask(true)) : null;
+            ScanScene(playing);
+            var taskManager = cachedTaskManager;
+            var controller = cachedController;
+            var flow = cachedFlow;
+            var trials = cachedTrials;
+            var practice = cachedPractice;
             var recorder = playing ? StudyRecorder.Instance : null;
 
             DrawStatusSection(playing, taskManager, controller);
@@ -232,6 +247,48 @@ namespace AvianVoice.Editor
             }
         }
 
+        /// <summary>Refresh the cached scene objects at most twice a second (and at once when something is missing).</summary>
+        void ScanScene(bool playing)
+        {
+            if (!playing)
+            {
+                cachedTaskManager = null;
+                cachedController = null;
+                cachedFlow = null;
+                cachedTrials = null;
+                cachedPractice = null;
+                cachedMic = null;
+                cachedAnalyzer = null;
+                nextSceneScan = 0;
+                return;
+            }
+
+            var missing = cachedTaskManager == null || cachedController == null || cachedFlow == null || cachedMic == null || cachedAnalyzer == null;
+            if (!missing && EditorApplication.timeSinceStartup < nextSceneScan)
+                return;
+
+            nextSceneScan = EditorApplication.timeSinceStartup + (missing ? 1.0 : 0.5);
+            cachedTaskManager = FindAnyObjectByType<TaskManager>();
+            cachedController = FindAnyObjectByType<AvatarEmbodimentController>();
+            cachedFlow = FindAnyObjectByType<StudyFlowController>();
+            cachedTrials = cachedFlow != null && cachedFlow.Trials != null ? cachedFlow.Trials : FindTrialTask(false);
+            cachedPractice = cachedFlow != null && cachedFlow.Practice != null ? cachedFlow.Practice : FindTrialTask(true);
+            cachedMic = FindAnyObjectByType<MicrophoneCapture>();
+            cachedAnalyzer = FindAnyObjectByType<VoiceAnalyzer>();
+        }
+
+        /// <summary>The OS input device list, refreshed every 2 s (enumerating devices is slow).</summary>
+        string[] InputDevices()
+        {
+            if (EditorApplication.timeSinceStartup >= nextDeviceScan)
+            {
+                nextDeviceScan = EditorApplication.timeSinceStartup + 2.0;
+                cachedDevices = Microphone.devices ?? new string[0];
+            }
+
+            return cachedDevices;
+        }
+
         void DrawStatusSection(bool playing, TaskManager taskManager, AvatarEmbodimentController controller)
         {
             EditorGUILayout.LabelField("Status", EditorStyles.boldLabel);
@@ -257,7 +314,7 @@ namespace AvianVoice.Editor
                 : !controller.Backend.IsRunning ? "none (tracker not running)"
                 : "none (waiting for data: is the headset worn?)";
             EditorGUILayout.LabelField("Avatar", controller.Current == AvatarKind.Bird ? "Bird" : "Human (" + controller.HumanAvatarId + ")");
-            var flowForStatus = FindAnyObjectByType<StudyFlowController>();
+            var flowForStatus = cachedFlow;
             if (flowForStatus != null)
                 EditorGUILayout.LabelField("Condition", flowForStatus.ConditionLabel + "   (the participant's voice is heard as: " + flowForStatus.EffectiveFeedbackName + ")");
             EditorGUILayout.LabelField("Body tracking", tracking);
@@ -351,9 +408,9 @@ namespace AvianVoice.Editor
         /// <summary>The input device actually capturing (name, rate, live level) and a chooser (remembered across sessions).</summary>
         void DrawMicrophoneStatus(bool playing)
         {
-            var mic = playing ? FindAnyObjectByType<MicrophoneCapture>() : null;
-            var analyzer = playing ? FindAnyObjectByType<VoiceAnalyzer>() : null;
-            var devices = Microphone.devices ?? new string[0];
+            var mic = playing ? cachedMic : null;
+            var analyzer = playing ? cachedAnalyzer : null;
+            var devices = InputDevices();
 
             string inUse;
             if (mic == null)
@@ -700,7 +757,7 @@ namespace AvianVoice.Editor
         {
             EditorGUILayout.LabelField("Recording", EditorStyles.boldLabel);
             var root = StudyRecorder.RootDirectory;
-            var flowForRecording = playing ? FindAnyObjectByType<StudyFlowController>() : null;
+            var flowForRecording = playing ? cachedFlow : null;
             if (playing && (recorder == null || !recorder.SessionOpen) && flowForRecording != null && flowForRecording.RecordingPending)
             {
                 EditorGUILayout.HelpBox("Not recording yet: the session (events.jsonl, mic.wav, output.wav, trials.csv) starts when the first study scene (1 " + LabelFor("meet") + ") begins. The practice is not recorded.", MessageType.Info);
