@@ -44,17 +44,89 @@ namespace AvianVoice.Editor
         string participantId;
         GUIStyle bigButton;
 
+        [SerializeField] bool shownAsUtility;
+
         [MenuItem("Avian Voice/Experimenter Panel")]
-        public static void Open()
+        public static void Open() => ShowPanel(true);
+
+        /// <summary>
+        /// Shows the panel in front of the main editor window. A new panel is a floating utility window placed
+        /// over the right side of the main window: it stays above the editor when Play mode focuses the Game view,
+        /// and it cannot end up on a display that is gone. A panel the experimenter docked stays where it is.
+        /// </summary>
+        public static AvianExperimenterWindow ShowPanel(bool focus)
         {
-            var window = GetWindow<AvianExperimenterWindow>();
-            window.titleContent = new GUIContent("Avian Experimenter");
-            window.minSize = new Vector2(380f, 520f);
-            window.Show();
+            var existing = Resources.FindObjectsOfTypeAll<AvianExperimenterWindow>();
+            var window = existing.Length > 0 ? existing[0] : null;
+
+            // A plain floating panel (from the old menu code or a saved layout) drops behind the main window
+            // when Play starts; replace it with a utility window.
+            if (window != null && !window.docked && !window.shownAsUtility)
+            {
+                window.Close();
+                window = null;
+            }
+
+            if (window == null)
+            {
+                window = CreateInstance<AvianExperimenterWindow>();
+                window.shownAsUtility = true;
+                window.ShowUtility();
+                var rect = PlaceOverMainWindow();
+                window.position = rect;
+                Debug.Log("[AvianVoice] Experimenter panel opened at " + rect);
+            }
+            else if (!window.docked && !IsOnMainWindow(window.position))
+            {
+                var rect = PlaceOverMainWindow();
+                window.position = rect;
+                Debug.Log("[AvianVoice] Experimenter panel moved back onto the main window at " + rect);
+            }
+
+            if (focus)
+                window.Focus();
+            return window;
+        }
+
+        static Rect PlaceOverMainWindow()
+        {
+            var main = EditorGUIUtility.GetMainWindowPosition();
+            if (main.width < 400f || main.height < 300f)
+                return new Rect(100f, 100f, 420f, 720f);
+
+            var width = 420f;
+            var height = Mathf.Clamp(main.height - 80f, 520f, 900f);
+            return new Rect(main.xMax - width - 16f, main.y + 40f, width, height);
+        }
+
+        static bool IsOnMainWindow(Rect rect)
+        {
+            if (rect.width < 100f || rect.height < 100f)
+                return false;
+            var main = EditorGUIUtility.GetMainWindowPosition();
+            return main.width < 400f || main.Overlaps(rect);
+        }
+
+        /// <summary>The study is driven from this panel, so it opens by itself when Play starts in the embodiment scene.</summary>
+        [InitializeOnLoadMethod]
+        static void HookPlayMode()
+        {
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+        }
+
+        static void OnPlayModeChanged(PlayModeStateChange state)
+        {
+            if (state != PlayModeStateChange.EnteredPlayMode || SceneManager.GetActiveScene().path != EmbodimentScenePath)
+                return;
+            // After the Game view has taken focus for Play.
+            EditorApplication.delayCall += () => ShowPanel(false);
         }
 
         void OnEnable()
         {
+            titleContent = new GUIContent("Avian Experimenter");
+            minSize = new Vector2(380f, 520f);
             participantId = EditorPrefs.GetString(ParticipantIdEditorKey, StudyFlowController.ResolveParticipantId("P000"));
             EditorApplication.update += Tick;
         }
