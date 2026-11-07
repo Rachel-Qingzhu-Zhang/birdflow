@@ -35,10 +35,16 @@ namespace AvianVoice.Study
         bool useSingingTrials = true;
 
         [Header("Practice scene")]
-        [Tooltip("Put a practice scene in front of the flow and start the session there: the singing task with a free pitch, " +
-                 "no schedule and nothing written to trials.csv, so the experimenter can explain the task and show the conditions.")]
+        [Tooltip("Add a practice scene beside the flow (Experimenter Panel \"Practice\", key 0): the singing task with a free pitch, " +
+                 "no schedule and nothing written to trials.csv, so the experimenter can explain the task and show the conditions once " +
+                 "before the four conditions.")]
         [SerializeField]
         bool includePractice = true;
+
+        [Tooltip("Begin in the practice scene. The session recording (events, audio) starts when the first study scene is entered, " +
+                 "so the practice is not recorded.")]
+        [SerializeField]
+        bool startInPractice = true;
 
         [Header("Recording")]
         [SerializeField]
@@ -154,42 +160,36 @@ namespace AvianVoice.Study
             PlayerPrefs.Save();
         }
 
+        /// <summary>True while the practice scene is current (the session recording has not started if the practice came first).</summary>
+        public bool InPractice => TaskManager != null && TaskManager.CurrentTaskId == SingingTrialTask.PracticeTaskId;
+
+        /// <summary>True when recording is on but waits for the first study scene (practice is not recorded).</summary>
+        public bool RecordingPending => recordSession && Recorder == null && TaskManager != null;
+
         void Start()
         {
             TaskManager = FindAnyObjectByType<TaskManager>();
             ParticipantId = ResolveParticipantId(defaultParticipantId);
 
-            if (recordSession)
-            {
-                Recorder = StudyRecorder.Ensure();
-                Recorder.BeginSession(ParticipantId, SceneManager.GetActiveScene().name);
-            }
-
             if (pcAudioMonitor)
-            {
-                var monitor = PcAudioMonitor.Ensure();
-                Recorder?.LogEvent("pc_audio_monitor", j => j.Add("state", monitor != null ? monitor.Describe() : "no AudioListener"));
-            }
+                PcAudioMonitor.Ensure();
 
             avatar = FindAnyObjectByType<AvatarEmbodimentController>();
-            if (avatar != null && Recorder != null)
-            {
-                lastAvatarLabel = avatar.CurrentLabel;
-                Recorder.CurrentAvatar = lastAvatarLabel;
-            }
-
             if (avatar != null)
                 avatar.AvatarChanged += _ => ApplyVoiceFeedback();
-            ApplyVoiceFeedback();
 
             if (TaskManager == null)
             {
                 Debug.LogWarning("[AvianVoice] StudyFlowController: no TaskManager in the scene.");
+                if (recordSession)
+                    BeginRecording();
+                ApplyVoiceFeedback();
                 return;
             }
 
+            var practice = includePractice && useSingingTrials;
             if (useFourSceneFlow)
-                TaskManager.SetFlow(FlowWithPractice());
+                TaskManager.SetFlow(flow, practice ? new[] { SingingTrialTask.PracticeTaskId } : null);
 
             if (useSingingTrials)
             {
@@ -197,7 +197,7 @@ namespace AvianVoice.Study
                 Trials = FindTrialTask(host, false) ?? host.AddComponent<SingingTrialTask>();
                 TaskManager.BindTaskBehaviour(SingingTrialTask.TaskId, Trials);
 
-                if (includePractice)
+                if (practice && TaskManager.HasTask(SingingTrialTask.PracticeTaskId))
                 {
                     Practice = FindTrialTask(host, true);
                     if (Practice == null)
@@ -210,30 +210,79 @@ namespace AvianVoice.Study
                 }
             }
 
-            if (includePractice && useFourSceneFlow && TaskManager.CurrentTaskId != SingingTrialTask.PracticeTaskId)
+            if (Practice != null && startInPractice && !InPractice)
                 TaskManager.LoadTaskById(SingingTrialTask.PracticeTaskId);
 
-            Recorder?.LogEvent("study_flow", j => j
-                .AddArray("flow", TaskManager.TaskIds)
-                .Add("singing_trials", useSingingTrials)
-                .Add("total_trials", Trials != null ? Trials.TotalTrials : 0)
-                .Add("condition", ConditionLabel));
+            ApplyVoiceFeedback();
 
-            Debug.Log("[AvianVoice] Study flow: " + string.Join(" > ", TaskManager.TaskIds)
-                      + (Trials != null ? " | singing trials " + Trials.TotalTrials : "")
-                      + (Recorder != null ? " | recording " + Recorder.SessionDirectory : " | not recording"));
+            if (recordSession)
+            {
+                if (InPractice)
+                {
+                    TaskManager.OnTaskChanged += BeginRecordingWhenStudyStarts;
+                    Debug.Log("[AvianVoice] Study flow: " + string.Join(" > ", TaskManager.TaskIds)
+                              + " | practice first (not recorded); recording starts with the first study scene.");
+                }
+                else
+                {
+                    BeginRecording();
+                }
+            }
+            else
+            {
+                Debug.Log("[AvianVoice] Study flow: " + string.Join(" > ", TaskManager.TaskIds) + " | not recording");
+            }
         }
 
-        /// <summary>The configured flow, with the practice scene in front when it is enabled.</summary>
-        string[] FlowWithPractice()
+        void OnDestroy()
         {
-            if (!includePractice || flow == null || System.Array.IndexOf(flow, SingingTrialTask.PracticeTaskId) >= 0)
-                return flow;
+            if (TaskManager != null)
+                TaskManager.OnTaskChanged -= BeginRecordingWhenStudyStarts;
+        }
 
-            var withPractice = new string[flow.Length + 1];
-            withPractice[0] = SingingTrialTask.PracticeTaskId;
-            flow.CopyTo(withPractice, 1);
-            return withPractice;
+        void BeginRecordingWhenStudyStarts(string taskName, string instruction)
+        {
+            if (InPractice || Recorder != null)
+                return;
+
+            TaskManager.OnTaskChanged -= BeginRecordingWhenStudyStarts;
+            BeginRecording();
+        }
+
+        /// <summary>Open the session recording and log the state of the session (flow, condition, audio monitor).</summary>
+        void BeginRecording()
+        {
+            if (Recorder != null)
+                return;
+
+            Recorder = StudyRecorder.Ensure();
+            Recorder.BeginSession(ParticipantId, SceneManager.GetActiveScene().name);
+
+            if (avatar != null)
+            {
+                lastAvatarLabel = avatar.CurrentLabel;
+                Recorder.CurrentAvatar = lastAvatarLabel;
+            }
+
+            lastFeedback = (VoiceFeedback)(-1); // log the condition into this session
+            ApplyVoiceFeedback();
+
+            var monitor = PcAudioMonitor.Instance;
+            Recorder.LogEvent("pc_audio_monitor", j => j.Add("state", monitor != null ? monitor.Describe() : "no AudioListener"));
+
+            if (TaskManager != null)
+            {
+                Recorder.LogEvent("study_flow", j => j
+                    .AddArray("flow", TaskManager.TaskIds)
+                    .Add("practice", Practice != null)
+                    .Add("singing_trials", useSingingTrials)
+                    .Add("total_trials", Trials != null ? Trials.TotalTrials : 0)
+                    .Add("condition", ConditionLabel));
+            }
+
+            Debug.Log("[AvianVoice] Study flow: " + (TaskManager != null ? string.Join(" > ", TaskManager.TaskIds) : "-")
+                      + (Trials != null ? " | singing trials " + Trials.TotalTrials : "")
+                      + " | recording " + Recorder.SessionDirectory);
         }
 
         static SingingTrialTask FindTrialTask(GameObject host, bool practice)

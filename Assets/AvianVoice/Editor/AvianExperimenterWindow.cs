@@ -240,9 +240,9 @@ namespace AvianVoice.Editor
                 return;
             }
 
-            EditorGUILayout.LabelField("Scene", taskManager != null
-                ? (taskManager.CurrentIndex + 1) + " / " + taskManager.TaskCount + "  " + LabelFor(taskManager.CurrentTaskId) + "  (" + taskManager.CurrentTaskId + ")"
-                : "no TaskManager");
+            EditorGUILayout.LabelField("Scene", taskManager == null ? "no TaskManager"
+                : taskManager.CurrentIsSideTask ? LabelFor(taskManager.CurrentTaskId) + "  (" + taskManager.CurrentTaskId + ", outside the flow)"
+                : (taskManager.CurrentIndex + 1) + " / " + taskManager.TaskCount + "  " + LabelFor(taskManager.CurrentTaskId) + "  (" + taskManager.CurrentTaskId + ")");
 
             if (controller == null)
             {
@@ -351,6 +351,16 @@ namespace AvianVoice.Editor
             EditorGUILayout.LabelField("Scene flow", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!playing || taskManager == null))
             {
+                if (taskManager == null || taskManager.HasTask(SingingTrialTask.PracticeTaskId))
+                {
+                    var inPractice = taskManager != null && taskManager.CurrentTaskId == SingingTrialTask.PracticeTaskId;
+                    using (new EditorGUI.DisabledScope(inPractice))
+                    {
+                        if (GUILayout.Button((inPractice ? "● " : "   ") + "P " + LabelFor(SingingTrialTask.PracticeTaskId) + "   (practice, not recorded)   [0]", GUILayout.Height(26f)))
+                            taskManager.LoadTaskById(SingingTrialTask.PracticeTaskId);
+                    }
+                }
+
                 var ids = taskManager != null ? taskManager.TaskIds : StudyFlowController.FourSceneFlow;
                 for (var i = 0; i < ids.Length; i++)
                 {
@@ -384,7 +394,7 @@ namespace AvianVoice.Editor
             EditorGUILayout.LabelField("Practice (explain the task)", EditorStyles.boldLabel);
             if (!playing)
             {
-                EditorGUILayout.HelpBox("In Play mode the session starts in the Practice scene: pick any pitch, press \"Teacher bird sings\" as often as you like and switch avatar / voice in the Condition section while you explain the task. Practice trials are not written to trials.csv.", MessageType.None);
+                EditorGUILayout.HelpBox("In Play mode the session begins in the Practice scene (outside the 1-4 flow): pick any pitch, press \"Teacher bird sings\" as often as you like and switch avatar / voice in the Condition section while you explain the task. Nothing is recorded until you move to scene 1.", MessageType.None);
                 return;
             }
 
@@ -399,7 +409,7 @@ namespace AvianVoice.Editor
             {
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    EditorGUILayout.HelpBox("Switch to the Practice scene (" + SceneNumber(taskManager, SingingTrialTask.PracticeTaskId) + ") to explain the task.", MessageType.Info);
+                    EditorGUILayout.HelpBox("Practice is outside the numbered flow: \"Go to Practice\" (or key 0) to explain the task before the study.", MessageType.Info);
                     using (new EditorGUI.DisabledScope(taskManager == null))
                     {
                         if (GUILayout.Button("Go to Practice", GUILayout.Height(38f), GUILayout.Width(110f)))
@@ -463,8 +473,8 @@ namespace AvianVoice.Editor
 
             if (practice.Last != null)
                 EditorGUILayout.LabelField("Last", practice.Last.Summary(), EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.LabelField("Practice trials so far: " + practice.CompletedTrials + "  (logged in events.jsonl as practice, not in trials.csv). "
-                                       + "Show the conditions with the Condition buttons below; then go to scene " + SceneNumber(taskManager, "meet") + " to start the study.",
+            EditorGUILayout.LabelField("Practice trials so far: " + practice.CompletedTrials + ". Show the conditions with the Condition buttons below; "
+                                       + "then press scene 1 (" + LabelFor("meet") + ") to start the study — recording starts at that moment.",
                 EditorStyles.wordWrappedMiniLabel);
         }
 
@@ -640,7 +650,12 @@ namespace AvianVoice.Editor
         {
             EditorGUILayout.LabelField("Recording", EditorStyles.boldLabel);
             var root = Path.Combine(Application.persistentDataPath, StudyRecorder.RootFolderName);
-            if (playing && recorder != null && recorder.SessionOpen)
+            var flowForRecording = playing ? FindAnyObjectByType<StudyFlowController>() : null;
+            if (playing && (recorder == null || !recorder.SessionOpen) && flowForRecording != null && flowForRecording.RecordingPending)
+            {
+                EditorGUILayout.HelpBox("Not recording yet: the session (events.jsonl, mic.wav, output.wav, trials.csv) starts when the first study scene (1 " + LabelFor("meet") + ") begins. The practice is not recorded.", MessageType.Info);
+            }
+            else if (playing && recorder != null && recorder.SessionOpen)
             {
                 var c = CultureInfo.InvariantCulture;
                 EditorGUILayout.LabelField("Session", recorder.SessionId);
@@ -756,7 +771,7 @@ namespace AvianVoice.Editor
 
             EditorGUILayout.HelpBox(
                 "Controller input is ignored by default (Participant Controllers Enabled on Avian Embodiment). " +
-                "The participant takes part with head, hands, body and voice only; scenes, trials and the avatar are driven from this panel or the PC keyboard (1-5 = scene, N, Space, V).",
+                "The participant takes part with head, hands, body and voice only; scenes, trials and the avatar are driven from this panel or the PC keyboard (1-4 = scene, 0 = practice, N, Space, V).",
                 MessageType.None);
         }
 

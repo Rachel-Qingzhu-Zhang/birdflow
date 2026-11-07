@@ -91,6 +91,8 @@ namespace AvianVoice.Tasks
         int currentIndex;
         bool isLoading;
         string[] flowIds;
+        string[] sideIds;
+        int flowCount;
 
         public event Action<string, string> OnTaskChanged;
         public event Action<float> OnScoreUpdated;
@@ -104,25 +106,34 @@ namespace AvianVoice.Tasks
             : "";
         public string CurrentTaskId => tasks.Length > 0 ? tasks[currentIndex].taskId : "";
         public int CurrentIndex => currentIndex;
-        public int TaskCount => tasks.Length;
+        /// <summary>Number of tasks in the session flow (side tasks such as the study's practice scene not counted).</summary>
+        public int TaskCount => flowCount;
 
-        /// <summary>Task ids in session order (the canonical six, or the subset given to <see cref="SetFlow"/>).</summary>
+        /// <summary>True while a side task (outside the numbered flow, e.g. "practice") is current.</summary>
+        public bool CurrentIsSideTask => currentIndex >= flowCount;
+
+        /// <summary>Task ids in session order (the canonical six, or the subset given to <see cref="SetFlow"/>), without side tasks.</summary>
         public string[] TaskIds
         {
             get
             {
-                var ids = new string[tasks.Length];
-                for (var i = 0; i < tasks.Length; i++)
+                var count = Mathf.Min(flowCount, tasks.Length);
+                var ids = new string[count];
+                for (var i = 0; i < count; i++)
                     ids[i] = tasks[i].taskId;
                 return ids;
             }
         }
 
+        public bool HasTask(string taskId) => IndexOfTaskId(taskId) >= 0;
+
         /// <summary>
         /// Restrict the session to the given task ids, in that order (for example a four-scene study).
         /// Ids must be canonical ids; unknown ids are ignored. The current task is kept when it is in the flow.
+        /// <paramref name="sideTasks"/> adds tasks that exist beside the flow (reachable with
+        /// <see cref="LoadTaskById"/>, not numbered, not stepped through): the study's "practice" scene.
         /// </summary>
-        public void SetFlow(string[] taskIds)
+        public void SetFlow(string[] taskIds, string[] sideTasks = null)
         {
             if (taskIds == null || taskIds.Length == 0)
                 return;
@@ -130,15 +141,26 @@ namespace AvianVoice.Tasks
             var valid = new System.Collections.Generic.List<string>();
             foreach (var id in taskIds)
             {
-                if ((Array.IndexOf(CanonicalOrder, id) >= 0 || Array.IndexOf(OptionalIds, id) >= 0) && !valid.Contains(id))
+                if (Array.IndexOf(CanonicalOrder, id) >= 0 && !valid.Contains(id))
                     valid.Add(id);
             }
 
             if (valid.Count == 0)
                 return;
 
+            var side = new System.Collections.Generic.List<string>();
+            if (sideTasks != null)
+            {
+                foreach (var id in sideTasks)
+                {
+                    if (Array.IndexOf(SideTaskIds, id) >= 0 && !side.Contains(id) && !valid.Contains(id))
+                        side.Add(id);
+                }
+            }
+
             var currentId = CurrentTaskId;
             flowIds = valid.ToArray();
+            sideIds = side.ToArray();
             EnsureCanonicalOrder();
             var index = IndexOfTaskId(currentId);
             if (index >= 0)
@@ -239,21 +261,22 @@ namespace AvianVoice.Tasks
 
         public void StepTask(int delta, bool wrap = false)
         {
-            if (tasks.Length == 0 || isLoading || delta == 0)
+            if (tasks.Length == 0 || flowCount == 0 || isLoading || delta == 0)
                 return;
 
-            var next = currentIndex + delta;
+            // From a side task (practice) any step goes to the first task of the flow.
+            var next = CurrentIsSideTask ? 0 : currentIndex + delta;
             if (wrap)
-                next = (next % tasks.Length + tasks.Length) % tasks.Length;
-            else if (next < 0 || next >= tasks.Length)
+                next = (next % flowCount + flowCount) % flowCount;
+            else if (next < 0 || next >= flowCount)
                 return;
 
             currentIndex = next;
             ApplyCurrentTask();
         }
 
-        /// <summary>Task ids that exist only when a flow asks for them (the study's practice scene).</summary>
-        static readonly string[] OptionalIds = { "practice" };
+        /// <summary>Task ids that can be added beside a flow with <see cref="SetFlow"/> (the study's practice scene).</summary>
+        static readonly string[] SideTaskIds = { "practice" };
 
         static readonly string[] CanonicalOrder =
         {
@@ -267,7 +290,12 @@ namespace AvianVoice.Tasks
 
         void EnsureCanonicalOrder()
         {
-            var order = flowIds ?? CanonicalOrder;
+            var flow = flowIds ?? CanonicalOrder;
+            var side = sideIds ?? Array.Empty<string>();
+            var order = new string[flow.Length + side.Length];
+            flow.CopyTo(order, 0);
+            side.CopyTo(order, flow.Length);
+            flowCount = flow.Length;
             var next = new TaskEntry[order.Length];
             for (var i = 0; i < order.Length; i++)
             {
@@ -310,7 +338,7 @@ namespace AvianVoice.Tasks
 
         public void SwitchToTaskIndex(int index)
         {
-            if (tasks.Length == 0 || index < 0 || index >= tasks.Length || isLoading)
+            if (tasks.Length == 0 || index < 0 || index >= flowCount || isLoading)
                 return;
 
             currentIndex = index;
