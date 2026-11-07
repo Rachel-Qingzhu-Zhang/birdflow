@@ -170,13 +170,13 @@ namespace AvianVoice.Study
 
         [Header("Protocol")]
         [Tooltip("Target pitches in human Hz. The teacher bird sings them transposed into the bird register, and the participant answers in any octave. " +
-                 "Default A3 / C4 / E4 (2026-11-07, was E4 / G4 / B4, the same three intervals a fifth lower): singable by men, the last one " +
-                 "near the top of an untrained male voice; women can answer an octave up.")]
+                 "Default B3 / D4 / F#4 (2026-11-07: E4 / G4 / B4 was too high for men, A3 / C4 / E4 a little low; same three intervals " +
+                 "throughout): singable by men, the last one near the top of an untrained male voice; women can answer an octave up.")]
         [SerializeField]
         float[] pitchesHz = (float[])DefaultPitchesHz.Clone();
 
-        /// <summary>A3, C4, E4 (equal temperament).</summary>
-        public static readonly float[] DefaultPitchesHz = { 220f, 261.63f, 329.63f };
+        /// <summary>B3, D4, F#4 (equal temperament).</summary>
+        public static readonly float[] DefaultPitchesHz = { 246.94f, 293.66f, 369.99f };
 
         [SerializeField, Min(1)]
         int trialsPerPitch = 10;
@@ -216,10 +216,10 @@ namespace AvianVoice.Study
         float offsetHoldSeconds = 0.25f;
 
         [Header("Scoring")]
-        [Tooltip("Match window in Hz at the target (any octave). 26.7 Hz on A3 / C4 / E4 gives exactly the same window in semitones " +
-                 "per note as the former 40 Hz on E4 / G4 / B4 (1.98 / 1.69 / 1.35 st), so pitch_match stays comparable.")]
+        [Tooltip("Match window in Hz at the target (any octave). 30 Hz on B3 / D4 / F#4 gives the same window in semitones per note " +
+                 "as the original 40 Hz on E4 / G4 / B4 (1.98 / 1.68 / 1.35 st), so pitch_match stays comparable.")]
         [SerializeField]
-        float toleranceHz = 26.7f;
+        float toleranceHz = 30f;
 
         [Header("Behaviour")]
         [Tooltip("During the response the participant hears their own voice through the condition's feedback: bird chirps with the " +
@@ -251,7 +251,7 @@ namespace AvianVoice.Study
 
         [Tooltip("Pitch of the teacher's note in the practice scene (human Hz), chosen from the experimenter panel.")]
         [SerializeField]
-        float practicePitchHz = 220f;
+        float practicePitchHz = 246.94f;
 
         TaskManager taskManager;
         VoiceAnalyzer analyzer;
