@@ -18,6 +18,13 @@ namespace AvianVoice.Embodiment
         /// <summary>Human avatar layer: rendered by every camera, skipped by the bird-tuned reflection fill lights.</summary>
         public const int HumanAvatarLayer = 12;
 
+        /// <summary>
+        /// Pond water surface: Unity's built-in "Water" layer. Seen by the main camera and the mirror (it used to sit on
+        /// <see cref="MirrorDisplayLayer"/>, which the mirror never draws, so the pond was missing from the mirror);
+        /// left out of the pond's own reflection camera and of the bird-tuned reflection fill lights.
+        /// </summary>
+        public const int PondWaterLayer = 4;
+
         public static Transform Friend { get; private set; }
         public static Transform Player { get; private set; }
 

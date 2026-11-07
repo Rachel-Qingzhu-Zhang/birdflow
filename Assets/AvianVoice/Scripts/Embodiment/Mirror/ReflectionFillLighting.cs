@@ -153,7 +153,8 @@ namespace AvianVoice.Embodiment
 
         // The fill is tuned for the dark parrot; the human avatar would blow out, so its layer is excluded.
         static int NearbyReflectionLightMask =>
-            ~((1 << BirdSceneRoles.MirrorDisplayLayer) | (1 << BirdSceneRoles.UiLayer) | (1 << BirdSceneRoles.HumanAvatarLayer));
+            ~((1 << BirdSceneRoles.MirrorDisplayLayer) | (1 << BirdSceneRoles.UiLayer) | (1 << BirdSceneRoles.HumanAvatarLayer)
+              | (1 << BirdSceneRoles.PondWaterLayer));
 
         void ApplyEnabledState()
         {

@@ -91,6 +91,8 @@ namespace AvianVoice.Embodiment
             meshRenderer = GetComponent<MeshRenderer>();
             if (reflectionMask.value == 0)
                 reflectionMask = PlanarReflectionUtility.BuildDefaultReflectionMask();
+            // The water must not reflect itself.
+            reflectionMask &= ~(1 << BirdSceneRoles.PondWaterLayer);
 
             Build();
             SetReflectionActive(false);
@@ -102,7 +104,8 @@ namespace AvianVoice.Embodiment
                 return;
 
             meshRenderer ??= GetComponent<MeshRenderer>();
-            SetLayerRecursive(gameObject, BirdSceneRoles.MirrorDisplayLayer);
+            // Water layer, not the mirror-display layer: the lab mirror must show the pond.
+            SetLayerRecursive(gameObject, BirdSceneRoles.PondWaterLayer);
 
             renderTexture = new RenderTexture(textureSize, textureSize, 16);
             renderTexture.Create();
@@ -136,6 +139,7 @@ namespace AvianVoice.Embodiment
                 clipDistance);
             MirrorUrpCameraBootstrap.Configure(reflectionCamera);
             reflectionCamera.gameObject.layer = BirdSceneRoles.MirrorDisplayLayer;
+            reflectionCamera.cullingMask &= ~(1 << BirdSceneRoles.PondWaterLayer);
         }
 
         void EnsureReflectionFillLight()
