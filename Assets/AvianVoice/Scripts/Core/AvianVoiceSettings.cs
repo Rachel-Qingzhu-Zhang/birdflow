@@ -25,14 +25,6 @@ namespace AvianVoice.Core
         public int dspBufferSizeOverride = 256;
         [Tooltip("Raw mic RMS required before a frame counts as voiced. Above room noise and fan hum.")]
         public float voicedThreshold = 0.012f;
-        [Tooltip("Hysteresis: once voiced, the voice counts as off only below this fraction of Voiced Threshold. Without it a " +
-                 "quiet note ending near the threshold switched the voice on and off, and the feedback voice sounded again.")]
-        [Range(0.2f, 1f)]
-        public float voicedReleaseRatio = 0.6f;
-        [Tooltip("For this long after the voice switched off, switching on again needs Reopen Lockout Ratio x Voiced Threshold " +
-                 "(a real new note passes easily; the tail of the old one does not).")]
-        public float voicedReopenLockoutSeconds = 0.25f;
-        public float voicedReopenLockoutRatio = 2f;
         public float loudnessGain = 8f;
 
         [Header("Pitch Tracking (YIN)")]
