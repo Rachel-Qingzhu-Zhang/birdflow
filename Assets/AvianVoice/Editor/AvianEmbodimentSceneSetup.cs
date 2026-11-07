@@ -279,6 +279,20 @@ namespace AvianVoice.Editor
             ReplayGuideNote();
         }
 
+        [MenuItem("Avian Voice/Embodiment/Debug/Test Bird Voice Follow 2 s (Play Mode)")]
+        public static void DebugBirdVoiceFollow()
+        {
+            var mapper = AvianVoice.Audio.BirdVoiceMapper.Find();
+            if (mapper == null)
+            {
+                Debug.LogWarning("[AvianVoice] No BirdVoiceMapper (enter Play mode first).");
+                return;
+            }
+
+            mapper.DebugFollowBird(330f, 2f);
+            Debug.Log("[AvianVoice] Bird voice follow test: E4 (330 Hz) held for 2 s through BirdSongSynth.Follow.");
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Play Human Voice Test Note (Play Mode)")]
         public static void DebugPlayHumanVoiceNote()
         {

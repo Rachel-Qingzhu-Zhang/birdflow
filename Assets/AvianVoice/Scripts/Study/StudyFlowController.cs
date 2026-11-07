@@ -129,7 +129,8 @@ namespace AvianVoice.Study
             Recorder?.LogEvent("voice_feedback", j => j
                 .Add("feedback", FeedbackName(effective))
                 .Add("converted", voiceFeedback)
-                .Add("condition", ConditionLabel));
+                .Add("condition", ConditionLabel)
+                .Add("bird_feedback", mapper != null ? mapper.BirdFeedbackModeName : ""));
             Debug.Log("[AvianVoice] Condition: " + ConditionLabel);
         }
 

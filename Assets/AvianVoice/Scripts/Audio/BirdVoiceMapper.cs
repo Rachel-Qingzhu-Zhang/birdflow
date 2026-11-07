@@ -34,6 +34,9 @@ namespace AvianVoice.Audio
         /// <summary>What the participant's own voice is turned into: bird chirps, a human vowel, or nothing.</summary>
         public VoiceFeedback Feedback => feedback;
 
+        /// <summary>"continuous" (bird voice open while voiced) or "chirps" (one chirp per onset, the previous behaviour).</summary>
+        public string BirdFeedbackModeName => settings != null && !settings.synthContinuous ? "chirps" : "continuous";
+
         /// <summary>True while a guide note or the voice feedback is still sounding.</summary>
         public bool IsSounding => (synth != null && synth.IsSounding) || (humanSynth != null && humanSynth.IsSounding);
 
@@ -94,6 +97,28 @@ namespace AvianVoice.Audio
             EnsureSynth();
             humanSynth?.Silence();
             synth?.PlayChirp(humanHz, 0.92f, seconds);
+        }
+
+        /// <summary>Debug: hold the bird voice open at a human pitch for a while, as if the singer were voiced.</summary>
+        public void DebugFollowBird(float humanHz, float seconds, float loudness = 0.85f)
+        {
+            EnsureSynth();
+            if (synth == null)
+                return;
+            followVoice = false;
+            StartCoroutine(FollowBirdRoutine(humanHz, seconds, loudness));
+        }
+
+        System.Collections.IEnumerator FollowBirdRoutine(float humanHz, float seconds, float loudness)
+        {
+            var end = Time.unscaledTime + seconds;
+            while (Time.unscaledTime < end && !followVoice)
+            {
+                synth.Follow(humanHz, loudness);
+                yield return null;
+            }
+
+            synth.Release();
         }
 
         public static BirdVoiceMapper Find()
@@ -262,6 +287,21 @@ namespace AvianVoice.Audio
             else if (lastSynthPitchHz <= 0f)
                 lastSynthPitchHz = settings.referencePitchHz;
 
+            if (settings.synthContinuous)
+            {
+                // Continuous bird voice: open while voiced, released when the voice stops (same gating as the
+                // human voice, so the two feedback conditions differ only in timbre and register).
+                if (voiced)
+                    synth.Follow(lastSynthPitchHz, loud);
+                else
+                    synth.Release();
+                requireOnsetAfterSilence = !voiced;
+                synthSawDip = false;
+                lastFrameLoudness = loud;
+                return;
+            }
+
+            // Previous behaviour (AvianVoiceSettings.synthContinuous off): one chirp per voice onset / attack.
             if (!voiced)
             {
                 requireOnsetAfterSilence = true;

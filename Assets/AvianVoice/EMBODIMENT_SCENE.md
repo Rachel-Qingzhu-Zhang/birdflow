@@ -44,7 +44,7 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 
 | ボタン | アバター | 被験者が聞く自分の声 | 記録（`voice_feedback` / `condition`） |
 |--------|----------|----------------------|------------------------------------------|
-| Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、音程に合わせた鳥の鳴き声） | `bird` / `Bird+bird` |
+| Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、声が出ている間ずっと音程に追従して鳴る） | `bird` / `Bird+bird` |
 | Bird + own voice only | 鳥 | なし（アプリは何も出さない。地声だけ） | `none` / `Bird+own` |
 | Human + human voice | 人間（マネキン） | 人間の声（`HumanVoiceSynth`、同じ音程で歌う母音「あ」） | `human` / `Human:neutral+human` |
 | Human + own voice only | 人間（マネキン） | なし | `none` / `Human:neutral+own` |
@@ -54,6 +54,10 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 - 教師の鳥の手本（guide note）は **どの条件でも鳥の声**です（`SingingTrialTask.teacherVoice = Bird`）。
   人間アバターのときに手本も人間の声にしたい場合は `Teacher Voice` を `FollowAvatar` にします（`events.jsonl` の
   `guide_start` に `teacher_voice` が残ります）。
+- 鳥の声は 2026-11-07 から人間の声と同じ連続型です（有声の間ゲートが開き、音程・音量に追従。止まると減衰）。
+  以前の「声の立ち上がりごとに約 80 ms のさえずりを 1 回鳴らす」離散型はコードに残してあり、
+  `Assets/AvianVoice/Settings/AvianVoiceSettings.asset` の `Synth Continuous` をオフにすると戻ります。
+  どちらで記録したかは `events.jsonl` の `voice_feedback` イベントの `bird_feedback`（`continuous` / `chirps`）に残ります。
 - 人間の声（`HumanVoiceSynth`）の音量は鳥の手本と同じ約 -11 dBFS に合わせてあります（2026-11-05 に `output.wav` で実測。
   変えるときは `HumanVoiceSynth.volume`）。鳥 / 人間の声の条件で聞こえる大きさが揃うようにしています。
 - `events.jsonl` の全イベントに `voice_feedback`、`trials.csv` に `voice_feedback` 列、条件を変えたときに

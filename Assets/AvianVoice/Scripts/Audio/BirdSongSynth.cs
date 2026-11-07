@@ -5,8 +5,11 @@ using UnityEngine;
 namespace AvianVoice.Audio
 {
     /// <summary>
-    /// Discrete bird chirps driven by the singer's pitch. Human Hz is multiplied by
-    /// synthPitchRatio so the melody contour stays the same, then clamped to bird range.
+    /// Bird voice driven by the singer's pitch. Human Hz is multiplied by synthPitchRatio so the melody
+    /// contour stays the same, then clamped to bird range. Two ways to sound it: <see cref="Follow"/> /
+    /// <see cref="Release"/> keep the voice open for as long as the singer is voiced (continuous mode, the
+    /// counterpart of <see cref="HumanVoiceSynth"/>), <see cref="PlayChirp"/> sounds one chirp of fixed
+    /// length (guide notes, and the previous onset-triggered feedback mode).
     /// Parameters are written on the main thread and read on the audio thread.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
@@ -31,6 +34,7 @@ namespace AvianVoice.Audio
         volatile float noiseLevel = 0.06f;
         volatile float volume = 0.5f;
         volatile float pitchSmoothSeconds = 0.04f;
+        volatile bool followGate;
         // Main thread writes with Interlocked; the audio thread reads a snapshot at the start of a callback
         // and writes the decremented value back only if nobody started a new chirp in the meantime
         // (a plain write-back could overwrite a chirp requested during the callback and drop it).
@@ -48,7 +52,7 @@ namespace AvianVoice.Audio
         float svfBand;
         uint noiseState = 0x9E3779B9u;
 
-        public bool IsSounding => Volatile.Read(ref chirpFramesLeft) > 0 || envelope > 0.02f;
+        public bool IsSounding => followGate || Volatile.Read(ref chirpFramesLeft) > 0 || envelope > 0.02f;
 
         public static BirdSongSynth Ensure(Transform parent, AudioSource template, AvianVoiceSettings voiceSettings)
         {
@@ -106,17 +110,32 @@ namespace AvianVoice.Audio
             PushSettings();
         }
 
+        /// <summary>
+        /// Call every frame while the singer is voiced: the bird voice stays open and follows this pitch and
+        /// loudness (continuous mode). The onset glide plays once when the gate opens.
+        /// </summary>
+        public void Follow(float humanPitchHz, float loudness)
+        {
+            if (humanPitchHz > 0f)
+                targetHz = MapHumanToBirdHz(humanPitchHz, settings);
+            SetLevelAndTrill(loudness);
+            followGate = true;
+            EnsurePlaying();
+        }
+
+        /// <summary>The singer went silent: close the gate (the release tail still plays).</summary>
+        public void Release()
+        {
+            followGate = false;
+        }
+
         public void PlayChirp(float humanPitchHz, float loudness, float holdSeconds = -1f)
         {
             if (humanPitchHz <= 0f)
                 return;
 
             targetHz = MapHumanToBirdHz(humanPitchHz, settings);
-            var loud = Mathf.Clamp01(loudness);
-            targetLevel = Mathf.Lerp(0.5f, 1f, loud);
-            var minRate = settings != null ? settings.synthTrillRateMin : 18f;
-            var maxRate = settings != null ? settings.synthTrillRateMax : 28f;
-            trillRate = Mathf.Lerp(minRate, maxRate, loud);
+            var loud = SetLevelAndTrill(loudness);
             var hold = holdSeconds > 0f
                 ? holdSeconds
                 : (settings != null ? Mathf.Max(0.05f, settings.synthChirpSeconds) : 0.14f);
@@ -128,7 +147,18 @@ namespace AvianVoice.Audio
         public void Silence()
         {
             targetGate = 0f;
+            followGate = false;
             Interlocked.Exchange(ref chirpFramesLeft, 0);
+        }
+
+        float SetLevelAndTrill(float loudness)
+        {
+            var loud = Mathf.Clamp01(loudness);
+            targetLevel = Mathf.Lerp(0.5f, 1f, loud);
+            var minRate = settings != null ? settings.synthTrillRateMin : 18f;
+            var maxRate = settings != null ? settings.synthTrillRateMax : 28f;
+            trillRate = Mathf.Lerp(minRate, maxRate, loud);
+            return loud;
         }
 
         void Awake()
@@ -157,8 +187,7 @@ namespace AvianVoice.Audio
 
         void OnDisable()
         {
-            targetGate = 0f;
-            chirpFramesLeft = 0;
+            Silence();
         }
 
         void Update()
@@ -200,7 +229,8 @@ namespace AvianVoice.Audio
             var dt = 1f / fs;
             var framesSnapshot = Volatile.Read(ref chirpFramesLeft);
             var framesLeft = framesSnapshot;
-            var gateOpen = framesLeft > 0;
+            var follow = followGate;
+            var gateOpen = follow || framesLeft > 0;
             var goalHz = targetHz;
             var level = targetLevel;
             var rate = trillRate;
@@ -226,7 +256,7 @@ namespace AvianVoice.Audio
             var frames = data.Length / channels;
             for (var n = 0; n < frames; n++)
             {
-                var open = framesLeft > 0;
+                var open = follow || framesLeft > 0;
                 if (framesLeft > 0)
                     framesLeft--;
                 var envTarget = open ? level : 0f;

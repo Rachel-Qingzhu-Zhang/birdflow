@@ -72,6 +72,9 @@ namespace AvianVoice.Core
         [Header("Bird Song Synth (Transform mode)")]
         [Tooltip("Synthesized bird chirps that follow your pitch. Off = play sample chirps instead.")]
         public bool useSynthTransform = true;
+        [Tooltip("On (default since 2026-11-07): the bird voice sounds continuously for as long as the singer is voiced, following pitch " +
+                 "and loudness like the human voice. Off: the previous behaviour, one short chirp per detected voice onset / attack.")]
+        public bool synthContinuous = true;
         [Tooltip("Bird Hz = human Hz * this ratio, then clamped to the bird range. 8 = three octaves up.")]
         public float synthPitchRatio = 8f;
         [Tooltip("Length of one chirp in seconds.")]
