@@ -4,43 +4,78 @@ using UnityEngine;
 namespace AvianVoice.Audio
 {
     /// <summary>
-    /// A sung human vowel ("ah") that follows the singer's pitch and loudness without transposition:
-    /// a band-limited glottal-like sawtooth with spectral tilt, through four formant resonators.
-    /// The human-avatar counterpart of <see cref="BirdSongSynth"/> (the participant hears their own
-    /// voice as a human voice instead of as bird chirps). Also sings the teacher's guide note when the
-    /// teacher voice follows the avatar. Parameters are written on the main thread and read on the
-    /// audio thread.
+    /// A sung, gender-neutral human vowel ("ah") that follows the singer's pitch and loudness without
+    /// transposition. Source-filter synthesis in the Klatt tradition, tuned to sound like a voice rather
+    /// than a buzzer:
+    /// <list type="bullet">
+    /// <item>glottal source: Rosenberg glottal-flow pulses (open / closing / closed phases), radiated as the flow
+    /// derivative, so the spectrum has a voice-like tilt without a sawtooth buzz;</item>
+    /// <item>micro-variation: per-cycle jitter (pitch) and shimmer (amplitude), a slow pitch drift and vibrato that
+    /// fades in, so no two cycles are identical;</item>
+    /// <item>aspiration noise gated by the open phase of the glottis (breathiness);</item>
+    /// <item>vocal tract: five formant resonators with alternating polarity (parallel Klatt bank) at formant
+    /// frequencies halfway between typical adult male and female values, and F1 that rises with high pitches
+    /// as singers do.</item>
+    /// </list>
+    /// The human-avatar counterpart of <see cref="BirdSongSynth"/>: the participant hears their own voice as a
+    /// human voice instead of as bird chirps. Also sings the teacher's guide note when the teacher voice follows
+    /// the avatar. Parameters are written on the main thread and read on the audio thread.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
     public sealed class HumanVoiceSynth : MonoBehaviour
     {
         const float TwoPi = Mathf.PI * 2f;
-        const int FormantCount = 4;
+        const int FormantCount = 5;
 
-        [Header("Vowel (neutral 'ah', between male and female formants)")]
+        [Header("Vowel 'ah' (neutral: between adult male and female formants)")]
         [SerializeField]
-        float[] formantHz = { 750f, 1200f, 2600f, 3300f };
-
-        [SerializeField]
-        float[] formantBandwidthHz = { 90f, 110f, 160f, 220f };
+        float[] formantHz = { 780f, 1150f, 2550f, 3400f, 4450f };
 
         [SerializeField]
-        float[] formantGain = { 1f, 0.55f, 0.3f, 0.2f };
+        float[] formantBandwidthHz = { 80f, 90f, 130f, 160f, 220f };
 
-        [Tooltip("One-pole low-pass on the sawtooth source (Hz): lower = darker, more glottal-like.")]
         [SerializeField]
-        float sourceTiltHz = 1100f;
+        float[] formantGain = { 1f, 0.6f, 0.35f, 0.22f, 0.12f };
+
+        [Tooltip("Raise F1 to at least this multiple of the pitch (singers open the vowel on high notes; keeps high notes from sounding hollow).")]
+        [SerializeField]
+        float f1MinPitchRatio = 1.15f;
+
+        [Header("Glottal source")]
+        [Tooltip("Open quotient: fraction of the cycle the glottis is open (0.5 pressed, 0.7 breathy).")]
+        [SerializeField, Range(0.4f, 0.8f)]
+        float openQuotient = 0.6f;
+
+        [Tooltip("Pitch jitter: random cycle-to-cycle pitch deviation (% of the pitch). Natural voices: 0.2-0.6.")]
+        [SerializeField, Range(0f, 2f)]
+        float jitterPercent = 0.4f;
+
+        [Tooltip("Shimmer: random cycle-to-cycle amplitude deviation in dB. Natural voices: 0.3-0.8.")]
+        [SerializeField, Range(0f, 3f)]
+        float shimmerDb = 0.5f;
+
+        [Tooltip("Slow random pitch drift (semitones), the natural wobble of a held note.")]
+        [SerializeField, Range(0f, 0.5f)]
+        float driftSemitones = 0.08f;
+
+        [Tooltip("Aspiration noise through the vocal tract, gated by the open phase (breathiness).")]
+        [SerializeField, Range(0f, 0.3f)]
+        float breathNoise = 0.07f;
+
+        [Tooltip("One-pole low-pass on the source (Hz): radiation / lip rounding, tames aliasing of the closure.")]
+        [SerializeField]
+        float sourceTiltHz = 3500f;
 
         [Header("Expression")]
         [SerializeField]
-        float vibratoRateHz = 5.2f;
+        float vibratoRateHz = 5.5f;
 
         [SerializeField]
-        float vibratoDepthSemitones = 0.25f;
+        float vibratoDepthSemitones = 0.35f;
 
         [Tooltip("Vibrato fades in over this long after the voice starts.")]
         [SerializeField]
-        float vibratoOnsetSeconds = 0.35f;
+        float vibratoOnsetSeconds = 0.45f;
 
         [Tooltip("Envelope attack (s). Kept short so the vowel starts with the singer's onset.")]
         [SerializeField]
@@ -56,9 +91,6 @@ namespace AvianVoice.Audio
 
         [SerializeField]
         float levelSmoothSeconds = 0.015f;
-
-        [SerializeField, Range(0f, 0.3f)]
-        float breathNoise = 0.03f;
 
         [Tooltip("Output level. 1 = a held note lands at about -11 dBFS, the level of the bird chirp guide note (BirdSongSynth), " +
                  "so the human-voice and bird-voice conditions are equally loud.")]
@@ -91,6 +123,13 @@ namespace AvianVoice.Audio
         float tilt;
         float gateSeconds;
         bool gateWasOpen;
+        float cycleJitter;
+        float cycleShimmer = 1f;
+        float drift;
+        float driftTarget;
+        float driftTimer;
+        float vibratoWobble;
+        float noiseHp;
         readonly float[] x1 = new float[FormantCount];
         readonly float[] x2 = new float[FormantCount];
         readonly float[] y1 = new float[FormantCount];
@@ -98,6 +137,8 @@ namespace AvianVoice.Audio
         readonly float[] b0 = new float[FormantCount];
         readonly float[] a1 = new float[FormantCount];
         readonly float[] a2 = new float[FormantCount];
+        readonly float[] polarity = { 1f, -1f, 1f, -1f, 1f };
+        readonly float[] g = new float[FormantCount];
         uint noiseState = 0x2545F491u;
 
         public bool IsSounding => Volatile.Read(ref holdFramesLeft) > 0 || followGate || envelope > 0.02f;
@@ -198,11 +239,13 @@ namespace AvianVoice.Audio
                 source.Play();
         }
 
-        void UpdateFormantCoefficients(float fs)
+        void UpdateFormantCoefficients(float fs, float pitchHz)
         {
             for (var i = 0; i < FormantCount; i++)
             {
                 var f = formantHz != null && i < formantHz.Length ? formantHz[i] : 0f;
+                if (i == 0 && f1MinPitchRatio > 0f)
+                    f = Mathf.Max(f, pitchHz * f1MinPitchRatio);
                 var bw = formantBandwidthHz != null && i < formantBandwidthHz.Length ? formantBandwidthHz[i] : 100f;
                 if (f <= 0f || f >= fs * 0.45f)
                 {
@@ -230,7 +273,6 @@ namespace AvianVoice.Audio
 
             var fs = (float)sampleRate;
             var dt = 1f / fs;
-            UpdateFormantCoefficients(fs);
 
             var framesSnapshot = Volatile.Read(ref holdFramesLeft);
             var framesLeft = framesSnapshot;
@@ -242,15 +284,23 @@ namespace AvianVoice.Audio
             var vibRate = vibratoRateHz;
             var vibDepth = vibratoDepthSemitones;
             var vibOnset = Mathf.Max(0.01f, vibratoOnsetSeconds);
-            var tiltCoeff = 1f - Mathf.Exp(-TwoPi * Mathf.Clamp(sourceTiltHz, 100f, fs * 0.45f) / fs);
+            var oq = Mathf.Clamp(openQuotient, 0.4f, 0.8f);
+            var tp = oq * 0.66f;               // opening phase (fraction of the cycle)
+            var tn = oq - tp;                  // closing phase
+            var jitter = jitterPercent * 0.01f;
+            var shimmer = shimmerDb;
+            var driftDepth = driftSemitones;
+            var tiltCoeff = 1f - Mathf.Exp(-TwoPi * Mathf.Clamp(sourceTiltHz, 300f, fs * 0.45f) / fs);
             var attackCoeff = 1f - Mathf.Exp(-dt / Mathf.Max(0.001f, attackSeconds));
             var releaseCoeff = 1f - Mathf.Exp(-dt / Mathf.Max(0.001f, releaseSeconds));
             var pitchCoeff = 1f - Mathf.Exp(-dt / Mathf.Max(0.001f, pitchSmoothSeconds));
             var levelCoeff = 1f - Mathf.Exp(-dt / Mathf.Max(0.001f, levelSmoothSeconds));
-            var g0 = formantGain != null && formantGain.Length > 0 ? formantGain[0] : 1f;
-            var g1 = formantGain != null && formantGain.Length > 1 ? formantGain[1] : 0.5f;
-            var g2 = formantGain != null && formantGain.Length > 2 ? formantGain[2] : 0.3f;
-            var g3 = formantGain != null && formantGain.Length > 3 ? formantGain[3] : 0.2f;
+            var driftCoeff = 1f - Mathf.Exp(-dt / 0.25f);
+            var noiseHpCoeff = 1f - Mathf.Exp(-TwoPi * 1200f / fs);
+
+            UpdateFormantCoefficients(fs, currentHz);
+            for (var i = 0; i < FormantCount; i++)
+                g[i] = (formantGain != null && i < formantGain.Length ? formantGain[i] : 0f) * polarity[i];
 
             var frames = data.Length / channels;
             for (var n = 0; n < frames; n++)
@@ -266,6 +316,7 @@ namespace AvianVoice.Audio
                     {
                         currentHz = goalHz;
                         level = goalLevel;
+                        phase = 0.0;
                     }
                 }
                 gateWasOpen = open;
@@ -284,30 +335,72 @@ namespace AvianVoice.Audio
                 currentHz += (goalHz - currentHz) * pitchCoeff;
                 level += (goalLevel - level) * levelCoeff;
 
-                vibratoPhase += vibRate * dt;
+                // Slow drift: a new random target every ~0.3 s, approached smoothly.
+                driftTimer -= dt;
+                if (driftTimer <= 0f)
+                {
+                    driftTimer = 0.2f + 0.2f * (NextNoise() * 0.5f + 0.5f);
+                    driftTarget = NextNoise() * driftDepth;
+                    vibratoWobble = NextNoise() * 0.08f;
+                }
+                drift += (driftTarget - drift) * driftCoeff;
+
+                vibratoPhase += vibRate * (1f + vibratoWobble) * dt;
                 if (vibratoPhase >= 1.0)
                     vibratoPhase -= 1.0;
                 var vibAmount = Mathf.Clamp01(gateSeconds / vibOnset) * vibDepth;
-                var hz = currentHz * Mathf.Pow(2f, vibAmount * Mathf.Sin((float)(vibratoPhase * TwoPi)) / 12f);
+                var semis = vibAmount * Mathf.Sin((float)(vibratoPhase * TwoPi)) + drift;
+                var hz = currentHz * Mathf.Pow(2f, semis / 12f) * (1f + cycleJitter);
 
-                // Band-limited sawtooth (PolyBLEP) as the glottal source, then a low-pass for spectral tilt.
+                // Glottal cycle: at every closure pick this cycle's jitter and shimmer.
                 var inc = hz * dt;
                 phase += inc;
                 if (phase >= 1.0)
+                {
                     phase -= 1.0;
+                    cycleJitter = NextNoise() * jitter;
+                    cycleShimmer = Mathf.Pow(10f, NextNoise() * shimmer / 20f);
+                }
+
+                // Rosenberg glottal flow derivative (what the lips radiate): positive hump while opening,
+                // sharp negative pulse at closure, zero while closed.
                 var t = (float)phase;
-                var saw = 2f * t - 1f - PolyBlep(t, inc);
-                tilt += (saw - tilt) * tiltCoeff;
-                var excitation = tilt + NextNoise() * noiseAmp;
+                float flowDerivative;
+                float openness;
+                if (t < tp)
+                {
+                    flowDerivative = 0.5f * Mathf.PI / tp * Mathf.Sin(Mathf.PI * t / tp);
+                    openness = 0.5f * (1f - Mathf.Cos(Mathf.PI * t / tp));
+                }
+                else if (t < oq)
+                {
+                    var u = (t - tp) / tn;
+                    flowDerivative = -0.5f * Mathf.PI / tn * Mathf.Sin(0.5f * Mathf.PI * u);
+                    openness = Mathf.Cos(0.5f * Mathf.PI * u);
+                }
+                else
+                {
+                    flowDerivative = 0f;
+                    openness = 0f;
+                }
 
-                var voice = Resonator(0, excitation) * g0
-                            + Resonator(1, excitation) * g1
-                            + Resonator(2, excitation) * g2
-                            + Resonator(3, excitation) * g3;
+                // Normalise the pulse amplitude (the derivative scales with 1 / phase length) and smooth the closure.
+                var pulse = flowDerivative * tp * 0.9f * cycleShimmer;
+                tilt += (pulse - tilt) * tiltCoeff;
 
-                // Soft limit so loud passages stay round instead of clipping. The 4.0 pre-gain puts a full-level note
-                // at about -11 dBFS after the limiter (measured 2026-11-05), matching the bird chirp guide note.
-                var sample = voice * 4.0f * envelope * level * gain;
+                // Aspiration: high-passed noise, strongest while the glottis is open.
+                var white = NextNoise();
+                noiseHp += (white - noiseHp) * noiseHpCoeff;
+                var aspiration = (white - noiseHp) * noiseAmp * (0.25f + 0.75f * openness);
+
+                var excitation = tilt + aspiration;
+                var voice = 0f;
+                for (var i = 0; i < FormantCount; i++)
+                    voice += Resonator(i, excitation) * g[i];
+
+                // Soft limit so loud passages stay round instead of clipping. The pre-gain puts a full-level note
+                // at about -11 dBFS after the limiter, matching the bird chirp guide note.
+                var sample = voice * 2.5f * envelope * level * gain;
                 sample = sample / (1f + Mathf.Abs(sample) * 0.6f);
 
                 for (var c = 0; c < channels; c++)
@@ -326,25 +419,6 @@ namespace AvianVoice.Audio
             y2[i] = y1[i];
             y1[i] = y;
             return y;
-        }
-
-        static float PolyBlep(float t, float dt)
-        {
-            if (dt <= 0f)
-                return 0f;
-            if (t < dt)
-            {
-                t /= dt;
-                return t + t - t * t - 1f;
-            }
-
-            if (t > 1f - dt)
-            {
-                t = (t - 1f) / dt;
-                return t * t + t + t + 1f;
-            }
-
-            return 0f;
         }
 
         float NextNoise()
