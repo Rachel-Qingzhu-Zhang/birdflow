@@ -78,12 +78,28 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
   （-30 dB まで約 50 ms）、音程の平滑化は 20 ms です。実測（`Debug/Test Voice Response`: 0.5 秒の合成音を解析器に
   流し込み、`output.wav` と `debug_voice_inject` イベントで測定）では、入力停止から -30 dB まで鳥 100 ms / 人 90 ms、
   入力開始から発音まで約 60 ms（変更前は減衰 220〜245 ms）。
+- 声の判定にはヒステリシスがあります（`AvianVoiceSettings`: 閾値 `voicedThreshold` を超えたら有声、その 0.6 倍
+  `voicedReleaseRatio` を下回ったら無声、無声になってから 0.25 s は 2 倍の音量でないと再開しない）。閾値すれすれで終わる
+  小さな声で判定が切れたりつながったりし、合成音が「もう一度」鳴ることがあったためです（録音した 30 音で再現・解消を確認、
+  減衰は約 20 ms 遅くなるだけ）。
+- PC 音声モニター（実験者用に PC 側へ同じ音を流す機能）は、ヘッドセットより遅れて鳴ります（Bluetooth ヘッドホンでは
+  0.2〜0.3 s）。ヘッドセットを着けた人に PC 側の音も聞こえると、すべての音が二重に聞こえます。一人で試すときは
+  パネルの「PC monitor output」を Off にしてください。
 - 使用中のマイクはパネルの Status 欄「Microphone in use」に出ます（機器名・サンプリングレート・入力レベル）。
   「Input device」で機器を選ぶとその場で切り替わり、次回以降も記憶されます（Auto = XR 中はヘッドセットのマイク）。
 - 人間の声（`HumanVoiceSynth`）の音量は鳥の手本と同じ約 -11 dBFS に合わせてあります（2026-11-05 に `output.wav` で実測。
   変えるときは `HumanVoiceSynth.volume`）。鳥 / 人間の声の条件で聞こえる大きさが揃うようにしています。
 - `events.jsonl` の全イベントに `voice_feedback`、`trials.csv` に `voice_feedback` 列、条件を変えたときに
   `voice_feedback` イベント（`condition` 付き）が入ります。
+
+### 呼吸の場面（人間アバター、2026-11-07）
+
+鳥と同じ呼吸の信号（教師の鳥の吸う / 吐くパターン）で、人間アバターの胸も少し膨らみます（`HumanBreathEmbodiment`、
+人間アバターに自動で付きます）。首と肩がつながる胸の骨を、最大吸気で前後 6 %・左右 3 %・縦 1 % 拡大し、首と肩には逆の
+拡大を掛けるので、頭・腕の大きさは変わらず位置もほぼ動きません（Armature で胸の厚み 25.6 → 26.9 cm、幅 32.0 → 32.7 cm、
+頭の移動 2 mm）。動くのは呼吸の場面（`breath_sync`）だけで、場面の切り替えで 0.6 s かけて出入りします。量はコンポーネントの
+`Depth Inhale` / `Width Inhale` で変えられます。確認用: **Debug/Load Task 2 Breathing**、**Debug/Measure Human Breathing**、
+**Debug/Log Human Breathing Now**。
 
 ### 歌う場面の試行（3 ピッチ × 10 回）
 

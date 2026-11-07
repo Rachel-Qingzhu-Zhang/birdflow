@@ -343,6 +343,10 @@ namespace AvianVoice.Editor
             }
 
             EditorGUILayout.LabelField(" ", monitor.Status + (monitor.DroppedChunks > 0 ? "  (dropped " + monitor.DroppedChunks + ")" : ""), EditorStyles.miniLabel);
+            if (monitor.IsMirroring)
+                EditorGUILayout.HelpBox("The PC copy plays later than the headset (more with Bluetooth headphones, ~0.2-0.3 s). "
+                                        + "If the person wearing the headset can also hear the PC output, every sound reaches them twice. "
+                                        + "Testing alone: set PC monitor output to Off.", MessageType.None);
             var newDevice = EditorGUILayout.TextField("  Device (part of the name)", monitor.DeviceNameContains);
             if (newDevice != monitor.DeviceNameContains)
                 monitor.DeviceNameContains = newDevice;
