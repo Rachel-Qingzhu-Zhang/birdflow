@@ -35,15 +35,17 @@ namespace AvianVoice.Tasks
             return Mathf.Clamp01(1f - wrapped / Mathf.Max(0.05f, window));
         }
 
+        static readonly string[] PitchClassNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+
+        /// <summary>Nearest equal-tempered note name with octave (A4 = 440 Hz), e.g. 220 -> "A3", 261.6 -> "C4".</summary>
         public static string NoteName(float hz)
         {
-            if (hz < 360f) return "E4";
-            if (hz < 420f) return "G4";
-            if (hz < 470f) return "A4";
-            if (hz < 510f) return "B4";
-            if (hz < 555f) return "C5";
-            if (hz < 620f) return "D5";
-            return "E5";
+            if (hz <= 0f)
+                return "";
+            var midi = Mathf.RoundToInt(69f + 12f * Mathf.Log(hz / 440f, 2f));
+            var pitchClass = ((midi % 12) + 12) % 12;
+            var octave = Mathf.FloorToInt(midi / 12f) - 1;
+            return PitchClassNames[pitchClass] + octave;
         }
     }
 }

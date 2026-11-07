@@ -169,9 +169,14 @@ namespace AvianVoice.Study
         public const string PracticeTaskId = "practice";
 
         [Header("Protocol")]
-        [Tooltip("Target pitches in human Hz. The teacher bird sings them transposed into the bird register, and the participant answers in any octave.")]
+        [Tooltip("Target pitches in human Hz. The teacher bird sings them transposed into the bird register, and the participant answers in any octave. " +
+                 "Default A3 / C4 / E4 (2026-11-07, was E4 / G4 / B4, the same three intervals a fifth lower): singable by men, the last one " +
+                 "near the top of an untrained male voice; women can answer an octave up.")]
         [SerializeField]
-        float[] pitchesHz = { 330f, 392f, 494f };
+        float[] pitchesHz = (float[])DefaultPitchesHz.Clone();
+
+        /// <summary>A3, C4, E4 (equal temperament).</summary>
+        public static readonly float[] DefaultPitchesHz = { 220f, 261.63f, 329.63f };
 
         [SerializeField, Min(1)]
         int trialsPerPitch = 10;
@@ -211,8 +216,10 @@ namespace AvianVoice.Study
         float offsetHoldSeconds = 0.25f;
 
         [Header("Scoring")]
+        [Tooltip("Match window in Hz at the target (any octave). 26.7 Hz on A3 / C4 / E4 gives exactly the same window in semitones " +
+                 "per note as the former 40 Hz on E4 / G4 / B4 (1.98 / 1.69 / 1.35 st), so pitch_match stays comparable.")]
         [SerializeField]
-        float toleranceHz = 40f;
+        float toleranceHz = 26.7f;
 
         [Header("Behaviour")]
         [Tooltip("During the response the participant hears their own voice through the condition's feedback: bird chirps with the " +
@@ -244,7 +251,7 @@ namespace AvianVoice.Study
 
         [Tooltip("Pitch of the teacher's note in the practice scene (human Hz), chosen from the experimenter panel.")]
         [SerializeField]
-        float practicePitchHz = 330f;
+        float practicePitchHz = 220f;
 
         TaskManager taskManager;
         VoiceAnalyzer analyzer;
@@ -815,7 +822,7 @@ namespace AvianVoice.Study
         void EnsureSchedule()
         {
             if (pitchesHz == null || pitchesHz.Length == 0)
-                pitchesHz = new[] { 330f, 392f, 494f };
+                pitchesHz = (float[])DefaultPitchesHz.Clone();
             trialsPerPitch = Mathf.Max(1, trialsPerPitch);
             if (schedule != null && schedule.Length == TotalTrials)
                 return;
