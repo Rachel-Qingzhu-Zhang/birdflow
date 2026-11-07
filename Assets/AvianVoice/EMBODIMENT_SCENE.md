@@ -219,10 +219,10 @@ Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使�
 
 | ファイル | 役割 |
 |----------|------|
-| `Scripts/BodyTracking/*` (asmdef `AvianVoice.BodyTracking`) | SDK 非依存の関節データ `BodyPoseFrame`、バックエンド IF、トラッキング空間→ワールドの推定 `TrackingSpaceSolver` |
+| `Scripts/BodyTracking/*` (asmdef `AvianVoice.BodyTracking`) | SDK 非依存の関節データ `BodyPoseFrame`、バックエンド IF、トラッキング空間のヘッドセット姿勢 `HeadsetTrackingPose`、予備のトラッキング空間→ワールドの推定 `TrackingSpaceSolver` |
 | `Scripts/MetaBody/MetaBodyTrackingBackend.cs` (asmdef `AvianVoice.MetaBody`, SDK がある時だけコンパイル) | `OVRBody` から関節を取得。人間アバターには `OVRUnityHumanoidSkeletonRetargeter` を付けて Humanoid にリターゲット |
 | `Scripts/MetaBody/Editor/MetaBodyTrackingProjectSetup.cs` | 上記の OpenXR / Oculus 設定を一括適用 |
-| `Scripts/Embodiment/Avatar/AvatarEmbodimentController.cs` | アバター切替、カメラ・手の位置から体トラッキング空間を合わせる、ヒント表示 |
+| `Scripts/Embodiment/Avatar/AvatarEmbodimentController.cs` | アバター切替、ヘッドセットの姿勢（使えなければカメラ・手の位置）から体トラッキング空間を合わせる、ヒント表示 |
 | `Scripts/Embodiment/Avatar/BirdFirstPersonDriver.cs` | 鳥: 目をカメラに、頭を HMD の向きに、体の向きを肩のラインに、翼を腕の上げ下げに |
 | `Scripts/MetaBody/AvianHumanoidRetargeter.cs` | Meta のリターゲッタの派生: 回転のみ・腰の位置だけ追従・指は固定・骨盤補正なし・T ポーズ取得直前のコールバック |
 | `Scripts/Embodiment/Avatar/HumanFirstPersonDriver.cs` | 人間: ルートをトラッキング原点に置き目をカメラに合わせる。T ポーズの再適用、トラッキング無しのフォールバック姿勢、データ途切れ時のリターゲット一時停止 |
@@ -256,6 +256,18 @@ Play 中にメニュー **Avian Voice → Embodiment → Log Avatar State (Play 
 - **Toggle Avatar (Play Mode)** メニューで V キーと同じ切替ができます。
 
 Quest Link 経由のエディタ再生で、鳥・人間とも体トラッキングで動くことを確認済みです（2026-11-03、Quest 3、上半身ジョイントセット）。
+
+**体トラッキング空間の合わせ方（2026-11-07）**: 体の関節は Meta（OVRPlugin）の空間、カメラは Unity の XR Origin の空間で
+届きます。体トラッキング用に追加される OVRManager が Unity 側の原点モード（床 / 目の高さ、リセンター許可）を書き換えるため、
+Play 開始時や Quest のリセンターのたびに二つの空間がずれることがあります（実際のログで頭の誤差 2.1〜3.1 m）。以前はずれを
+検出すると「頭と手からの推定」に切り替え、その後はセッション中ずっと手の位置の誤差で体全体の向きが揺れていました（鳥の胴、
+人間アバター全体が不自然に回る）。今は **ヘッドセット自身の姿勢を OVRPlugin の空間でも取り、カメラの姿勢と突き合わせて毎フレーム
+正確に対応づけ**ます（`AvatarEmbodimentController` の `Align From Headset Pose`、`HeadsetTrackingPose`）。ずれはその場で
+合わせ直され、Console に `Body tracking space re-aligned to the headset` と出ます。確認用メニュー:
+- **Debug/Log Tracking Space (Play Mode)**: 方式（`mode=headset` が正常）と、頭関節とカメラの差（`headJointErr` は 0.1 m 前後が正常）。
+- **Debug/Switch Body Tracking Origin (test, Play Mode)**: 原点を床 ⇄ 目の高さに切り替えて、わざと空間をずらす（アバターが
+  本人に重なったままなら正常。もう一度実行で床に戻ります）。
+- **Log Avatar State** の `space=headset offsetFromXrOrigin=…` は、旧方式なら生じていたずれの大きさです。
 
 ## 既知の制限
 

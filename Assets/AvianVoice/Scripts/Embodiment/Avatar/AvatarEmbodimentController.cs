@@ -60,7 +60,25 @@ namespace AvianVoice.Embodiment.Avatars
         int humanAvatarLayer = BirdSceneRoles.HumanAvatarLayer;
 
         [Header("Tracking space")]
-        [Tooltip("Assume body tracking and the XR Origin share the same floor-level tracking space. " +
+        [Tooltip("Align the body tracking space to the world every frame from the headset's own pose in that space " +
+                 "(backend) and the XR camera: exact, and it follows Quest recenters. The two checks below are only the " +
+                 "fallback when the backend cannot report the headset pose.")]
+        [SerializeField]
+        bool alignFromHeadsetPose = true;
+
+        [Tooltip("Smoothing of that alignment (s). The true transform only changes at recenters; this removes the small " +
+                 "timing difference between the camera pose and the backend's headset pose during fast head motion.")]
+        [SerializeField]
+        float headsetAlignSmoothingSeconds = 0.25f;
+
+        [Tooltip("A change of the alignment larger than this (m or degrees) is a recenter: applied at once, not smoothed.")]
+        [SerializeField]
+        float headsetAlignSnapMeters = 0.2f;
+
+        [SerializeField]
+        float headsetAlignSnapDegrees = 8f;
+
+        [Tooltip("Fallback: assume body tracking and the XR Origin share the same floor-level tracking space. " +
                  "If the tracked head drifts away from the camera, the head+hands solver takes over automatically.")]
         [SerializeField]
         bool assumeSharedTrackingSpace = true;
@@ -122,6 +140,10 @@ namespace AvianVoice.Embodiment.Avatars
         float nextHintRefresh;
         int sharedErrorFrames;
         bool sharedSpaceRejected;
+        Pose headsetAlign = Pose.identity;
+        bool headsetAlignValid;
+        int headsetAlignSnaps;
+        string lastTrackingSpaceMode = "";
         bool started;
 
         public AvatarKind Current { get; private set; }
@@ -157,6 +179,9 @@ namespace AvianVoice.Embodiment.Avatars
 
         public bool TrackingToWorldValid { get; private set; }
 
+        /// <summary>How <see cref="TrackingToWorld"/> is obtained: "headset" (exact), "shared" or "solver" (fallbacks), "none".</summary>
+        public string TrackingSpaceMode { get; private set; } = "none";
+
         public Transform BirdRoot => birdRoot;
 
         public GameObject HumanRoot => humanRoot;
@@ -170,7 +195,19 @@ namespace AvianVoice.Embodiment.Avatars
             sb.Append(" bodyValid=").Append(BodyTrackingValid).Append(" conf=").Append(Frame.Confidence.ToString("0.00"));
             sb.Append(" fullBody=").Append(Frame.IsFullBody);
             sb.Append(" t2wValid=").Append(TrackingToWorldValid);
-            sb.Append(" sharedSpace=").Append(assumeSharedTrackingSpace && !sharedSpaceRejected);
+            sb.Append(" space=").Append(TrackingSpaceMode);
+            if (TrackingSpaceMode == "headset" && TrackingSpace != null)
+            {
+                // How far the body tracking space is from the XR Origin's own space (non-zero after a recenter):
+                // the error the old shared-space assumption would have had.
+                sb.Append(" offsetFromXrOrigin=").Append(Vector3.Distance(TrackingSpace.position, TrackingToWorld.position).ToString("F2"))
+                  .Append("m/").Append(Quaternion.Angle(TrackingSpace.rotation, TrackingToWorld.rotation).ToString("F0")).Append("deg");
+                sb.Append(" recenterSnaps=").Append(headsetAlignSnaps);
+            }
+            else
+            {
+                sb.Append(" sharedSpace=").Append(assumeSharedTrackingSpace && !sharedSpaceRejected);
+            }
             if (XrCamera != null)
             {
                 sb.Append(" camPos=").Append(XrCamera.transform.position.ToString("F2"));
@@ -392,6 +429,14 @@ namespace AvianVoice.Embodiment.Avatars
 
             var cam = XrCamera.transform;
             var cameraPose = new Pose(cam.position, cam.rotation);
+            if (alignFromHeadsetPose && UpdateHeadsetAlignment(cameraPose, deltaTime))
+            {
+                TrackingToWorld = headsetAlign;
+                TrackingToWorldValid = true;
+                SetTrackingSpaceMode("headset");
+                return;
+            }
+
             var left = SampleHandWorld(XRNode.LeftHand, Handedness.Left);
             var right = SampleHandWorld(XRNode.RightHand, Handedness.Right);
             solver.Update(Frame, cameraPose, left, right, deltaTime);
@@ -406,6 +451,7 @@ namespace AvianVoice.Embodiment.Avatars
                     sharedErrorFrames = 0;
                     TrackingToWorld = shared;
                     TrackingToWorldValid = true;
+                    SetTrackingSpaceMode("shared");
                     return;
                 }
 
@@ -419,6 +465,58 @@ namespace AvianVoice.Embodiment.Avatars
 
             TrackingToWorld = solver.TrackingToWorld;
             TrackingToWorldValid = solver.HasSolution;
+            SetTrackingSpaceMode(solver.HasSolution ? "solver" : "none");
+        }
+
+        /// <summary>
+        /// Body tracking space to world from the headset: the backend reports the headset pose in the body tracking
+        /// space, the camera gives it in world space, so world = R_yaw * tracking + t with R_yaw = yaw of
+        /// (camera rotation * inverse headset rotation) and t = camera - R_yaw * headset. Both spaces are gravity
+        /// aligned, so only yaw is kept. Smoothed (it is constant between recenters); a recenter-sized change snaps.
+        /// </summary>
+        bool UpdateHeadsetAlignment(Pose cameraPose, float deltaTime)
+        {
+            if (!HeadsetTrackingPose.TryGet(out var headset))
+                return false;
+
+            var delta = cameraPose.rotation * Quaternion.Inverse(headset.rotation);
+            var yaw = Quaternion.Euler(0f, TrackingSpaceSolver.YawOf(delta * Vector3.forward), 0f);
+            var target = new Pose(cameraPose.position - yaw * headset.position, yaw);
+
+            if (!headsetAlignValid)
+            {
+                headsetAlign = target;
+                headsetAlignValid = true;
+                return true;
+            }
+
+            var jumpMeters = Vector3.Distance(target.position, headsetAlign.position);
+            var jumpDegrees = Quaternion.Angle(target.rotation, headsetAlign.rotation);
+            if (jumpMeters > headsetAlignSnapMeters || jumpDegrees > headsetAlignSnapDegrees)
+            {
+                headsetAlign = target;
+                headsetAlignSnaps++;
+                if (logStatus)
+                    Debug.Log("[AvianVoice] Body tracking space re-aligned to the headset (recenter?): moved " + jumpMeters.ToString("0.00")
+                              + " m / " + jumpDegrees.ToString("0") + " deg.");
+                return true;
+            }
+
+            var k = headsetAlignSmoothingSeconds <= 0f ? 1f : 1f - Mathf.Exp(-Mathf.Max(0f, deltaTime) / headsetAlignSmoothingSeconds);
+            headsetAlign = new Pose(Vector3.Lerp(headsetAlign.position, target.position, k),
+                Quaternion.Slerp(headsetAlign.rotation, target.rotation, k));
+            return true;
+        }
+
+        void SetTrackingSpaceMode(string mode)
+        {
+            TrackingSpaceMode = mode;
+            if (mode == lastTrackingSpaceMode)
+                return;
+
+            lastTrackingSpaceMode = mode;
+            if (logStatus)
+                Debug.Log("[AvianVoice] Body tracking space: " + mode + (mode == "headset" ? " (aligned from " + HeadsetTrackingPose.ProviderName + ")" : ""));
         }
 
         /// <summary>World position of a tracked joint, when both the joint and the space solution are valid.</summary>
