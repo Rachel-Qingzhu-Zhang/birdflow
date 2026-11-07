@@ -649,7 +649,7 @@ namespace AvianVoice.Editor
         void DrawRecordingSection(bool playing, StudyRecorder recorder)
         {
             EditorGUILayout.LabelField("Recording", EditorStyles.boldLabel);
-            var root = Path.Combine(Application.persistentDataPath, StudyRecorder.RootFolderName);
+            var root = StudyRecorder.RootDirectory;
             var flowForRecording = playing ? FindAnyObjectByType<StudyFlowController>() : null;
             if (playing && (recorder == null || !recorder.SessionOpen) && flowForRecording != null && flowForRecording.RecordingPending)
             {
@@ -673,7 +673,7 @@ namespace AvianVoice.Editor
             else
             {
                 EditorGUILayout.LabelField("Folder", root, EditorStyles.wordWrappedMiniLabel);
-                EditorGUILayout.HelpBox("Play mode writes events.jsonl / trials.csv / mic.wav / output.wav / segments/ into a folder per session.", MessageType.None);
+                EditorGUILayout.HelpBox("Play mode writes events.jsonl / trials.csv / mic.wav / output.wav / segments/ into a folder per session, inside the project (StudyData/, not shared through git).", MessageType.None);
                 if (GUILayout.Button("Open the recordings folder"))
                 {
                     Directory.CreateDirectory(root);

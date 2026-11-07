@@ -78,3 +78,6 @@ InitTestScene*.unity*
 /temp_docx_extract/
 compile.log
 .vsconfig
+
+# Avian Voice study recordings (events, audio, trials): local only, never shared
+/StudyData/

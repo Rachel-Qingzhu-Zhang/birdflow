@@ -206,8 +206,9 @@ namespace AvianVoice.Study
     }
 
     /// <summary>
-    /// Session data for analysis. One folder per Play session under
-    /// <c>persistentDataPath/AvianStudy/&lt;date&gt;_&lt;participant&gt;/</c>:
+    /// Session data for analysis. One folder per Play session under <see cref="RootDirectory"/>
+    /// (<c>&lt;project&gt;/StudyData/&lt;date&gt;_&lt;participant&gt;/</c> in the Editor and on PC, ignored by git;
+    /// <c>persistentDataPath/StudyData/...</c> on a headset build):
     /// <list type="bullet">
     /// <item><c>session.json</c>: who / when / devices / sample rates.</item>
     /// <item><c>events.jsonl</c>: every timestamped event (scene changes, avatar changes, trial phases, voice onsets).</item>
@@ -221,8 +222,24 @@ namespace AvianVoice.Study
     [DefaultExecutionOrder(-100)]
     public sealed class StudyRecorder : MonoBehaviour
     {
-        public const string RootFolderName = "AvianStudy";
+        public const string RootFolderName = "StudyData";
         const float RingSeconds = 120f;
+
+        /// <summary>
+        /// Where sessions are written: the StudyData folder next to Assets in the Editor / on PC (kept out of the
+        /// repository by .gitignore and outside Assets so Unity never imports it), persistentDataPath on a device.
+        /// </summary>
+        public static string RootDirectory
+        {
+            get
+            {
+#if UNITY_EDITOR || UNITY_STANDALONE
+                return Path.GetFullPath(Path.Combine(Application.dataPath, "..", RootFolderName));
+#else
+                return Path.Combine(Application.persistentDataPath, RootFolderName);
+#endif
+            }
+        }
 
         [SerializeField]
         bool recordMicrophone = true;
@@ -310,7 +327,7 @@ namespace AvianVoice.Study
 
             ParticipantId = SanitizeId(participantId);
             SessionId = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) + "_" + ParticipantId;
-            SessionDirectory = Path.Combine(Application.persistentDataPath, RootFolderName, SessionId);
+            SessionDirectory = Path.Combine(RootDirectory, SessionId);
             Directory.CreateDirectory(SessionDirectory);
             if (writeTrialSegments)
                 Directory.CreateDirectory(Path.Combine(SessionDirectory, "segments"));

@@ -101,8 +101,9 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 
 ### 記録データ
 
-`StudyRecorder` が Play 開始から終了までを `persistentDataPath/AvianStudy/<日時>_<被験者ID>/` に書きます
-（Windows では `%USERPROFILE%\AppData\LocalLow\<会社名>\<製品名>\AvianStudy\…`。パネルの「Open the recordings folder」で開けます）。
+`StudyRecorder` が記録開始から Play 終了までを **プロジェクト内の `StudyData/<日時>_<被験者ID>/`**（`Assets` と同じ階層。
+`.gitignore` に入っているので git では共有されず、`Assets` の外なので Unity にも取り込まれません）に書きます。
+パネルの「Open the recordings folder」で開けます。ヘッドセット単体のビルドでは `persistentDataPath/StudyData/` です。
 
 | ファイル | 内容 |
 |----------|------|
@@ -275,7 +276,7 @@ press of the panel button (or Space) makes the teacher bird sing one of three ta
 sings back; the participant's voice onset / offset are detected. A trial lasts from one press to the next (no
 wait, the button is always available), so each row of `trials.csv` is the interval between two presses; 3 pitches
 x 10 = 30 trials, and the press after the last one moves the session to the rest scene automatically. `StudyRecorder` writes `events.jsonl`, `trials.csv`,
-`mic.wav`, `output.wav` and per-trial microphone segments under `persistentDataPath/AvianStudy/<date>_<id>/`,
+`mic.wav`, `output.wav` and per-trial microphone segments under `<project>/StudyData/<date>_<id>/` (git-ignored),
 every timestamp carrying wall clock, Unity time, DSP time and the microphone sample index.
 
 Setup: open the project (Meta XR Core SDK 207.0.1 is pulled from the Meta scoped registry), then run

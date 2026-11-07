@@ -129,7 +129,7 @@ namespace AvianVoice.Editor
         [MenuItem("Avian Voice/Embodiment/Debug/Capture Game View (Play Mode)")]
         public static void CaptureGameView()
         {
-            var dir = System.IO.Path.Combine(Application.persistentDataPath, "AvianStudy", "screenshots");
+            var dir = System.IO.Path.Combine(AvianVoice.Study.StudyRecorder.RootDirectory, "screenshots");
             System.IO.Directory.CreateDirectory(dir);
             var path = System.IO.Path.Combine(dir, "game_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png");
             ScreenCapture.CaptureScreenshot(path);
