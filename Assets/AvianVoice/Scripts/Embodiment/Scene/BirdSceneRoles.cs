@@ -43,9 +43,18 @@ namespace AvianVoice.Embodiment
         static bool birdsConfigured;
         static bool friendConfigured;
 
+        /// <summary>
+        /// Last visibility a task asked for through <see cref="SetFriendVisible"/>. The setup pass hides the friend
+        /// only when no task wants it, so a task that shows the teacher before the delayed re-wire
+        /// (<see cref="BirdSceneRolesLayout"/>, one frame after scene start; the practice scene is loaded on the first
+        /// frame) keeps it visible.
+        /// </summary>
+        static bool friendRequested;
+
         public static void ResetSession()
         {
             birdsConfigured = false;
+            friendRequested = false;
             Friend = null;
             Player = null;
         }
@@ -62,6 +71,10 @@ namespace AvianVoice.Embodiment
             FinalizeScenePlacement();
 
             CommitPoses(Player);
+
+            // Re-apply a teacher a task already asked for (layer, placement beside the possibly re-pinned player).
+            if (friendRequested)
+                SetFriendVisible(true);
 
             LogLayoutDiagnostics();
         }
@@ -111,7 +124,7 @@ namespace AvianVoice.Embodiment
             }
 
             // Friend stays in the scene but hidden until a task asks for it.
-            if (Friend != null && Friend != Player)
+            if (Friend != null && Friend != Player && !friendRequested)
                 Friend.gameObject.SetActive(false);
 
             Player.gameObject.SetActive(true);
@@ -204,6 +217,7 @@ namespace AvianVoice.Embodiment
 
         public static void SetFriendVisible(bool visible)
         {
+            friendRequested = visible;
             if (!ResolveSceneBirds() && Friend == null)
                 return;
             if (Friend == null || Friend == Player)
