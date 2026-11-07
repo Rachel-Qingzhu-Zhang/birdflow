@@ -25,18 +25,6 @@ namespace AvianVoice.Editor
     {
         const string EmbodimentScenePath = AvianEmbodimentSceneSetup.ScenePath;
         const string ParticipantIdEditorKey = "AvianVoice.Experimenter.ParticipantId";
-        const string MaximizeGameViewKey = "AvianVoice.Experimenter.MaximizeGameViewOnPlay";
-
-        /// <summary>
-        /// Maximize the Game view while playing: with the normal layout the Scene view and the other editor windows
-        /// repaint every frame (about 5 ms), which pushed the editor loop past the headset's 72 Hz budget and made
-        /// the runtime fall back to 36 Hz (avatars moving in steps). Default on; the panel keeps floating on top.
-        /// </summary>
-        public static bool MaximizeGameViewOnPlay
-        {
-            get => EditorPrefs.GetBool(MaximizeGameViewKey, true);
-            set => EditorPrefs.SetBool(MaximizeGameViewKey, value);
-        }
 
         static readonly Dictionary<string, string> TaskLabels = new()
         {
@@ -54,20 +42,6 @@ namespace AvianVoice.Editor
         double nextRepaint;
         Vector2 scroll;
         float practiceCustomHz = 440f;
-
-        // Scene lookups and the OS microphone list are refreshed on a timer, not on every repaint: a repaint
-        // runs several GUI events, and Microphone.devices / FindAnyObjectByType on each of them stalled the
-        // main thread enough to make the avatar stutter in the headset.
-        double nextSceneScan;
-        TaskManager cachedTaskManager;
-        AvatarEmbodimentController cachedController;
-        StudyFlowController cachedFlow;
-        SingingTrialTask cachedTrials;
-        SingingTrialTask cachedPractice;
-        MicrophoneCapture cachedMic;
-        VoiceAnalyzer cachedAnalyzer;
-        double nextDeviceScan;
-        string[] cachedDevices = new string[0];
         float outputLevel;
         float outputPeakHold;
         string participantId;
@@ -146,12 +120,6 @@ namespace AvianVoice.Editor
 
         static void OnPlayModeChanged(PlayModeStateChange state)
         {
-            if (state == PlayModeStateChange.ExitingPlayMode)
-                AvianGameViewUtility.SetMaximized(false);
-            if (state == PlayModeStateChange.EnteredPlayMode && MaximizeGameViewOnPlay
-                && SceneManager.GetActiveScene().path == EmbodimentScenePath)
-                EditorApplication.delayCall += () => AvianGameViewUtility.SetMaximized(true);
-
             if (state != PlayModeStateChange.EnteredPlayMode || SceneManager.GetActiveScene().path != EmbodimentScenePath)
                 return;
             // After the Game view has taken focus for Play.
@@ -184,8 +152,7 @@ namespace AvianVoice.Editor
             if (EditorApplication.timeSinceStartup < nextRepaint)
                 return;
 
-            // 4 Hz: every repaint runs this whole IMGUI layout several times; at 10 Hz that cost ~2 ms per player frame.
-            nextRepaint = EditorApplication.timeSinceStartup + 0.25;
+            nextRepaint = EditorApplication.timeSinceStartup + 0.1;
             Repaint();
         }
 
@@ -198,12 +165,11 @@ namespace AvianVoice.Editor
             EditorGUILayout.Space(8f);
 
             var playing = EditorApplication.isPlaying && !EditorApplication.isCompiling;
-            ScanScene(playing);
-            var taskManager = cachedTaskManager;
-            var controller = cachedController;
-            var flow = cachedFlow;
-            var trials = cachedTrials;
-            var practice = cachedPractice;
+            var taskManager = playing ? FindAnyObjectByType<TaskManager>() : null;
+            var controller = playing ? FindAnyObjectByType<AvatarEmbodimentController>() : null;
+            var flow = playing ? FindAnyObjectByType<StudyFlowController>() : null;
+            var trials = playing ? (flow != null && flow.Trials != null ? flow.Trials : FindTrialTask(false)) : null;
+            var practice = playing ? (flow != null && flow.Practice != null ? flow.Practice : FindTrialTask(true)) : null;
             var recorder = playing ? StudyRecorder.Instance : null;
 
             DrawStatusSection(playing, taskManager, controller);
@@ -240,14 +206,6 @@ namespace AvianVoice.Editor
                 }
             }
 
-            var maximize = EditorGUILayout.ToggleLeft("Maximize the Game view while playing (keeps the headset at 72 Hz; other editor windows cost ~5 ms per frame)", MaximizeGameViewOnPlay);
-            if (maximize != MaximizeGameViewOnPlay)
-            {
-                MaximizeGameViewOnPlay = maximize;
-                if (EditorApplication.isPlaying)
-                    AvianGameViewUtility.SetMaximized(maximize);
-            }
-
             using (new EditorGUILayout.HorizontalScope())
             {
                 using (new EditorGUI.DisabledScope(EditorApplication.isPlaying || isEmbodiment))
@@ -272,48 +230,6 @@ namespace AvianVoice.Editor
                     EditorApplication.isPlaying = false;
                 }
             }
-        }
-
-        /// <summary>Refresh the cached scene objects at most twice a second (and at once when something is missing).</summary>
-        void ScanScene(bool playing)
-        {
-            if (!playing)
-            {
-                cachedTaskManager = null;
-                cachedController = null;
-                cachedFlow = null;
-                cachedTrials = null;
-                cachedPractice = null;
-                cachedMic = null;
-                cachedAnalyzer = null;
-                nextSceneScan = 0;
-                return;
-            }
-
-            var missing = cachedTaskManager == null || cachedController == null || cachedFlow == null || cachedMic == null || cachedAnalyzer == null;
-            if (!missing && EditorApplication.timeSinceStartup < nextSceneScan)
-                return;
-
-            nextSceneScan = EditorApplication.timeSinceStartup + (missing ? 1.0 : 0.5);
-            cachedTaskManager = FindAnyObjectByType<TaskManager>();
-            cachedController = FindAnyObjectByType<AvatarEmbodimentController>();
-            cachedFlow = FindAnyObjectByType<StudyFlowController>();
-            cachedTrials = cachedFlow != null && cachedFlow.Trials != null ? cachedFlow.Trials : FindTrialTask(false);
-            cachedPractice = cachedFlow != null && cachedFlow.Practice != null ? cachedFlow.Practice : FindTrialTask(true);
-            cachedMic = FindAnyObjectByType<MicrophoneCapture>();
-            cachedAnalyzer = FindAnyObjectByType<VoiceAnalyzer>();
-        }
-
-        /// <summary>The OS input device list, refreshed every 2 s (enumerating devices is slow).</summary>
-        string[] InputDevices()
-        {
-            if (EditorApplication.timeSinceStartup >= nextDeviceScan)
-            {
-                nextDeviceScan = EditorApplication.timeSinceStartup + 2.0;
-                cachedDevices = Microphone.devices ?? new string[0];
-            }
-
-            return cachedDevices;
         }
 
         void DrawStatusSection(bool playing, TaskManager taskManager, AvatarEmbodimentController controller)
@@ -341,7 +257,7 @@ namespace AvianVoice.Editor
                 : !controller.Backend.IsRunning ? "none (tracker not running)"
                 : "none (waiting for data: is the headset worn?)";
             EditorGUILayout.LabelField("Avatar", controller.Current == AvatarKind.Bird ? "Bird" : "Human (" + controller.HumanAvatarId + ")");
-            var flowForStatus = cachedFlow;
+            var flowForStatus = FindAnyObjectByType<StudyFlowController>();
             if (flowForStatus != null)
                 EditorGUILayout.LabelField("Condition", flowForStatus.ConditionLabel + "   (the participant's voice is heard as: " + flowForStatus.EffectiveFeedbackName + ")");
             EditorGUILayout.LabelField("Body tracking", tracking);
@@ -435,9 +351,9 @@ namespace AvianVoice.Editor
         /// <summary>The input device actually capturing (name, rate, live level) and a chooser (remembered across sessions).</summary>
         void DrawMicrophoneStatus(bool playing)
         {
-            var mic = playing ? cachedMic : null;
-            var analyzer = playing ? cachedAnalyzer : null;
-            var devices = InputDevices();
+            var mic = playing ? FindAnyObjectByType<MicrophoneCapture>() : null;
+            var analyzer = playing ? FindAnyObjectByType<VoiceAnalyzer>() : null;
+            var devices = Microphone.devices ?? new string[0];
 
             string inUse;
             if (mic == null)
@@ -784,7 +700,7 @@ namespace AvianVoice.Editor
         {
             EditorGUILayout.LabelField("Recording", EditorStyles.boldLabel);
             var root = StudyRecorder.RootDirectory;
-            var flowForRecording = playing ? cachedFlow : null;
+            var flowForRecording = playing ? FindAnyObjectByType<StudyFlowController>() : null;
             if (playing && (recorder == null || !recorder.SessionOpen) && flowForRecording != null && flowForRecording.RecordingPending)
             {
                 EditorGUILayout.HelpBox("Not recording yet: the session (events.jsonl, mic.wav, output.wav, trials.csv) starts when the first study scene (1 " + LabelFor("meet") + ") begins. The practice is not recorded.", MessageType.Info);

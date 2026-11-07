@@ -31,10 +31,6 @@ namespace AvianVoice.Embodiment
             public float ReflectionBrightness;
             public float ExtendFrustumForCulling;
             public bool DisablePixelLightsInReflection;
-            /// <summary>Reflection cameras only draw objects within this distance (m); 0 = unlimited.</summary>
-            public float MaxDrawDistance;
-            /// <summary>Layers that keep the full draw distance in reflections (avatars, the mirror itself).</summary>
-            public LayerMask UnlimitedLayers;
         }
 
         public static Settings CreateDefaultSettings()
@@ -49,9 +45,7 @@ namespace AvianVoice.Embodiment
                 MirrorMaterial = null,
                 ReflectionBrightness = 1.62f,
                 ExtendFrustumForCulling = 0.25f,
-                DisablePixelLightsInReflection = false,
-                MaxDrawDistance = 0f,
-                UnlimitedLayers = 0
+                DisablePixelLightsInReflection = false
             };
         }
 
@@ -263,8 +257,6 @@ namespace AvianVoice.Embodiment
             renderer.mirrorSurfaces = new System.Collections.Generic.List<MirrorSurface> { surface };
             renderer.recursions = 1;
             renderer.RenderTheseLayers = settings.ReflectionLayers;
-            renderer.MaxReflectionDrawDistance = settings.MaxDrawDistance;
-            renderer.UnlimitedLayers = settings.UnlimitedLayers;
             renderer.OpaqueTextureMode = CameraOverrideOption.Off;
             renderer.DepthTextureMode = CameraOverrideOption.Off;
             renderer.RenderShadows = false;

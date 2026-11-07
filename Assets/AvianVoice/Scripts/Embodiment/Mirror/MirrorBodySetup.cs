@@ -49,12 +49,6 @@ namespace AvianVoice.Embodiment
         [SerializeField]
         LayerMask mirrorReflectionMask;
 
-        [Tooltip("The reflection camera only draws objects closer than this (m); 0 = everything. The mirror otherwise renders the whole " +
-                 "forest a second time, which cost about 5 ms per frame and dropped the headset from 72 to 36 Hz. Avatar and mirror " +
-                 "layers are never limited.")]
-        [SerializeField]
-        float mirrorCullDistance = 40f;
-
         [SerializeField]
         bool useWorldPlacement = true;
 
@@ -438,8 +432,6 @@ namespace AvianVoice.Embodiment
             settings.DisablePixelLightsInReflection = mirrorDisablePixelLights;
             settings.MaxRenderingDistance = mirrorMaxRenderingDistance;
             settings.ReflectionLayers = mirrorReflectionMask;
-            settings.MaxDrawDistance = mirrorCullDistance;
-            settings.UnlimitedLayers = UnlimitedReflectionLayers();
             settings.MirrorMaterial = fragilem17MirrorMaterial;
 
             if (!useWorldPlacement && quad != null)
@@ -592,30 +584,6 @@ namespace AvianVoice.Embodiment
 
             UpdateReflectionFillLight();
         }
-
-        /// <summary>Diagnostics: mirror visibility, renderer binding and the reflection camera's cull distance.</summary>
-        public string DescribeReflection()
-        {
-            return "mirrorVisible=" + mirrorVisible + " worldPlacement=" + useWorldPlacement + " built=" + built
-                   + " renderer=" + (fragilem17Renderer != null ? fragilem17Renderer.name : "none")
-                   + " cullDistance=" + mirrorCullDistance
-                   + " rendererDrawDistance=" + (fragilem17Renderer != null ? fragilem17Renderer.MaxReflectionDrawDistance.ToString("0") : "-")
-                   + " unlimitedLayers=0x" + (fragilem17Renderer != null ? fragilem17Renderer.UnlimitedLayers.value.ToString("X") : "-");
-        }
-
-        /// <summary>Layers that keep the full draw distance in the mirror: the avatars and the mirror itself.</summary>
-        static LayerMask UnlimitedReflectionLayers()
-        {
-            var mask = 0;
-            foreach (var layer in new[] { BirdSceneRoles.HumanAvatarLayer, BirdSceneRoles.MirrorDisplayLayer, LayerMask.NameToLayer("BirdMirror"), LayerMask.NameToLayer("BirdFPV") })
-            {
-                if (layer >= 0 && layer < 32)
-                    mask |= 1 << layer;
-            }
-
-            return mask;
-        }
-
 
         static void SetMirrorDisplayLayers(Transform root)
         {

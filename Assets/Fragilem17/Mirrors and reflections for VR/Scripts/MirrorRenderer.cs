@@ -36,14 +36,6 @@ namespace Fragilem17.MirrorsAndPortals
         [Tooltip("The layer mask of the reflection camera")]
         public LayerMask RenderTheseLayers = -1;
 
-        // AvianVoice addition: the reflection camera only draws objects within this distance (meters, 0 = unlimited),
-        // except layers in UnlimitedLayers. Reflecting a whole forest a second time cost ~5 ms per frame in VR.
-        [Tooltip("AvianVoice: reflection cameras only draw objects within this distance (m); 0 = unlimited.")]
-        public float MaxReflectionDrawDistance = 0f;
-        [Tooltip("AvianVoice: layers that keep the full draw distance in reflections (avatars, the mirror itself).")]
-        public LayerMask UnlimitedLayers = 0;
-        private float[] _avianCullDistances;
-
         [Tooltip("Off is fast")]
         public CameraOverrideOption OpaqueTextureMode = CameraOverrideOption.Off;
         [Tooltip("Off is fast")]
@@ -369,7 +361,6 @@ namespace Fragilem17.MirrorsAndPortals
             CreateMirrorCameras(renderCamera, out _reflectionCamera);
 
             _reflectionCamera.CopyFrom(renderCamera);
-            ApplyAvianDrawDistance(_reflectionCamera);
 
             if (ChangeReflectionCameraLayer) { 
                 _reflectionCamera.gameObject.layer = ReflectionCameraLayerIndex;
@@ -1076,19 +1067,6 @@ namespace Fragilem17.MirrorsAndPortals
             skybox = skyboxOut;
         }
 
-
-        // AvianVoice addition: per-layer cull distances on the reflection camera (CopyFrom resets them every render).
-        private void ApplyAvianDrawDistance(Camera reflectionCamera)
-        {
-            if (reflectionCamera == null || MaxReflectionDrawDistance <= 0f)
-                return;
-            if (_avianCullDistances == null)
-                _avianCullDistances = new float[32];
-            for (int i = 0; i < 32; i++)
-                _avianCullDistances[i] = (UnlimitedLayers.value & (1 << i)) != 0 ? 0f : MaxReflectionDrawDistance;
-            reflectionCamera.layerCullDistances = _avianCullDistances;
-            reflectionCamera.layerCullSpherical = true;
-        }
 
         private void CreateMirrorCameras(Camera renderCamera, out Camera reflectionCamera)
         {
