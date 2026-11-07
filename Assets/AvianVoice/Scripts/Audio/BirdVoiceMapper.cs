@@ -109,12 +109,18 @@ namespace AvianVoice.Audio
         /// </summary>
         public void DebugInjectVoice(float humanHz, float seconds)
         {
-            if (analyzer == null || settings == null)
-                return;
-            StartCoroutine(InjectVoiceRoutine(humanHz, seconds));
+            DebugInjectVoice(humanHz, humanHz, seconds);
         }
 
-        System.Collections.IEnumerator InjectVoiceRoutine(float humanHz, float seconds)
+        /// <summary>Debug: as above with the pitch gliding linearly (in semitones) from startHz to endHz.</summary>
+        public void DebugInjectVoice(float startHz, float endHz, float seconds)
+        {
+            if (analyzer == null || settings == null)
+                return;
+            StartCoroutine(InjectVoiceRoutine(startHz, endHz, seconds));
+        }
+
+        System.Collections.IEnumerator InjectVoiceRoutine(float humanHz, float endHz, float seconds)
         {
             var mic = FindAnyObjectByType<MicrophoneCapture>();
             if (mic != null)
@@ -135,11 +141,13 @@ namespace AvianVoice.Audio
             while (Time.unscaledTime < endSilence)
             {
                 var voiced = Time.unscaledTime < endVoice;
+                var u = Mathf.Clamp01(1f - (endVoice - Time.unscaledTime) / Mathf.Max(0.01f, seconds));
+                var hzNow = humanHz * Mathf.Pow(endHz / Mathf.Max(1f, humanHz), u);
                 for (var i = 0; i < frame; i++)
                 {
                     if (voiced)
                     {
-                        phase += humanHz / rate;
+                        phase += hzNow / rate;
                         if (phase >= 1.0)
                             phase -= 1.0;
                         buffer[i] = (float)(phase * 2.0 - 1.0) * 0.08f;
@@ -153,7 +161,7 @@ namespace AvianVoice.Audio
                 if (voiced && !started)
                 {
                     started = true;
-                    recorder?.LogEvent("debug_voice_inject", j => j.Add("phase", "start").Add("hz", humanHz).Add("seconds", seconds));
+                    recorder?.LogEvent("debug_voice_inject", j => j.Add("phase", "start").Add("hz", humanHz).Add("end_hz", endHz).Add("seconds", seconds));
                 }
                 else if (!voiced && !ended)
                 {
