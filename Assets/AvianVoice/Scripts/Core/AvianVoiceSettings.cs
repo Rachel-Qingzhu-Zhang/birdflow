@@ -40,6 +40,9 @@ namespace AvianVoice.Core
         public float pitchSmoothingSeconds = 0.04f;
         [Tooltip("Jumps larger than this (semitones) snap immediately as a new note.")]
         public float pitchSnapSemitones = 3f;
+        [Tooltip("Run the YIN pitch estimate on a worker thread (about 2 ms of main-thread time per frame saved; the pitch " +
+                 "arrives one frame later, loudness and the voice gate stay immediate).")]
+        public bool pitchAnalysisOnWorkerThread = true;
 
         [Header("Voice Mapping")]
         public float referencePitchHz = 200f;

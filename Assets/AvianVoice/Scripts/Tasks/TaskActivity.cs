@@ -8,6 +8,24 @@ namespace AvianVoice.Tasks
     /// </summary>
     public static class TaskActivity
     {
+        static TaskManager cachedManager;
+        static int cachedFrame = -1;
+
+        /// <summary>The scene's TaskManager, looked up at most once per frame (FindAnyObjectByType is not free).</summary>
+        public static TaskManager Manager
+        {
+            get
+            {
+                if (cachedManager == null && cachedFrame != Time.frameCount)
+                {
+                    cachedFrame = Time.frameCount;
+                    cachedManager = Object.FindAnyObjectByType<TaskManager>();
+                }
+
+                return cachedManager;
+            }
+        }
+
         public static bool IsActive(string taskId)
         {
             var scene = SceneManager.GetActiveScene().name;
@@ -20,7 +38,7 @@ namespace AvianVoice.Tasks
             if (taskId == "song" && scene.Contains("SongPerformance"))
                 return true;
 
-            var manager = Object.FindAnyObjectByType<TaskManager>();
+            var manager = Manager;
             return manager != null && manager.CurrentTaskId == taskId;
         }
     }

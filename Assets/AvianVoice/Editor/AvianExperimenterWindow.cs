@@ -25,6 +25,18 @@ namespace AvianVoice.Editor
     {
         const string EmbodimentScenePath = AvianEmbodimentSceneSetup.ScenePath;
         const string ParticipantIdEditorKey = "AvianVoice.Experimenter.ParticipantId";
+        const string MaximizeGameViewKey = "AvianVoice.Experimenter.MaximizeGameViewOnPlay";
+
+        /// <summary>
+        /// Maximize the Game view while playing: with the normal layout the Scene view and the other editor windows
+        /// repaint every frame (about 5 ms), which pushed the editor loop past the headset's 72 Hz budget and made
+        /// the runtime fall back to 36 Hz (avatars moving in steps). Default on; the panel keeps floating on top.
+        /// </summary>
+        public static bool MaximizeGameViewOnPlay
+        {
+            get => EditorPrefs.GetBool(MaximizeGameViewKey, true);
+            set => EditorPrefs.SetBool(MaximizeGameViewKey, value);
+        }
 
         static readonly Dictionary<string, string> TaskLabels = new()
         {
@@ -134,6 +146,12 @@ namespace AvianVoice.Editor
 
         static void OnPlayModeChanged(PlayModeStateChange state)
         {
+            if (state == PlayModeStateChange.ExitingPlayMode)
+                AvianGameViewUtility.SetMaximized(false);
+            if (state == PlayModeStateChange.EnteredPlayMode && MaximizeGameViewOnPlay
+                && SceneManager.GetActiveScene().path == EmbodimentScenePath)
+                EditorApplication.delayCall += () => AvianGameViewUtility.SetMaximized(true);
+
             if (state != PlayModeStateChange.EnteredPlayMode || SceneManager.GetActiveScene().path != EmbodimentScenePath)
                 return;
             // After the Game view has taken focus for Play.
@@ -166,7 +184,8 @@ namespace AvianVoice.Editor
             if (EditorApplication.timeSinceStartup < nextRepaint)
                 return;
 
-            nextRepaint = EditorApplication.timeSinceStartup + 0.1;
+            // 4 Hz: every repaint runs this whole IMGUI layout several times; at 10 Hz that cost ~2 ms per player frame.
+            nextRepaint = EditorApplication.timeSinceStartup + 0.25;
             Repaint();
         }
 
@@ -219,6 +238,14 @@ namespace AvianVoice.Editor
                     EditorPrefs.SetString(ParticipantIdEditorKey, participantId);
                     StudyFlowController.StoreParticipantId(participantId);
                 }
+            }
+
+            var maximize = EditorGUILayout.ToggleLeft("Maximize the Game view while playing (keeps the headset at 72 Hz; other editor windows cost ~5 ms per frame)", MaximizeGameViewOnPlay);
+            if (maximize != MaximizeGameViewOnPlay)
+            {
+                MaximizeGameViewOnPlay = maximize;
+                if (EditorApplication.isPlaying)
+                    AvianGameViewUtility.SetMaximized(maximize);
             }
 
             using (new EditorGUILayout.HorizontalScope())

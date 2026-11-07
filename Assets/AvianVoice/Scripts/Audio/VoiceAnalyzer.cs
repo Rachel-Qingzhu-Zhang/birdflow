@@ -1,4 +1,5 @@
 using AvianVoice.Core;
+using System.Threading;
 using UnityEngine;
 
 namespace AvianVoice.Audio
@@ -18,6 +19,24 @@ namespace AvianVoice.Audio
         float heldPitchHz;
         float heldPitchAge;
         float lastPushTime;
+
+        // Worker-thread pitch analysis: the main thread hands over a copy of the frame and reads back the result
+        // of the previous frame (one frame of extra pitch latency, ~2 ms of main-thread time saved).
+        readonly object gate = new();
+        Thread worker;
+        AutoResetEvent signal;
+        volatile bool workerRunning;
+        float[] workInput;
+        float[] workBuffer;
+        float[] workYin;
+        int workCount;
+        bool workPending;
+        int workSampleRate;
+        float workMinHz;
+        float workMaxHz;
+        float workThreshold;
+        float resultPitch;
+        float resultConfidence;
 
         public VoiceFrame Current { get; private set; }
 
@@ -62,15 +81,41 @@ namespace AvianVoice.Audio
             smoothedLoudness = tau <= 0f ? rms : Mathf.Lerp(smoothedLoudness, rms, 1f - Mathf.Exp(-dt / tau));
 
             var voiced = smoothedLoudness > settings.voicedThreshold ? 1f : 0f;
-            var rawPitch = EstimatePitchYin(
-                analysisBuffer,
-                copyCount,
-                yinBuffer,
-                settings.sampleRate,
-                settings.minPitchHz,
-                settings.maxPitchHz,
-                settings.yinThreshold,
-                out var confidence);
+            float rawPitch;
+            float confidence;
+            if (settings.pitchAnalysisOnWorkerThread)
+            {
+                EnsureWorker();
+                lock (gate)
+                {
+                    if (workInput == null || workInput.Length < copyCount)
+                        workInput = new float[analysisBuffer.Length];
+                    for (var i = 0; i < copyCount; i++)
+                        workInput[i] = analysisBuffer[i];
+                    workCount = copyCount;
+                    workSampleRate = settings.sampleRate;
+                    workMinHz = settings.minPitchHz;
+                    workMaxHz = settings.maxPitchHz;
+                    workThreshold = settings.yinThreshold;
+                    workPending = true;
+                    rawPitch = resultPitch;
+                    confidence = resultConfidence;
+                }
+
+                signal.Set();
+            }
+            else
+            {
+                rawPitch = EstimatePitchYin(
+                    analysisBuffer,
+                    copyCount,
+                    yinBuffer,
+                    settings.sampleRate,
+                    settings.minPitchHz,
+                    settings.maxPitchHz,
+                    settings.yinThreshold,
+                    out confidence);
+            }
 
             var pitch = TrackPitch(rawPitch, confidence, voiced > 0.5f, dt);
 
@@ -91,6 +136,63 @@ namespace AvianVoice.Audio
             };
 
             signals?.PublishVoice(Current);
+        }
+
+        void EnsureWorker()
+        {
+            if (worker != null)
+                return;
+
+            signal = new AutoResetEvent(false);
+            workBuffer = new float[analysisBuffer.Length];
+            workYin = new float[yinBuffer.Length];
+            workerRunning = true;
+            worker = new Thread(WorkerLoop) { IsBackground = true, Name = "AvianVoice pitch", Priority = System.Threading.ThreadPriority.AboveNormal };
+            worker.Start();
+        }
+
+        void OnDestroy()
+        {
+            workerRunning = false;
+            signal?.Set();
+            worker?.Join(200);
+            worker = null;
+            signal?.Dispose();
+            signal = null;
+        }
+
+        void WorkerLoop()
+        {
+            while (workerRunning)
+            {
+                signal.WaitOne();
+                if (!workerRunning)
+                    return;
+
+                int count;
+                int rate;
+                float minHz, maxHz, threshold;
+                lock (gate)
+                {
+                    if (!workPending)
+                        continue;
+                    workPending = false;
+                    count = workCount;
+                    rate = workSampleRate;
+                    minHz = workMinHz;
+                    maxHz = workMaxHz;
+                    threshold = workThreshold;
+                    for (var i = 0; i < count; i++)
+                        workBuffer[i] = workInput[i];
+                }
+
+                var pitch = EstimatePitchYin(workBuffer, count, workYin, rate, minHz, maxHz, threshold, out var conf);
+                lock (gate)
+                {
+                    resultPitch = pitch;
+                    resultConfidence = conf;
+                }
+            }
         }
 
         float TrackPitch(float rawPitch, float confidence, bool voiced, float dt)
