@@ -24,7 +24,9 @@ namespace AvianVoice.Embodiment.Avatars
             + "retarget_enabled,retarget_init,retarget_valid,retarget_skel_changes,human_tracked,eye_err_m,"
             + "arm_err_L_deg,arm_err_R_deg,forearm_err_L_deg,forearm_err_R_deg,torso_vs_avatar_yaw_deg,"
             + "headset_stale_ms,headjoint_err_max_m,headjoint_vs_camera_yaw_deg,skel_changes_this_row,"
-            + "joints_tracked,wrist_tracked_L,wrist_tracked_R,xr_hand_L,xr_hand_R,controller_L,controller_R,event";
+            + "joints_tracked,wrist_tracked_L,wrist_tracked_R,xr_hand_L,xr_hand_R,controller_L,controller_R,"
+            + "head_to_eye_trk_m,eye_trk_x,eye_trk_y,eye_trk_z,headjoint_trk_x,headjoint_trk_y,headjoint_trk_z,"
+            + "root_trk_x,root_trk_y,root_trk_z,sample_age_ms,origin,event";
 
         AvatarEmbodimentController controller;
         StreamWriter writer;
@@ -248,6 +250,12 @@ namespace AvianVoice.Embodiment.Avatars
               .Append(status.LeftWristTracked).Append(',').Append(status.RightWristTracked).Append(',')
               .Append(XrHandTracked(true)).Append(',').Append(XrHandTracked(false)).Append(',')
               .Append(ControllerTracked(UnityEngine.XR.XRNode.LeftHand)).Append(',').Append(ControllerTracked(UnityEngine.XR.XRNode.RightHand)).Append(',')
+              .Append(F(status.HeadToEye, "0.000")).Append(',')
+              .Append(V(status.EyeTracking, status.HasEye)).Append(',')
+              .Append(V(status.HeadJointTracking, status.HasData)).Append(',')
+              .Append(V(status.RootTracking, status.HasData)).Append(',')
+              .Append(status.HasData ? status.SampleAgeMs.ToString("0", c) : "").Append(',')
+              .Append(status.TrackingOrigin).Append(',')
               .Append(evt);
             writer.WriteLine(sb.ToString());
         }
@@ -256,6 +264,14 @@ namespace AvianVoice.Embodiment.Avatars
         /// Yaw between the tracked head joint (through the tracking-space alignment) and the camera. Constant while the
         /// alignment is right; if it swings when the participant turns, the alignment is wrong.
         /// </summary>
+        static string V(Vector3 v, bool valid)
+        {
+            if (!valid)
+                return ",,";
+            var c = CultureInfo.InvariantCulture;
+            return v.x.ToString("0.000", c) + "," + v.y.ToString("0.000", c) + "," + v.z.ToString("0.000", c);
+        }
+
         float HeadJointVsCameraYaw()
         {
             var cam = controller.XrCamera != null ? controller.XrCamera.transform : null;

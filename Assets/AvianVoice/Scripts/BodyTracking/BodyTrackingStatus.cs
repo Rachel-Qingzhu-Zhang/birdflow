@@ -18,6 +18,23 @@ namespace AvianVoice.BodyTracking
         public bool LeftWristTracked;
         public bool RightWristTracked;
 
+        /// <summary>
+        /// Raw positions in the body tracker's own space (m): the body's head joint and root, and the headset's center eye
+        /// from the same runtime. IOBT anchors the head joint to the headset, so HeadToEye stays around 0.1 m when the
+        /// body and the headset share a space; meters mean the body data is shifted or broken.
+        /// </summary>
+        public UnityEngine.Vector3 HeadJointTracking;
+        public UnityEngine.Vector3 RootTracking;
+        public UnityEngine.Vector3 EyeTracking;
+        public bool HasEye;
+        public float HeadToEye => HasEye && HasData ? UnityEngine.Vector3.Distance(HeadJointTracking, EyeTracking) : float.NaN;
+
+        /// <summary>Runtime clock minus the body sample's time (ms): how old the joints are when the app reads them.</summary>
+        public float SampleAgeMs;
+
+        /// <summary>The runtime's tracking origin type (EyeLevel / FloorLevel / Stage).</summary>
+        public string TrackingOrigin;
+
         /// <summary>The human avatar's own retargeter (null fields when there is none).</summary>
         public bool RetargeterPresent;
         public bool RetargeterEnabled;

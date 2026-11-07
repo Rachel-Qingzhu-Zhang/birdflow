@@ -64,6 +64,25 @@ namespace AvianVoice.MetaBody
                     var right = (int)OVRPlugin.BoneId.FullBody_RightHandWrist;
                     status.LeftWristTracked = left < s.JointLocations.Length && s.JointLocations[left].PositionTracked;
                     status.RightWristTracked = right < s.JointLocations.Length && s.JointLocations[right].PositionTracked;
+
+                    var head = (int)OVRPlugin.BoneId.FullBody_Head;
+                    var root = (int)OVRPlugin.BoneId.FullBody_Root;
+                    if (head < s.JointLocations.Length)
+                        status.HeadJointTracking = s.JointLocations[head].Pose.Position.FromFlippedZVector3f();
+                    if (root < s.JointLocations.Length)
+                        status.RootTracking = s.JointLocations[root].Pose.Position.FromFlippedZVector3f();
+                }
+
+                status.SampleAgeMs = (float)((OVRPlugin.GetTimeInSeconds() - s.Time) * 1000.0);
+            }
+
+            if (OVRPlugin.initialized)
+            {
+                status.TrackingOrigin = OVRPlugin.GetTrackingOriginType().ToString();
+                if (OVRPlugin.GetNodePositionValid(OVRPlugin.Node.EyeCenter))
+                {
+                    status.EyeTracking = OVRPlugin.GetNodePose(OVRPlugin.Node.EyeCenter, OVRPlugin.Step.Render).Position.FromFlippedZVector3f();
+                    status.HasEye = true;
                 }
             }
 
