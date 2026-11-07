@@ -42,17 +42,20 @@ namespace AvianVoice.Audio
         [SerializeField]
         float vibratoOnsetSeconds = 0.35f;
 
+        [Tooltip("Envelope attack (s). Kept short so the vowel starts with the singer's onset.")]
         [SerializeField]
-        float attackSeconds = 0.035f;
+        float attackSeconds = 0.006f;
+
+        [Tooltip("Envelope release time constant (s) after the voice gate closes: 0.015 reaches -30 dB in about 50 ms. " +
+                 "The analyzer's loudness release (~0.012 s) comes before it.")]
+        [SerializeField]
+        float releaseSeconds = 0.015f;
 
         [SerializeField]
-        float releaseSeconds = 0.14f;
+        float pitchSmoothSeconds = 0.02f;
 
         [SerializeField]
-        float pitchSmoothSeconds = 0.035f;
-
-        [SerializeField]
-        float levelSmoothSeconds = 0.04f;
+        float levelSmoothSeconds = 0.015f;
 
         [SerializeField, Range(0f, 0.3f)]
         float breathNoise = 0.03f;

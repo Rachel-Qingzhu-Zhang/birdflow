@@ -14,8 +14,13 @@ namespace AvianVoice.Core
         public int ringBufferSeconds = 1;
         public float minPitchHz = 80f;
         public float maxPitchHz = 800f;
-        [Tooltip("Higher = smoother HUD/trigger but slower response to your voice.")]
+        [Tooltip("Legacy (not used since 2026-11-07): symmetric loudness smoothing rate. See Loudness Attack / Release Seconds.")]
         public float loudnessSmooth = 8f;
+        [Tooltip("Loudness envelope attack in seconds: how soon the voice counts as on after the singer starts (0 = instant).")]
+        public float loudnessAttackSeconds = 0.002f;
+        [Tooltip("Loudness envelope release in seconds: how soon the voice counts as off after the singer stops. " +
+                 "This sets how fast the bird / human voice feedback dies away (the synth release adds about 0.05 s to -30 dB).")]
+        public float loudnessReleaseSeconds = 0.012f;
         [Tooltip("Override Unity DSP buffer size at startup (0 = use Platform Profile only). 128–256 = lower latency.")]
         public int dspBufferSizeOverride = 256;
         [Tooltip("Raw mic RMS required before a frame counts as voiced. Above room noise and fan hum.")]

@@ -25,7 +25,36 @@ namespace AvianVoice.Audio
         float lastPushedAt;
         float nextRestartAllowedAt;
 
+        public const string PreferredDevicePrefKey = "AvianVoice.MicDevice";
+
         public bool IsCapturing { get; private set; }
+
+        /// <summary>While true no microphone samples are pushed and capture is not restarted (debug injection).</summary>
+        public bool Paused { get; set; }
+
+        /// <summary>Device name the experimenter chose (PlayerPrefs); empty = automatic choice.</summary>
+        public static string PreferredDevice
+        {
+            get => PlayerPrefs.GetString(PreferredDevicePrefKey, "");
+            set
+            {
+                PlayerPrefs.SetString(PreferredDevicePrefKey, value ?? "");
+                PlayerPrefs.Save();
+            }
+        }
+
+        /// <summary>Capture sample rate of the live clip, 0 while not capturing.</summary>
+        public int SampleRate => clip != null ? clip.frequency : 0;
+
+        /// <summary>Switch to another input device now (empty = automatic) and remember it for the next sessions.</summary>
+        public void SetDevice(string name)
+        {
+            PreferredDevice = name ?? "";
+            StopCapture();
+            nextRestartAllowedAt = 0f;
+            StartCapture();
+            Debug.Log("[AvianVoice] Microphone device set to " + (string.IsNullOrEmpty(name) ? "automatic" : "'" + name + "'") + "; now using '" + deviceName + "'.");
+        }
 
         /// <summary>Live microphone ring clip (null while not capturing). Readers track their own position.</summary>
         public AudioClip Clip => clip;
@@ -97,6 +126,12 @@ namespace AvianVoice.Audio
         static string PickDevice()
         {
             var devices = Microphone.devices;
+            var preferred = PreferredDevice;
+            if (!string.IsNullOrEmpty(preferred) && System.Array.IndexOf(devices, preferred) >= 0)
+                return preferred;
+            if (!string.IsNullOrEmpty(preferred))
+                Debug.LogWarning("[AvianVoice] Preferred microphone '" + preferred + "' is not connected; choosing automatically.");
+
             var headsetSession = XRSettings.enabled && XRSettings.isDeviceActive;
             string physical = null;
             string headset = null;
@@ -179,7 +214,7 @@ namespace AvianVoice.Audio
 
         void Update()
         {
-            if (settings == null)
+            if (settings == null || Paused)
                 return;
 
             if (!IsCapturing || clip == null)

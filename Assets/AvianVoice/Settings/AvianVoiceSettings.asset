@@ -24,7 +24,7 @@ MonoBehaviour:
   yinThreshold: 0.15
   pitchMinConfidence: 0.55
   pitchHoldSeconds: 0.2
-  pitchSmoothingSeconds: 0.04
+  pitchSmoothingSeconds: 0.02
   pitchSnapSemitones: 3
   loudnessGain: 8
   referencePitchHz: 220
@@ -58,11 +58,11 @@ MonoBehaviour:
   synthOnsetGlideSemitones: 2.5
   synthOnsetGlideSeconds: 0.04
   synthAttackSeconds: 0.008
-  synthReleaseSeconds: 0.09
+  synthReleaseSeconds: 0.015
   synthHarmonic2: 0.18
   synthNoise: 0.06
   synthVolume: 0.65
-  synthPitchSmoothSeconds: 0.04
+  synthPitchSmoothSeconds: 0.02
   transformBlockOverlap: 1
   paramSmooth: 10
   wingRotationScale: 1

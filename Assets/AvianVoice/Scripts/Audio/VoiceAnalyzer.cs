@@ -56,10 +56,10 @@ namespace AvianVoice.Audio
             rms = Mathf.Sqrt(rms / copyCount);
 
             var dt = Time.deltaTime > 0f ? Time.deltaTime : 0.016f;
-            smoothedLoudness = Mathf.Lerp(
-                smoothedLoudness,
-                rms,
-                1f - Mathf.Exp(-settings.loudnessSmooth * dt));
+            // Envelope follower with separate attack and release, so the feedback voice starts at once and
+            // stops within a few tens of milliseconds after the singer does.
+            var tau = rms > smoothedLoudness ? Mathf.Max(0f, settings.loudnessAttackSeconds) : Mathf.Max(0.001f, settings.loudnessReleaseSeconds);
+            smoothedLoudness = tau <= 0f ? rms : Mathf.Lerp(smoothedLoudness, rms, 1f - Mathf.Exp(-dt / tau));
 
             var voiced = smoothedLoudness > settings.voicedThreshold ? 1f : 0f;
             var rawPitch = EstimatePitchYin(

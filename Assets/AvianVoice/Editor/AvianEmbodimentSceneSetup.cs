@@ -289,6 +289,20 @@ namespace AvianVoice.Editor
             ReplayGuideNote();
         }
 
+        [MenuItem("Avian Voice/Embodiment/Debug/Test Voice Response (inject 0.5 s tone) (Play Mode)")]
+        public static void DebugVoiceResponse()
+        {
+            var mapper = AvianVoice.Audio.BirdVoiceMapper.Find();
+            if (mapper == null)
+            {
+                Debug.LogWarning("[AvianVoice] No BirdVoiceMapper (enter Play mode first).");
+                return;
+            }
+
+            mapper.DebugInjectVoice(220f, 0.5f);
+            Debug.Log("[AvianVoice] Voice response test: 220 Hz sawtooth into the analyzer for 0.5 s, then silence; see debug_voice_inject events and output.wav.");
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Test Bird Voice Follow 2 s (Play Mode)")]
         public static void DebugBirdVoiceFollow()
         {

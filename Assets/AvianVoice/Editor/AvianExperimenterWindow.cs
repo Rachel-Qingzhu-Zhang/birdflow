@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using AvianVoice.Audio;
 using AvianVoice.Core;
 using AvianVoice.Embodiment;
 using AvianVoice.Embodiment.Avatars;
@@ -261,6 +262,7 @@ namespace AvianVoice.Editor
                 EditorGUILayout.LabelField("Condition", flowForStatus.ConditionLabel + "   (the participant's voice is heard as: " + flowForStatus.EffectiveFeedbackName + ")");
             EditorGUILayout.LabelField("Body tracking", tracking);
             EditorGUILayout.LabelField("Participant controllers", ParticipantInputPolicy.ControllersEnabled ? "enabled" : "disabled (hands, head and voice only)");
+            DrawMicrophoneStatus(playing);
 
             var meterRect = EditorGUILayout.GetControlRect(false, 16f);
             var labelRect = new Rect(meterRect.x, meterRect.y, EditorGUIUtility.labelWidth, meterRect.height);
@@ -344,6 +346,54 @@ namespace AvianVoice.Editor
             var newDevice = EditorGUILayout.TextField("  Device (part of the name)", monitor.DeviceNameContains);
             if (newDevice != monitor.DeviceNameContains)
                 monitor.DeviceNameContains = newDevice;
+        }
+
+        /// <summary>The input device actually capturing (name, rate, live level) and a chooser (remembered across sessions).</summary>
+        void DrawMicrophoneStatus(bool playing)
+        {
+            var mic = playing ? FindAnyObjectByType<MicrophoneCapture>() : null;
+            var analyzer = playing ? FindAnyObjectByType<VoiceAnalyzer>() : null;
+            var devices = Microphone.devices ?? new string[0];
+
+            string inUse;
+            if (mic == null)
+                inUse = playing ? "no MicrophoneCapture in the scene" : "(shown in Play mode)";
+            else if (mic.IsCapturing && !string.IsNullOrEmpty(mic.DeviceName))
+                inUse = mic.DeviceName + "   capturing @" + mic.SampleRate + " Hz" + (mic.Paused ? "  (paused: test running)" : "");
+            else
+                inUse = "NOT capturing" + (string.IsNullOrEmpty(mic.DeviceName) ? "" : " (" + mic.DeviceName + ")") + " — restarting…";
+            EditorGUILayout.LabelField("Microphone in use", inUse, mic != null && !mic.IsCapturing ? EditorStyles.boldLabel : EditorStyles.label);
+
+            var preferred = MicrophoneCapture.PreferredDevice;
+            var names = new string[devices.Length + 1];
+            names[0] = "Auto (headset mic while XR runs, else the first physical mic)";
+            var index = 0;
+            for (var i = 0; i < devices.Length; i++)
+            {
+                names[i + 1] = devices[i];
+                if (devices[i] == preferred)
+                    index = i + 1;
+            }
+
+            if (!string.IsNullOrEmpty(preferred) && index == 0)
+                names[0] += "   [preferred '" + preferred + "' not connected]";
+            var chosen = EditorGUILayout.Popup("Input device", index, names);
+            if (chosen != index)
+            {
+                var name = chosen == 0 ? "" : devices[chosen - 1];
+                if (mic != null)
+                    mic.SetDevice(name);
+                else
+                    MicrophoneCapture.PreferredDevice = name;
+            }
+
+            if (analyzer != null)
+            {
+                var v = analyzer.Current;
+                var rect = EditorGUILayout.GetControlRect(false, 14f);
+                EditorGUI.ProgressBar(rect, Mathf.Clamp01(v.loudness), "Input level " + (v.voiced > 0.5f ? "● voiced" : "silent")
+                    + (v.pitchHz > 0f ? "  " + v.pitchHz.ToString("0") + " Hz" : ""));
+            }
         }
 
         void DrawTaskSection(bool playing, TaskManager taskManager, SingingTrialTask trials)

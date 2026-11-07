@@ -4,6 +4,8 @@ using UnityEngine.Audio;
 
 namespace AvianVoice.Audio
 {
+    /// <summary>Runs after MicrophoneCapture / VoiceAnalyzer (order 0) so it reacts to this frame's analysis, not the previous one.</summary>
+    [DefaultExecutionOrder(50)]
     public class BirdVoiceMapper : MonoBehaviour
     {
         AvianVoiceSettings settings;
@@ -97,6 +99,82 @@ namespace AvianVoice.Audio
             EnsureSynth();
             humanSynth?.Silence();
             synth?.PlayChirp(humanHz, 0.92f, seconds);
+        }
+
+        /// <summary>
+        /// Debug: feed a synthetic voice (sawtooth at <paramref name="humanHz"/>) straight into the analyzer for
+        /// <paramref name="seconds"/>, then silence, with the microphone paused, so the end-to-end response of the
+        /// feedback voice (analysis -> gate -> synth) can be measured on output.wav. Events "debug_voice_inject"
+        /// (phase start / end) carry the output frame of the first voiced and the first silent push.
+        /// </summary>
+        public void DebugInjectVoice(float humanHz, float seconds)
+        {
+            if (analyzer == null || settings == null)
+                return;
+            StartCoroutine(InjectVoiceRoutine(humanHz, seconds));
+        }
+
+        System.Collections.IEnumerator InjectVoiceRoutine(float humanHz, float seconds)
+        {
+            var mic = FindAnyObjectByType<MicrophoneCapture>();
+            if (mic != null)
+                mic.Paused = true;
+            yield return null;
+
+            var wasFollowing = followVoice;
+            followVoice = true;
+            var rate = settings.sampleRate > 0 ? settings.sampleRate : 48000;
+            var frame = Mathf.Max(64, settings.frameSize);
+            var buffer = new float[frame];
+            var recorder = AvianVoice.Study.StudyRecorder.Instance;
+            double phase = 0;
+            var endVoice = Time.unscaledTime + seconds;
+            var endSilence = endVoice + 1f;
+            var started = false;
+            var ended = false;
+            while (Time.unscaledTime < endSilence)
+            {
+                var voiced = Time.unscaledTime < endVoice;
+                for (var i = 0; i < frame; i++)
+                {
+                    if (voiced)
+                    {
+                        phase += humanHz / rate;
+                        if (phase >= 1.0)
+                            phase -= 1.0;
+                        buffer[i] = (float)(phase * 2.0 - 1.0) * 0.08f;
+                    }
+                    else
+                    {
+                        buffer[i] = 0f;
+                    }
+                }
+
+                if (voiced && !started)
+                {
+                    started = true;
+                    recorder?.LogEvent("debug_voice_inject", j => j.Add("phase", "start").Add("hz", humanHz).Add("seconds", seconds));
+                }
+                else if (!voiced && !ended)
+                {
+                    ended = true;
+                    recorder?.LogEvent("debug_voice_inject", j => j.Add("phase", "end").Add("hz", humanHz));
+                }
+
+                analyzer.PushSamples(buffer, frame);
+                yield return null;
+            }
+
+            followVoice = wasFollowing;
+            if (!followVoice)
+            {
+                synth?.Silence();
+                humanSynth?.Silence();
+            }
+
+            if (mic != null)
+                mic.Paused = false;
+            Debug.Log("[AvianVoice] Voice injection test done (" + humanHz + " Hz for " + seconds + " s, then 1 s silence).");
         }
 
         /// <summary>Debug: hold the bird voice open at a human pitch for a while, as if the singer were voiced.</summary>
@@ -263,7 +341,8 @@ namespace AvianVoice.Audio
                 return;
 
             var loud = v.loudness;
-            var voiced = loud >= 0.05f && (v.voiced > 0.5f || v.pitchHz > 0f);
+            // The gate is the analyzer's loudness envelope alone (fast attack / release); a held pitch must not keep it open.
+            var voiced = v.voiced > 0.5f;
             if (v.pitchHz > 0f)
                 lastSynthPitchHz = v.pitchHz;
             else if (lastSynthPitchHz <= 0f)
@@ -281,7 +360,8 @@ namespace AvianVoice.Audio
         void UpdateSynth(VoiceFrame v)
         {
             var loud = v.loudness;
-            var voiced = loud >= 0.05f && (v.voiced > 0.5f || v.pitchHz > 0f);
+            // The gate is the analyzer's loudness envelope alone (fast attack / release); a held pitch must not keep it open.
+            var voiced = v.voiced > 0.5f;
             if (v.pitchHz > 0f)
                 lastSynthPitchHz = v.pitchHz;
             else if (lastSynthPitchHz <= 0f)
