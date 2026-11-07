@@ -36,6 +36,28 @@ namespace AvianVoice.Editor
             Debug.Log("[AvianVoice] Body tracking origin: " + HeadsetTrackingPose.CycleTrackingOrigin());
         }
 
+        /// <summary>Test: make the body tracker recalibrate (the skeleton changes, as when a participant's height is learned).</summary>
+        [MenuItem("Avian Voice/Embodiment/Debug/Force Body Calibration 1.60 m (test, Play Mode)")]
+        static void Calibrate160() => SuggestHeight(1.60f);
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Force Body Calibration 1.85 m (test, Play Mode)")]
+        static void Calibrate185() => SuggestHeight(1.85f);
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Reset Body Calibration (Play Mode)")]
+        static void CalibrateReset() => SuggestHeight(0f);
+
+        static void SuggestHeight(float height)
+        {
+            if (!Application.isPlaying || BodyTrackingStatusSource.SuggestCalibrationHeight == null)
+            {
+                Debug.LogWarning("[AvianVoice] Enter Play mode first (Meta backend required).");
+                return;
+            }
+
+            var ok = BodyTrackingStatusSource.SuggestCalibrationHeight(height);
+            Debug.Log("[AvianVoice] Body calibration " + (height > 0f ? "override " + height.ToString("0.00") + " m" : "reset") + ": " + (ok ? "accepted" : "refused"));
+        }
+
         /// <summary>Tracking-space alignment and the tracked head versus the camera, now (the head error should stay ~0.1 m).</summary>
         [MenuItem("Avian Voice/Embodiment/Debug/Log Tracking Space (Play Mode)")]
         static void LogTrackingSpace()
