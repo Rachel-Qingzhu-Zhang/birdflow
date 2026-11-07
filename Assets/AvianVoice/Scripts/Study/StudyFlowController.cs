@@ -34,6 +34,12 @@ namespace AvianVoice.Study
         [SerializeField]
         bool useSingingTrials = true;
 
+        [Header("Practice scene")]
+        [Tooltip("Put a practice scene in front of the flow and start the session there: the singing task with a free pitch, " +
+                 "no schedule and nothing written to trials.csv, so the experimenter can explain the task and show the conditions.")]
+        [SerializeField]
+        bool includePractice = true;
+
         [Header("Recording")]
         [SerializeField]
         bool recordSession = true;
@@ -61,6 +67,8 @@ namespace AvianVoice.Study
 
         public TaskManager TaskManager { get; private set; }
         public SingingTrialTask Trials { get; private set; }
+        /// <summary>The practice-scene instance of the singing task (null when the practice scene is off).</summary>
+        public SingingTrialTask Practice { get; private set; }
         public StudyRecorder Recorder { get; private set; }
         public string ParticipantId { get; private set; } = "";
         public bool UseFourSceneFlow => useFourSceneFlow;
@@ -181,14 +189,29 @@ namespace AvianVoice.Study
             }
 
             if (useFourSceneFlow)
-                TaskManager.SetFlow(flow);
+                TaskManager.SetFlow(FlowWithPractice());
 
             if (useSingingTrials)
             {
                 var host = GameObject.Find("TaskRoot") ?? gameObject;
-                Trials = host.GetComponent<SingingTrialTask>() ?? host.AddComponent<SingingTrialTask>();
+                Trials = FindTrialTask(host, false) ?? host.AddComponent<SingingTrialTask>();
                 TaskManager.BindTaskBehaviour(SingingTrialTask.TaskId, Trials);
+
+                if (includePractice)
+                {
+                    Practice = FindTrialTask(host, true);
+                    if (Practice == null)
+                    {
+                        Practice = host.AddComponent<SingingTrialTask>();
+                        Practice.ConfigurePractice(true);
+                    }
+
+                    TaskManager.BindTaskBehaviour(SingingTrialTask.PracticeTaskId, Practice);
+                }
             }
+
+            if (includePractice && useFourSceneFlow && TaskManager.CurrentTaskId != SingingTrialTask.PracticeTaskId)
+                TaskManager.LoadTaskById(SingingTrialTask.PracticeTaskId);
 
             Recorder?.LogEvent("study_flow", j => j
                 .AddArray("flow", TaskManager.TaskIds)
@@ -199,6 +222,29 @@ namespace AvianVoice.Study
             Debug.Log("[AvianVoice] Study flow: " + string.Join(" > ", TaskManager.TaskIds)
                       + (Trials != null ? " | singing trials " + Trials.TotalTrials : "")
                       + (Recorder != null ? " | recording " + Recorder.SessionDirectory : " | not recording"));
+        }
+
+        /// <summary>The configured flow, with the practice scene in front when it is enabled.</summary>
+        string[] FlowWithPractice()
+        {
+            if (!includePractice || flow == null || System.Array.IndexOf(flow, SingingTrialTask.PracticeTaskId) >= 0)
+                return flow;
+
+            var withPractice = new string[flow.Length + 1];
+            withPractice[0] = SingingTrialTask.PracticeTaskId;
+            flow.CopyTo(withPractice, 1);
+            return withPractice;
+        }
+
+        static SingingTrialTask FindTrialTask(GameObject host, bool practice)
+        {
+            foreach (var task in host.GetComponents<SingingTrialTask>())
+            {
+                if (task != null && task.IsPractice == practice)
+                    return task;
+            }
+
+            return null;
         }
 
         void Update()

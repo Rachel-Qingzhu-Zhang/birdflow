@@ -157,10 +157,16 @@ namespace AvianVoice.Study
     /// Every phase and the participant's voice onset / offset are timestamped through
     /// <see cref="StudyRecorder"/>; after the last trial the session moves to the rest scene.
     /// Replaces <see cref="SingingBranchTask"/> for the "singing" task id (see <see cref="StudyFlowController"/>).
+    ///
+    /// A second instance with <see cref="IsPractice"/> runs the "practice" scene: the same task with no
+    /// schedule, no end and a pitch the experimenter picks freely (<see cref="PracticePitchHz"/>), used at the
+    /// start of the session to explain the task and show the conditions. Practice trials are logged in
+    /// events.jsonl (task "practice", practice: true) but written to neither trials.csv nor segments/.
     /// </summary>
     public class SingingTrialTask : MonoBehaviour
     {
         public const string TaskId = "singing";
+        public const string PracticeTaskId = "practice";
 
         [Header("Protocol")]
         [Tooltip("Target pitches in human Hz. The teacher bird sings them transposed into the bird register, and the participant answers in any octave.")]
@@ -231,6 +237,15 @@ namespace AvianVoice.Study
         [SerializeField]
         string restTaskId = "reflection";
 
+        [Header("Practice")]
+        [Tooltip("This instance runs the practice scene: free pitch, no schedule, no end, nothing written to trials.csv.")]
+        [SerializeField]
+        bool practiceMode;
+
+        [Tooltip("Pitch of the teacher's note in the practice scene (human Hz), chosen from the experimenter panel.")]
+        [SerializeField]
+        float practicePitchHz = 330f;
+
         TaskManager taskManager;
         VoiceAnalyzer analyzer;
         StudyRecorder recorder;
@@ -270,10 +285,20 @@ namespace AvianVoice.Study
 
         public TrialPhase Phase => phase;
         public bool HasStarted => protocolStarted;
-        public bool IsFinished => schedule != null && nextSlot >= schedule.Length && phase != TrialPhase.Guide && phase != TrialPhase.Response;
+        /// <summary>True for the practice-scene instance (see the class summary).</summary>
+        public bool IsPractice => practiceMode;
+        /// <summary>Task id this instance answers to: "singing", or "practice" for the practice instance.</summary>
+        public string ActiveTaskId => practiceMode ? PracticeTaskId : TaskId;
+        /// <summary>Teacher pitch of the practice scene (human Hz); the next practice trial uses it.</summary>
+        public float PracticePitchHz
+        {
+            get => practicePitchHz;
+            set => practicePitchHz = Mathf.Clamp(value, 60f, 2000f);
+        }
+        public bool IsFinished => !practiceMode && schedule != null && nextSlot >= schedule.Length && phase != TrialPhase.Guide && phase != TrialPhase.Response;
         public int TotalTrials => Mathf.Max(0, pitchesHz.Length) * Mathf.Max(1, trialsPerPitch);
         /// <summary>Trials finished so far (a repeated trial counts once).</summary>
-        public int CompletedTrials => phase == TrialPhase.Guide || phase == TrialPhase.Response ? nextSlot : Mathf.Min(nextSlot, TotalTrials);
+        public int CompletedTrials => practiceMode || phase == TrialPhase.Guide || phase == TrialPhase.Response ? nextSlot : Mathf.Min(nextSlot, TotalTrials);
         public int NextTrialNumber => Mathf.Min(nextSlot + 1, TotalTrials);
         public TrialRecord Current => current;
         public TrialRecord Last => last;
@@ -288,19 +313,27 @@ namespace AvianVoice.Study
         public float ResponseSecondsLeft => phase == TrialPhase.Response && !trialUntilNextPress ? Mathf.Max(0f, responseEndsAt - Time.time) : 0f;
         /// <summary>Seconds since the running trial started (the last press), 0 when idle.</summary>
         public float CurrentTrialSeconds => current != null && (phase == TrialPhase.Guide || phase == TrialPhase.Response) ? Mathf.Max(0f, Time.time - trialStartedAt) : 0f;
-        public float CurrentTargetHz => current != null ? current.targetHz : (schedule != null && nextSlot < schedule.Length ? pitchesHz[schedule[nextSlot]] : 0f);
+        public float CurrentTargetHz => current != null ? current.targetHz : practiceMode ? practicePitchHz : (schedule != null && nextSlot < schedule.Length ? pitchesHz[schedule[nextSlot]] : 0f);
         public string CurrentNoteName => CurrentTargetHz > 0f ? BirdSongPhrase.NoteName(CurrentTargetHz) : "";
         /// <summary>Target of the trial the next press starts (the slot after the running one), 0 after the last.</summary>
         public float NextTargetHz
         {
             get
             {
+                if (practiceMode)
+                    return practicePitchHz;
                 var slot = phase == TrialPhase.Guide || phase == TrialPhase.Response ? nextSlot + 1 : nextSlot;
                 return schedule != null && slot < schedule.Length ? pitchesHz[schedule[slot]] : 0f;
             }
         }
         public string NextNoteName => NextTargetHz > 0f ? BirdSongPhrase.NoteName(NextTargetHz) : "";
         public string RestTaskId => restTaskId;
+
+        /// <summary>Make this instance the practice-scene task (call before it is enabled).</summary>
+        public void ConfigurePractice(bool practice)
+        {
+            practiceMode = practice;
+        }
 
         /// <summary>Change the protocol before the first trial (from the experimenter panel).</summary>
         public bool Configure(float[] pitches, int perPitch, TrialOrder trialOrder, int seed)
@@ -338,7 +371,7 @@ namespace AvianVoice.Study
             EnsureSchedule();
             phase = TrialPhase.Idle;
             recorder?.LogEvent("protocol_reset", j => j.Add("source", source));
-            if (isActiveAndEnabled && TaskActivity.IsActive(TaskId))
+            if (isActiveAndEnabled && TaskActivity.IsActive(ActiveTaskId))
                 ShowCue("wait", 0f);
             UpdateProgressUi();
         }
@@ -352,7 +385,7 @@ namespace AvianVoice.Study
         /// </summary>
         public bool StartNextTrial(string source)
         {
-            if (!isActiveAndEnabled || !TaskActivity.IsActive(TaskId))
+            if (!isActiveAndEnabled || !TaskActivity.IsActive(ActiveTaskId))
                 return false;
 
             Resolve();
@@ -361,7 +394,7 @@ namespace AvianVoice.Study
                 return false;
             if (phase == TrialPhase.Guide || phase == TrialPhase.Response)
                 EndCurrentTrial("experimenter_next");
-            if (nextSlot >= schedule.Length)
+            if (!practiceMode && nextSlot >= schedule.Length)
             {
                 FinishProtocol();
                 return false;
@@ -374,7 +407,7 @@ namespace AvianVoice.Study
                 return false;
             }
 
-            if (!protocolLogged)
+            if (!protocolLogged && !practiceMode)
             {
                 protocolLogged = true;
                 recorder?.LogEvent("protocol_start", j => j
@@ -393,13 +426,13 @@ namespace AvianVoice.Study
 
             protocolStarted = true;
             var slot = nextSlot;
-            var pitchIndex = schedule[slot];
-            var hz = pitchesHz[pitchIndex];
+            var pitchIndex = practiceMode ? PracticePitchIndex() : schedule[slot];
+            var hz = practiceMode ? practicePitchHz : pitchesHz[pitchIndex];
             current = new TrialRecord
             {
                 trial = slot + 1,
                 attempt = attemptOfSlot + 1,
-                block = BlockOf(slot),
+                block = practiceMode ? 0 : BlockOf(slot),
                 pitchIndex = pitchIndex,
                 targetHz = hz,
                 note = BirdSongPhrase.NoteName(hz),
@@ -422,7 +455,8 @@ namespace AvianVoice.Study
             ShowCue("listen", hz);
             recorder?.LogEvent("trial_start", j => j
                 .Add("trial", current.trial).Add("attempt", current.attempt).Add("block", current.block)
-                .Add("pitch_index", pitchIndex).Add("target_hz", hz).Add("note", current.note).Add("source", current.source));
+                .Add("pitch_index", pitchIndex).Add("target_hz", hz).Add("note", current.note).Add("source", current.source)
+                .Add("practice", practiceMode));
             recorder?.LogEvent("guide_start", j => j.Add("trial", current.trial).Add("target_hz", hz).Add("guide_s", guideSeconds).Add("teacher_voice", guideVoice.ToString()));
             UpdateProgressUi();
             return true;
@@ -431,7 +465,7 @@ namespace AvianVoice.Study
         /// <summary>Run the previous trial slot again (same target). Only while idle.</summary>
         public bool RepeatLastTrial(string source)
         {
-            if (phase != TrialPhase.Idle || nextSlot <= 0 || !isActiveAndEnabled || !TaskActivity.IsActive(TaskId))
+            if (phase != TrialPhase.Idle || nextSlot <= 0 || !isActiveAndEnabled || !TaskActivity.IsActive(ActiveTaskId))
                 return false;
 
             nextSlot--;
@@ -468,7 +502,7 @@ namespace AvianVoice.Study
 
         void OnEnable()
         {
-            if (!TaskActivity.IsActive(TaskId))
+            if (!TaskActivity.IsActive(ActiveTaskId))
                 return;
 
             Resolve();
@@ -480,9 +514,9 @@ namespace AvianVoice.Study
             BindPoses();
             EnsureFriendVisuals();
             BirdVoiceMapper.Find()?.SetFollowVoice(false);
-            phase = nextSlot >= schedule.Length ? TrialPhase.Finished : TrialPhase.Idle;
+            phase = !practiceMode && nextSlot >= schedule.Length ? TrialPhase.Finished : TrialPhase.Idle;
             ShowCue(phase == TrialPhase.Finished ? "finished" : "wait", 0f);
-            recorder?.LogEvent("singing_task_enabled", j => j.Add("next_trial", NextTrialNumber).Add("total", TotalTrials).Add("done", CompletedTrials));
+            recorder?.LogEvent("singing_task_enabled", j => j.Add("next_trial", NextTrialNumber).Add("total", TotalTrials).Add("done", CompletedTrials).Add("practice", practiceMode));
             UpdateProgressUi();
         }
 
@@ -508,7 +542,7 @@ namespace AvianVoice.Study
 
         void Update()
         {
-            if (!enabled || !TaskActivity.IsActive(TaskId))
+            if (!enabled || !TaskActivity.IsActive(ActiveTaskId))
                 return;
 
             if (acceptKeyboardStart && AvianInput.WasReplayPressedThisFrame())
@@ -535,7 +569,7 @@ namespace AvianVoice.Study
 
         void LateUpdate()
         {
-            if (!enabled || !TaskActivity.IsActive(TaskId))
+            if (!enabled || !TaskActivity.IsActive(ActiveTaskId))
                 return;
 
             BindPoses();
@@ -666,24 +700,31 @@ namespace AvianVoice.Study
 
             if (recorder != null)
             {
-                var safeNote = record.note.Replace('#', 's');
-                record.segmentFile = recorder.WriteSegment(record.start.micSample, record.end.micSample,
-                    "trial_" + record.trial.ToString("000", CultureInfo.InvariantCulture) + "_a" + record.attempt + "_" + safeNote + ".wav") ?? "";
-                recorder.WriteTrial(record);
+                // Practice trials stay out of trials.csv and segments/ (events.jsonl keeps them, task "practice").
+                if (!practiceMode)
+                {
+                    var safeNote = record.note.Replace('#', 's');
+                    record.segmentFile = recorder.WriteSegment(record.start.micSample, record.end.micSample,
+                        "trial_" + record.trial.ToString("000", CultureInfo.InvariantCulture) + "_a" + record.attempt + "_" + safeNote + ".wav") ?? "";
+                    recorder.WriteTrial(record);
+                }
+
                 recorder.LogEvent("trial_end", j =>
                 {
                     j.Add("trial", record.trial).Add("attempt", record.attempt).Add("end_reason", record.endReason)
                      .Add("had_voice", record.HadVoice).Add("onset_latency_s", record.onsetLatencySeconds)
                      .Add("voiced_s", record.voicedSeconds).Add("mean_pitch_hz", record.meanPitchHz)
                      .Add("median_pitch_hz", record.medianPitchHz).Add("pitch_match", record.pitchMatch)
-                     .Add("max_loudness", record.maxLoudness).Add("segment_file", record.segmentFile);
+                     .Add("max_loudness", record.maxLoudness).Add("segment_file", record.segmentFile)
+                     .Add("practice", practiceMode);
                 });
             }
 
             last = record;
             current = null;
             taskManager?.ReportScore(record.pitchMatch);
-            Data.SessionScoreCache.RecordVoice(record.pitchMatch);
+            if (!practiceMode)
+                Data.SessionScoreCache.RecordVoice(record.pitchMatch);
 
             if (reason != "reset")
             {
@@ -694,14 +735,14 @@ namespace AvianVoice.Study
             ResetResponseState();
             TrialCompleted?.Invoke(record);
 
-            if (schedule != null && nextSlot >= schedule.Length)
+            if (!practiceMode && schedule != null && nextSlot >= schedule.Length)
             {
                 FinishProtocol();
             }
             else
             {
                 phase = TrialPhase.Idle;
-                if (isActiveAndEnabled && TaskActivity.IsActive(TaskId))
+                if (isActiveAndEnabled && TaskActivity.IsActive(ActiveTaskId))
                     ShowCue("wait", 0f);
             }
 
@@ -724,7 +765,7 @@ namespace AvianVoice.Study
         {
             yield return new WaitForSeconds(Mathf.Max(0f, restDelaySeconds));
             restCoroutine = null;
-            if (taskManager == null || !TaskActivity.IsActive(TaskId))
+            if (taskManager == null || !TaskActivity.IsActive(ActiveTaskId))
                 yield break;
 
             recorder?.LogEvent("auto_advance", j => j.Add("to_task", restTaskId));
@@ -799,8 +840,20 @@ namespace AvianVoice.Study
                 }
             }
 
-            if (nextSlot > total)
+            if (!practiceMode && nextSlot > total)
                 nextSlot = total;
+        }
+
+        /// <summary>Index of the practice pitch among the protocol pitches, -1 for a free pitch.</summary>
+        int PracticePitchIndex()
+        {
+            for (var i = 0; i < pitchesHz.Length; i++)
+            {
+                if (Mathf.Abs(pitchesHz[i] - practicePitchHz) < 0.5f)
+                    return i;
+            }
+
+            return -1;
         }
 
         int BlockOf(int slot)

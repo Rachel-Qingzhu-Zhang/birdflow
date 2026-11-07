@@ -138,7 +138,12 @@ namespace AvianVoice.Embodiment
             EnsureTaskSlots();
             var index = IndexOfTask(taskId);
             if (index < 0 || !taskPoses[index].configured)
+            {
+                // The practice scene is the singing scene with free pitches: same place in the lab.
+                if (taskId == "practice")
+                    ApplyForTask("singing");
                 return;
+            }
 
             var position = taskPoses[index].worldPosition;
             var rotation = taskPoses[index].worldRotation;

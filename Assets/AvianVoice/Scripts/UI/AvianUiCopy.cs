@@ -16,6 +16,7 @@ namespace AvianVoice.UI
         public static string GlyphProbe()
         {
             return "場面を選ぶこのままもう一度"
+                + "練習です。鳥が歌った音を、同じように歌ってください。実験者が説明します。練習する"
                 + "鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。"
                 + "鳥の胸を見て、一緒に呼吸してください。"
                 + "鳥は自分で滑空します。大きく、または高く歌うと上昇し、黙ると下降します。"
@@ -32,6 +33,9 @@ namespace AvianVoice.UI
         {
             return taskId switch
             {
+                "practice" => AvianUiLanguage.Pick(
+                    "Practice. The bird sings a note; sing it back. The experimenter will explain.",
+                    "練習です。鳥が歌った音を、同じように歌ってください。実験者が説明します。"),
                 "meet" => AvianUiLanguage.Pick(
                     "This is your bird self in the mirror. Look at it — no need to breathe yet.",
                     "鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。"),
@@ -58,6 +62,7 @@ namespace AvianVoice.UI
         {
             return taskId switch
             {
+                "practice" => AvianUiLanguage.Pick("I want to practice.", "練習する"),
                 "meet" => AvianUiLanguage.Pick("I want to meet my bird self.", "鏡の中の自分に会う"),
                 "breath_sync" => AvianUiLanguage.Pick("I want to learn its breath.", "鳥の呼吸を覚える"),
                 "flying" => AvianUiLanguage.Pick("I want to fly above the water.", "水面の上を飛ぶ"),

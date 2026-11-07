@@ -27,6 +27,7 @@ namespace AvianVoice.Editor
 
         static readonly Dictionary<string, string> TaskLabels = new()
         {
+            { "practice", "Practice (explain the task)" },
             { "meet", "Meet the bird" },
             { "breath_sync", "Breathing" },
             { "singing", "Singing" },
@@ -39,6 +40,7 @@ namespace AvianVoice.Editor
 
         double nextRepaint;
         Vector2 scroll;
+        float practiceCustomHz = 440f;
         float outputLevel;
         float outputPeakHold;
         string participantId;
@@ -164,13 +166,16 @@ namespace AvianVoice.Editor
             var playing = EditorApplication.isPlaying && !EditorApplication.isCompiling;
             var taskManager = playing ? FindAnyObjectByType<TaskManager>() : null;
             var controller = playing ? FindAnyObjectByType<AvatarEmbodimentController>() : null;
-            var trials = playing ? FindAnyObjectByType<SingingTrialTask>(FindObjectsInactive.Include) : null;
-            var recorder = playing ? StudyRecorder.Instance : null;
             var flow = playing ? FindAnyObjectByType<StudyFlowController>() : null;
+            var trials = playing ? (flow != null && flow.Trials != null ? flow.Trials : FindTrialTask(false)) : null;
+            var practice = playing ? (flow != null && flow.Practice != null ? flow.Practice : FindTrialTask(true)) : null;
+            var recorder = playing ? StudyRecorder.Instance : null;
 
             DrawStatusSection(playing, taskManager, controller);
             EditorGUILayout.Space(8f);
             DrawTaskSection(playing, taskManager, trials);
+            EditorGUILayout.Space(8f);
+            DrawPracticeSection(playing, taskManager, practice, trials);
             EditorGUILayout.Space(8f);
             DrawTrialSection(playing, taskManager, trials);
             EditorGUILayout.Space(8f);
@@ -370,6 +375,118 @@ namespace AvianVoice.Editor
             }
         }
 
+        /// <summary>
+        /// Practice scene: the singing task with a pitch the experimenter picks freely, no schedule and no end,
+        /// for explaining the task and showing the conditions (Condition section) before the study starts.
+        /// </summary>
+        void DrawPracticeSection(bool playing, TaskManager taskManager, SingingTrialTask practice, SingingTrialTask trials)
+        {
+            EditorGUILayout.LabelField("Practice (explain the task)", EditorStyles.boldLabel);
+            if (!playing)
+            {
+                EditorGUILayout.HelpBox("In Play mode the session starts in the Practice scene: pick any pitch, press \"Teacher bird sings\" as often as you like and switch avatar / voice in the Condition section while you explain the task. Practice trials are not written to trials.csv.", MessageType.None);
+                return;
+            }
+
+            if (practice == null)
+            {
+                EditorGUILayout.HelpBox("No practice task (Include Practice on Avian Embodiment / StudyFlowController).", MessageType.Warning);
+                return;
+            }
+
+            var practiceActive = taskManager != null && taskManager.CurrentTaskId == SingingTrialTask.PracticeTaskId && practice.isActiveAndEnabled;
+            if (!practiceActive)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.HelpBox("Switch to the Practice scene (" + SceneNumber(taskManager, SingingTrialTask.PracticeTaskId) + ") to explain the task.", MessageType.Info);
+                    using (new EditorGUI.DisabledScope(taskManager == null))
+                    {
+                        if (GUILayout.Button("Go to Practice", GUILayout.Height(38f), GUILayout.Width(110f)))
+                            taskManager.LoadTaskById(SingingTrialTask.PracticeTaskId);
+                    }
+                }
+
+                return;
+            }
+
+            var c = CultureInfo.InvariantCulture;
+
+            // Pitch: the protocol pitches as buttons, or any value.
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PrefixLabel("Teacher pitch");
+                var pitches = trials != null ? trials.PitchesHz : practice.PitchesHz;
+                foreach (var hz in pitches)
+                {
+                    var selected = Mathf.Abs(practice.PracticePitchHz - hz) < 0.5f;
+                    if (GUILayout.Toggle(selected, BirdSongPhrase.NoteName(hz) + " " + hz.ToString("0", c), "Button") && !selected)
+                        practice.PracticePitchHz = hz;
+                }
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.PrefixLabel("Custom (Hz)");
+                practiceCustomHz = EditorGUILayout.FloatField(practiceCustomHz, GUILayout.Width(60f));
+                var customSelected = Mathf.Abs(practice.PracticePitchHz - practiceCustomHz) < 0.5f;
+                using (new EditorGUI.DisabledScope(practiceCustomHz <= 0f || customSelected))
+                {
+                    if (GUILayout.Button(BirdSongPhrase.NoteName(Mathf.Max(1f, practiceCustomHz)) + "  use", GUILayout.Width(90f)))
+                        practice.PracticePitchHz = practiceCustomHz;
+                }
+
+                GUILayout.FlexibleSpace();
+            }
+
+            // Teacher note / running practice trial.
+            var running = practice.Phase == TrialPhase.Guide || practice.Phase == TrialPhase.Response;
+            var note = BirdSongPhrase.NoteName(practice.PracticePitchHz) + " (" + practice.PracticePitchHz.ToString("0", c) + " Hz)";
+            if (running)
+            {
+                var state = practice.Phase == TrialPhase.Guide ? "teacher bird singing"
+                    : practice.IsVoiceActive ? "participant singing" : practice.Current != null && practice.Current.HadVoice ? "voice ended" : "waiting for the participant's voice";
+                EditorGUILayout.LabelField("Practice trial " + (practice.Current != null ? practice.Current.trial : 0) + " running: " + state
+                                           + "   elapsed " + practice.CurrentTrialSeconds.ToString("0.0", c) + " s");
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button((running ? "▶ Again: teacher bird sings " : "▶ Teacher bird sings ") + note + "   [Space]", bigButton, GUILayout.Height(44f)))
+                    practice.StartNextTrial("experimenter_panel_practice");
+                using (new EditorGUI.DisabledScope(!running))
+                {
+                    if (GUILayout.Button("End (idle)", GUILayout.Height(44f), GUILayout.Width(90f)))
+                        practice.EndTrialNow("experimenter_panel_practice");
+                }
+            }
+
+            if (practice.Last != null)
+                EditorGUILayout.LabelField("Last", practice.Last.Summary(), EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField("Practice trials so far: " + practice.CompletedTrials + "  (logged in events.jsonl as practice, not in trials.csv). "
+                                       + "Show the conditions with the Condition buttons below; then go to scene " + SceneNumber(taskManager, "meet") + " to start the study.",
+                EditorStyles.wordWrappedMiniLabel);
+        }
+
+        static SingingTrialTask FindTrialTask(bool practice)
+        {
+            foreach (var task in FindObjectsByType<SingingTrialTask>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (task != null && task.IsPractice == practice)
+                    return task;
+            }
+
+            return null;
+        }
+
+        /// <summary>1-based position of a task in the session flow (the digit key that selects it), or "?".</summary>
+        static string SceneNumber(TaskManager taskManager, string taskId)
+        {
+            var ids = taskManager != null ? taskManager.TaskIds : StudyFlowController.FourSceneFlow;
+            var index = System.Array.IndexOf(ids, taskId);
+            return index >= 0 ? (index + 1).ToString() : "?";
+        }
+
         void DrawTrialSection(bool playing, TaskManager taskManager, SingingTrialTask trials)
         {
             EditorGUILayout.LabelField("Singing trials", EditorStyles.boldLabel);
@@ -433,7 +550,7 @@ namespace AvianVoice.Editor
             {
                 EditorGUILayout.HelpBox(trials.IsFinished
                     ? "All " + total + " trials are done. \"Restart from trial 1\" starts over."
-                    : "Switch to the Singing scene (3) to start the trials.", MessageType.Info);
+                    : "Switch to the Singing scene (" + SceneNumber(taskManager, SingingTrialTask.TaskId) + ") to start the trials.", MessageType.Info);
             }
 
             using (new EditorGUI.DisabledScope(!singingActive))
@@ -639,7 +756,7 @@ namespace AvianVoice.Editor
 
             EditorGUILayout.HelpBox(
                 "Controller input is ignored by default (Participant Controllers Enabled on Avian Embodiment). " +
-                "The participant takes part with head, hands, body and voice only; scenes, trials and the avatar are driven from this panel or the PC keyboard (1-4, N, Space, V).",
+                "The participant takes part with head, hands, body and voice only; scenes, trials and the avatar are driven from this panel or the PC keyboard (1-5 = scene, N, Space, V).",
                 MessageType.None);
         }
 

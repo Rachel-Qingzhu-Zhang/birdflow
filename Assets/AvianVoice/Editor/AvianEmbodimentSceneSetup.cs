@@ -263,6 +263,16 @@ namespace AvianVoice.Editor
             }
         }
 
+        [MenuItem("Avian Voice/Embodiment/Debug/Load Practice Scene (Play Mode)")]
+        public static void DebugLoadPractice()
+        {
+            var manager = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.TaskManager>();
+            if (manager != null)
+                manager.LoadTaskById(AvianVoice.Study.SingingTrialTask.PracticeTaskId);
+            else
+                Debug.LogWarning("[AvianVoice] No TaskManager in the running scene.");
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Load Task 3 Singing (Play Mode)")]
         public static void DebugLoadSinging()
         {
@@ -310,9 +320,11 @@ namespace AvianVoice.Editor
         /// <summary>Same as the participant pressing Space / R: the teacher bird sings the current note again.</summary>
         public static bool ReplayGuideNote()
         {
-            var trials = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.SingingTrialTask>();
-            if (trials != null && trials.isActiveAndEnabled)
-                return trials.StartNextTrial("menu");
+            foreach (var trials in UnityEngine.Object.FindObjectsByType<AvianVoice.Study.SingingTrialTask>(FindObjectsSortMode.None))
+            {
+                if (trials != null && trials.isActiveAndEnabled)
+                    return trials.StartNextTrial("menu");
+            }
 
             var singing = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.SingingBranchTask>();
             if (singing == null || !singing.isActiveAndEnabled)

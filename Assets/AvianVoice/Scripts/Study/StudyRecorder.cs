@@ -343,6 +343,20 @@ namespace AvianVoice.Study
             if (!SessionOpen)
                 return;
 
+            // A trial still running when the session ends (Play stopped, application quit) is closed first so its
+            // trial_end event and trials.csv row are not lost: the recorder is destroyed before the task scripts.
+            foreach (var task in FindObjectsByType<SingingTrialTask>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                try
+                {
+                    task?.EndTrialNow("session_end");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning("[AvianVoice] Could not close the running trial at session end: " + e.Message);
+                }
+            }
+
             LogEvent("session_end", j => j
                 .Add("mic_samples", micSamplesWritten)
                 .Add("output_frames", outFrames)

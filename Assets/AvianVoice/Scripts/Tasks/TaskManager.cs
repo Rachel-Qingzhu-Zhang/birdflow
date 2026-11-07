@@ -27,6 +27,7 @@ namespace AvianVoice.Tasks
             public bool unlocked = true;
         }
 
+        const string PracticeInstruction = "Practice: the bird sings a note, you sing it back. The experimenter explains the task.";
         const string MeetInstruction = "This is your bird self in the mirror. Look at it — no need to breathe yet.";
         const string BreathSyncInstruction = "Watch the bird's chest and breathe with it.";
         const string FlyingInstruction = "The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.";
@@ -129,7 +130,7 @@ namespace AvianVoice.Tasks
             var valid = new System.Collections.Generic.List<string>();
             foreach (var id in taskIds)
             {
-                if (Array.IndexOf(CanonicalOrder, id) >= 0 && !valid.Contains(id))
+                if ((Array.IndexOf(CanonicalOrder, id) >= 0 || Array.IndexOf(OptionalIds, id) >= 0) && !valid.Contains(id))
                     valid.Add(id);
             }
 
@@ -251,6 +252,9 @@ namespace AvianVoice.Tasks
             ApplyCurrentTask();
         }
 
+        /// <summary>Task ids that exist only when a flow asks for them (the study's practice scene).</summary>
+        static readonly string[] OptionalIds = { "practice" };
+
         static readonly string[] CanonicalOrder =
         {
             "meet",
@@ -280,7 +284,13 @@ namespace AvianVoice.Tasks
                     }
                 }
 
-                next[i] = found ?? new TaskEntry { taskId = order[i], unlocked = true };
+                next[i] = found ?? new TaskEntry
+                {
+                    taskId = order[i],
+                    displayName = order[i] == "practice" ? "Practice" : order[i],
+                    instruction = order[i] == "practice" ? PracticeInstruction : "",
+                    unlocked = true
+                };
             }
 
             tasks = next;
@@ -370,7 +380,7 @@ namespace AvianVoice.Tasks
             if (mirror == null)
                 return;
 
-            var showMirror = taskId is "meet" or "breath_sync" or "singing" or "reflection";
+            var showMirror = taskId is "practice" or "meet" or "breath_sync" or "singing" or "reflection";
             mirror.SetMirrorActive(showMirror);
         }
 
