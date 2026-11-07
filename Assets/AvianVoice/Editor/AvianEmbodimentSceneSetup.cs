@@ -16,14 +16,28 @@ namespace AvianVoice.Editor
     public static class AvianEmbodimentSceneSetup
     {
         public const string ScenePath = "Assets/AvianVoice/Scenes/Avian_Lab_Embodiment.unity";
+        /// <summary>The default human body (AvatarEmbodimentController.startHumanAvatarId = "neutral").</summary>
         public const string HumanAvatarAssetPath =
             "Assets/AvianVoice/Resources/Avatars/UnityArmature/Armature.fbx";
+
+        public const string MakeHumanAvatarAssetPath =
+            "Assets/AvianVoice/Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx";
 
         /// <summary>All selectable human bodies (see AvatarEmbodimentController.humanAvatars).</summary>
         public static readonly string[] HumanAvatarAssetPaths =
         {
             HumanAvatarAssetPath,
+            MakeHumanAvatarAssetPath,
         };
+
+        /// <summary>Resources path (no extension) of an asset under a Resources folder.</summary>
+        public static string ToResourcesPath(string assetPath)
+        {
+            var marker = "/Resources/";
+            var i = assetPath.IndexOf(marker, StringComparison.Ordinal);
+            var path = i >= 0 ? assetPath.Substring(i + marker.Length) : assetPath;
+            return System.IO.Path.ChangeExtension(path, null)?.Replace('\\', '/');
+        }
 
         const string ImportCheckSessionKey = "AvianVoice.Embodiment.AvatarImportChecked";
 
@@ -37,17 +51,20 @@ namespace AvianVoice.Editor
                     return;
 
                 SessionState.SetBool(ImportCheckSessionKey, true);
-                var importer = AssetImporter.GetAtPath(HumanAvatarAssetPath) as ModelImporter;
-                if (importer == null)
-                    return;
-
-                if (importer.animationType != ModelImporterAnimationType.Human)
+                foreach (var path in HumanAvatarAssetPaths)
                 {
-                    Debug.Log("[AvianVoice] Human avatar is not Humanoid yet; reimporting.");
-                    AssetDatabase.ImportAsset(HumanAvatarAssetPath, ImportAssetOptions.ForceUpdate);
-                }
+                    var importer = AssetImporter.GetAtPath(path) as ModelImporter;
+                    if (importer == null)
+                        continue;
 
-                Debug.Log("[AvianVoice] Human avatar import: " + DescribeAvatar());
+                    if (importer.animationType != ModelImporterAnimationType.Human || !importer.isReadable)
+                    {
+                        Debug.Log("[AvianVoice] Human avatar " + path + " is not a readable Humanoid yet; reimporting.");
+                        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                    }
+
+                    Debug.Log("[AvianVoice] Human avatar import: " + DescribeAvatar(path));
+                }
             };
         }
 
@@ -181,10 +198,16 @@ namespace AvianVoice.Editor
         [MenuItem("Avian Voice/Embodiment/Debug/Measure Human Avatar Eye Point")]
         public static void MeasureHumanAvatarEyePoint()
         {
-            var prefab = Resources.Load<GameObject>("Avatars/UnityArmature/Armature");
+            foreach (var path in HumanAvatarAssetPaths)
+                MeasureHumanAvatarEyePoint(ToResourcesPath(path));
+        }
+
+        static void MeasureHumanAvatarEyePoint(string resourcesPath)
+        {
+            var prefab = Resources.Load<GameObject>(resourcesPath);
             if (prefab == null)
             {
-                Debug.LogWarning("[AvianVoice] Human avatar model not found in Resources/Avatars/UnityArmature/Armature.");
+                Debug.LogWarning("[AvianVoice] Human avatar model not found in Resources/" + resourcesPath + ".");
                 return;
             }
 
@@ -214,7 +237,7 @@ namespace AvianVoice.Editor
 
                 var head = animator.GetBoneTransform(HumanBodyBones.Head);
                 var eye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
-                var sb = new System.Text.StringBuilder("[AvianVoice] Human avatar eye point (root frame, muscle T-pose): ");
+                var sb = new System.Text.StringBuilder("[AvianVoice] Human avatar eye point " + resourcesPath + " (root frame, muscle T-pose): ");
                 sb.Append("headBone=").Append(head != null ? head.position.ToString("F3") : "none");
                 sb.Append(" leftEyeBone=").Append(eye != null ? eye.position.ToString("F3") : "none");
                 foreach (var skinned in go.GetComponentsInChildren<SkinnedMeshRenderer>())

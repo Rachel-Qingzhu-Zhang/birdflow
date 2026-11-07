@@ -28,8 +28,9 @@ namespace AvianVoice.Embodiment.Avatars
         AvatarKind startAvatar = AvatarKind.Bird;
 
         [Tooltip("Human avatars the experimenter can choose from (Resources paths of Humanoid-rigged models, no extension). " +
-                 "One gender-neutral mannequin by default: the Unity Starter Assets robot that Meta uses as the stylized " +
-                 "body of its body-tracking samples. Missing models are reported and skipped.")]
+                 "Default: the gender-neutral mannequin, the Unity Starter Assets robot that Meta uses as the stylized " +
+                 "body of its body-tracking samples (id \"neutral\", as in all recordings). The MakeHuman mannequin " +
+                 "(gender 0.5) stays selectable for comparison. Missing models are reported and skipped.")]
         [SerializeField]
         HumanAvatarOption[] humanAvatars =
         {
@@ -40,6 +41,14 @@ namespace AvianVoice.Embodiment.Avatars
                 // Measured on the Armature in muscle T-pose (menu: Debug / Measure Human Avatar Eye Point): head bone
                 // at 1.59 m, head top 0.15 m above it, face front 0.11 m ahead -> eye line ~0.035 m up, ~0.09 m forward.
                 eyeOffsetFromHeadBone = new Vector3(0f, 0.035f, 0.09f)
+            },
+            new()
+            {
+                id = "makehuman", label = "mannequin (MakeHuman)", labelJa = "マネキン (MakeHuman)",
+                resourcePath = "Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01",
+                // Measured in muscle T-pose (menu: Debug / Measure Human Avatar Eye Point): head bone at 1.46 m, eye
+                // bone / eyeball centres 0.038 m up and ~0.075 m forward (face front 0.124 m) -> camera at the eyeballs.
+                eyeOffsetFromHeadBone = new Vector3(0f, 0.038f, 0.075f)
             }
         };
 
@@ -738,6 +747,12 @@ namespace AvianVoice.Embodiment.Avatars
 
             if (humanAvatarLayer >= 0 && humanAvatarLayer < 32)
                 SetLayerRecursive(root, humanAvatarLayer);
+
+            // Skin with 4 bones per vertex whatever the quality level says: the project runs at "Low" (2 bones), which
+            // collapses blended joints such as MakeHuman's fingers into thin sticks as soon as they bend (the rigid-part
+            // Armature robot never showed it).
+            foreach (var skinned in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                skinned.quality = SkinQuality.Bone4;
 
             var driver = root.AddComponent<HumanFirstPersonDriver>();
             driver.Configure(this, Backend, hideHumanHeadInFirstPerson, option.eyeOffsetFromHeadBone);

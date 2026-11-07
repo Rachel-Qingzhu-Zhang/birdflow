@@ -96,7 +96,8 @@ namespace AvianVoice.Embodiment.Avatars
         {
             return "retargeting=" + (handle == null ? "none" : handle.IsDriving ? "driving" : handle.HasTrackingData ? "data" : "no data")
                    + (RetargetingPaused ? " (paused)" : "")
-                   + " tracked=" + IsTracked + " eyeErr=" + EyeError.ToString("0.00") + " tposes=" + restPoseCount;
+                   + " tracked=" + IsTracked + " eyeErr=" + EyeError.ToString("0.00") + " tposes=" + restPoseCount
+                   + (handle != null ? " | " + handle.DescribeHands() : "");
         }
 
         void OnEnable()

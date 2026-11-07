@@ -45,6 +45,9 @@ namespace AvianVoice.BodyTracking
         /// </summary>
         void SetRetargetingActive(bool active);
 
+        /// <summary>Hand / finger retargeting state, with the live tracked-vs-avatar hand error (diagnostics).</summary>
+        string DescribeHands();
+
         void Dispose();
     }
 }

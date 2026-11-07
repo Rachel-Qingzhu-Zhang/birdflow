@@ -234,8 +234,8 @@ namespace AvianVoice.MetaBody
                 provider = go.AddComponent<OVRBody>();
             provider.ProvidedSkeletonType = OVRPlugin.BodyJointSet.FullBody;
 
-            // AvianHumanoidRetargeter: full body, rotation-only (hips position), fingers kept, no pelvis tweak,
-            // and the rig is re-posed into T-pose right before the SDK snapshots it.
+            // AvianHumanoidRetargeter: full body, rotation-only (hips position), frame-aligned forearms / wrists /
+            // fingers, no pelvis tweak, and the rig is re-posed into T-pose right before the SDK snapshots it.
             var retargeter = go.GetComponent<AvianHumanoidRetargeter>();
             if (retargeter == null)
                 retargeter = go.AddComponent<AvianHumanoidRetargeter>();
@@ -310,6 +310,13 @@ namespace AvianVoice.MetaBody
             {
                 if (retargeter != null)
                     retargeter.enabled = active;
+            }
+
+            public string DescribeHands()
+            {
+                if (retargeter is not AvianHumanoidRetargeter avian)
+                    return "hands: SDK retargeter";
+                return avian.DescribeHands() + (avian.HandsCalibrated && IsDriving ? " | " + avian.MeasureHandError() : "");
             }
 
             public void Dispose()

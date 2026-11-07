@@ -163,18 +163,34 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
   するか、Meta Quest Link アプリの設定でリンク時にオーディオを切り替えるようにしてください（PC モニター出力が Auto で
   PC スピーカーにも出ます）。
 
-### 人間アバター（中性マネキン 1 体）
+### 人間アバター（中性マネキン。既定は Armature）
 
 | Id | モデル | 出典・ライセンス | 置き場所 |
 |----|--------|------------------|----------|
-| `neutral` | Unity **Starter Assets の Armature**（白いロボット型マネキン。顔・髪・服・性差なし、指まで Humanoid にマッピング済み） | Unity Companion License（`LICENSE.md` 同梱）。Meta が **Movement SDK の体トラッキングサンプルの「Stylized」キャラクター**としてそのまま配布・使用しているモデルで（oculus-samples/Unity-Movement `Shared/ThirdParty/Unity/`）、Meta のリターゲットで体や手が崩れないことが保証されている。機械的・無性のアバターは Lugrin et al. 2015 (IEEE VR) / Gorisse et al. 2019 の系統 | `Resources/Avatars/UnityArmature/Armature.fbx`（`UnityArmatureAvatarImport.cs` が Humanoid・Read/Write 有効・URP マット材質で取り込み） |
+| `neutral`（既定） | Unity **Starter Assets の Armature**（白いロボット型マネキン。顔・髪・服・性差なし） | Unity Companion License（`LICENSE.md` 同梱）。Meta が Movement SDK の体トラッキングサンプルの「Stylized」キャラクターとして配布しているモデル（oculus-samples/Unity-Movement `Shared/ThirdParty/Unity/`） | `Resources/Avatars/UnityArmature/Armature.fbx`（`UnityArmatureAvatarImport.cs`） |
+| `makehuman` | **MakeHuman の中性マネキン**（性別 0.5・胸の大きさ最小・顔テクスチャ / 髪 / 服なし・単色マット、眼球は同色） | MakeHuman / MPFB2 の CC0 アセット。`Tools/MakeHuman/generate_neutral_avatar.py` で生成（下記） | `Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx`（`MakeHumanAvatarImport.cs` が Humanoid・Read/Write 有効で取り込み） |
 
-2026-11-05 まで使っていた Rocketbox の男性 / 女性と MakeHuman の中性体は外しました（MakeHuman の中性体は女性に見える、
-Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使われる「無性のマネキン / ロボット」アバターに統一）。
+既定は Armature（id `neutral`、これまでの記録と同じ）。2026-11-07 に一度 MakeHuman を既定にしましたが、同日 Armature に戻しました
+（MakeHuman はパネルから比較用に選べます）。MakeHuman を 2026-11-05 に一度外したときの
+「胸があるように見える」「手のトラッキングがおかしい」は、どちらも **FBX の書き出しの不具合**が原因でした。体型の設定（性別 0.5・
+胸の大きさ最小・人種の混合）が Blender のシェイプキーのまま FBX にブレンドシェイプとして入り、Unity はそれを取り込まないので、
+**体型を当てる前の MakeHuman 基本メッシュ**が表示されていました。リグは体型を当てた体に合わせてあるため、手では関節が指の
+メッシュから最大 6 cm ずれ（指を曲げると細い棒のように潰れる）、胸を小さくする設定も効いていませんでした。生成スクリプトは
+書き出し前に体型をメッシュへ焼き込むようにしたので、今の FBX にはシェイプキーがありません。
+
 別の Humanoid モデルを試すには Resources 配下に置いて `Avian Embodiment` → `Human Avatars` に id / Resources パス /
 目の位置（`Eye Offset From Head Bone`、頭ボーン基準の T ポーズでの目の位置。`Avian Voice/Embodiment/Debug/Measure Human Avatar Eye Point`
-で頭ボーン・頭頂・顔前面の位置を Console に出せます。Armature は頭ボーンから +0.035 m 上 / +0.09 m 前）を足します。モデルが無い id はパネルに
-「missing」と出ます。記録の `events.jsonl` / `trials.csv` には `Human:neutral` のように id 付きで残ります。
+で全アバターの頭ボーン・目のボーン・頭頂・顔前面の位置を Console に出せます。MakeHuman は頭ボーンから +0.038 m 上 / +0.075 m 前、
+Armature は +0.035 m 上 / +0.09 m 前）を足します。モデルが無い id はパネルに「missing」と出ます。記録の `events.jsonl` /
+`trials.csv` には `Human:neutral`（Armature）/ `Human:makehuman` のように id 付きで残ります。
+
+**MakeHuman の生成**（Blender 5.1 + MPFB2 拡張、CC0 のシステムアセットが MPFB のデータフォルダにあること）:
+
+```
+"C:/Program Files/Blender Foundation/Blender 5.1/blender.exe" -b --python Tools/MakeHuman/generate_neutral_avatar.py -- --out Assets/AvianVoice/Resources/Avatars/MakeHuman/Neutral_Adult_01
+```
+
+設定は出力先の `GENERATED.md` に残ります。作り直したら **Render Avatar Hand States**（下記）で指を曲げたときの見た目を確認してください。
 
 歌う場面では、鳥アバターでも人間アバターでも **教師の鳥（`FriendParrot`）が被験者の右隣に出て**歌います（人間アバターのときは
 鳥の自分は隠れ、人間の体と教師の鳥が見えます）。実験者パネルの Condition のボタンで切り替えます（V キーは鳥 ⇄ 人間）。
@@ -182,10 +198,30 @@ Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使�
 **IOBT と人間アバターの崩れ対策**（`AvianHumanoidRetargeter`、2026-11-05）: Meta XR Core SDK の
 `OVRUnityHumanoidSkeletonRetargeter` は既定で ほぼ全関節の **位置** を被験者の関節位置で上書きし（体格が違うと体が伸び縮みして
 崩れる）、**指** も個別にリターゲットし（指の軸が違うと手が潰れる）、さらに骨盤に 60° の回転補正（Meta のサンプル用）を
-掛けます。本プロジェクトの派生クラスはこれを **回転のみ（腰の位置だけ追従）、指は T ポーズのまま手首に追従、骨盤補正なし** に
-変え、SDK が T ポーズのスナップショットを取る直前に `HumanFirstPersonDriver` がリグを T ポーズ（Humanoid の筋肉値 0）に
-戻します。体格差で頭の高さがずれる分は、毎フレーム体全体を平行移動して目をヘッドセットに合わせます（骨は触りません）。
-トラッキングが途切れたらリターゲットを一時停止して腕を下ろした姿勢に戻します。
+掛けます。本プロジェクトの派生クラスはこれを **回転のみ（腰の位置だけ追従）、骨盤補正なし** に変え、SDK が T ポーズの
+スナップショットを取る直前に `HumanFirstPersonDriver` がリグを T ポーズ（Humanoid の筋肉値 0）に戻します。体格差で頭の高さが
+ずれる分は、毎フレーム体全体を平行移動して目をヘッドセットに合わせます（骨は触りません）。トラッキングが途切れたら
+リターゲットを一時停止して腕を下ろした姿勢に戻します。
+
+**手と指**（`HandFrameRetargeting`、2026-11-07）: SDK は骨を **向きだけ** で合わせる（`FromToRotation`）ので、骨の軸まわりの
+回転（手のひらの向き）はアバターの T ポーズのまま残ります。アバターの手のひらの向きが Meta の基準姿勢と違うと手が回ったまま
+になり、指は違う軸で曲がって潰れます（実機の記録で Armature でも手首 25°・指 最大 78° のずれ）。前腕・手首・指はこの
+クラスで上書きします: 各骨に「骨の向き + 手のひらの法線（中間・末節は親の向きから運んだもの）」の座標系を関節位置だけから作り、
+被験者の骨とアバターの骨で一致させるので、リグごとの骨の軸の違いに左右されません。アバター側の基準は Humanoid の T ポーズ
+ではなく **スキンのバインドポーズ**（メッシュを作った姿勢）を使い、指先はメッシュの頂点から求めます（MakeHuman の指に先端の
+骨が無いため）。指は既定で被験者の指に追従します（`driveFingers`）。
+
+人間アバターのスキンは **1 頂点あたり 4 ボーン** で計算します（`AvatarEmbodimentController` が `SkinnedMeshRenderer.quality`
+を Bone4 に固定）。プロジェクトの品質設定が「Low」（2 ボーン）なので、そのままだと MakeHuman のように関節で複数の骨を
+混ぜる手は曲げたときに潰れます（パーツが硬い Armature は影響なし）。
+
+確認用メニュー（Play していないとき）:
+- **Debug/Hand Retarget Self-Test (with images)**: 一方のアバターを「トラッキングされた手」役（手のひらの向きを変えた基準姿勢）
+  にして、グー・指さし・サムズアップ・パーなどの姿勢をもう一方へ移し、各骨の向きと手のひらの法線の誤差を新方式と SDK 方式で
+  比べます（新方式は 0.1° 程度、SDK 方式は手のひらが 46〜86° ずれる）。画像は `Temp/HandRetargetTest/`。
+- **Debug/Render Avatar Hand States**: 各アバターの手を取り込みのまま / 筋肉値 0 / 指を 60° 反らす / 60° 握る、で描画
+  （スキンが壊れていれば一目で分かります）。
+- Play 中の **Log Avatar State** に、手のキャリブレーション結果と、被験者の手とアバターの手の向きの誤差（度）が出ます。
 
 **鏡と頭部**: HMD の一人称視点では **自分のアバターの頭部が見えない**ようにし、鏡（Fragilem17 の反射カメラ）には顔ごと
 映します（`FirstPersonHeadHider`、鳥・人間の両方に付きます）。頭ボーン（Humanoid の Head、鳥は `parrot_Head_bone`）と
@@ -238,7 +274,9 @@ Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使�
 | `Scripts/MetaBody/Editor/MetaBodyTrackingProjectSetup.cs` | 上記の OpenXR / Oculus 設定を一括適用 |
 | `Scripts/Embodiment/Avatar/AvatarEmbodimentController.cs` | アバター切替、ヘッドセットの姿勢（使えなければカメラ・手の位置）から体トラッキング空間を合わせる、ヒント表示 |
 | `Scripts/Embodiment/Avatar/BirdFirstPersonDriver.cs` | 鳥: 目をカメラに、頭を HMD の向きに、体の向きを肩のラインに、翼を腕の上げ下げに |
-| `Scripts/MetaBody/AvianHumanoidRetargeter.cs` | Meta のリターゲッタの派生: 回転のみ・腰の位置だけ追従・指は固定・骨盤補正なし・T ポーズ取得直前のコールバック |
+| `Scripts/MetaBody/AvianHumanoidRetargeter.cs` | Meta のリターゲッタの派生: 回転のみ・腰の位置だけ追従・骨盤補正なし・T ポーズ取得直前のコールバック。前腕・手首・指は `HandFrameRetargeting` で上書き |
+| `Scripts/BodyTracking/HandFrameRetargeting.cs` | リグに依存しない手・指のリターゲット計算（骨の向き + 手のひらの法線の座標系、スキンのバインドポーズ、メッシュからの指先） |
+| `Editor/HandRetargetSelfTest.cs` | ヘッドセット無しの手のリターゲット検証と、手の描画確認メニュー |
 | `Scripts/Embodiment/Avatar/HumanFirstPersonDriver.cs` | 人間: ルートをトラッキング原点に置き目をカメラに合わせる。T ポーズの再適用、トラッキング無しのフォールバック姿勢、データ途切れ時のリターゲット一時停止 |
 | `Scripts/Embodiment/Avatar/FirstPersonHeadHider.cs` | 一人称カメラだけ頭部（頭ボーン以下の三角形 / 頭・髪のマテリアル）を非表示（鏡・池の反射には映る）。鳥と人間の両方 |
 | `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、**条件（アバター × 声のフィードバック）** の設定と記録 |
@@ -247,7 +285,9 @@ Rocketbox は IOBT で手のリグが崩れる、の 2 点。研究で広く使�
 | `Scripts/Study/StudyRecorder.cs` | `events.jsonl` / `trials.csv` / `mic.wav` / `output.wav` / 試行切り出しの書き出し |
 | `Scripts/Study/PcAudioMonitor.cs` | Unity 出力の PC スピーカーへのミラー（winmm）、Windows 既定出力のミュート検出 |
 | `Scripts/Study/ListenerOutputTap.cs`, `WavWriter.cs` | AudioListener のミックス取得、16 bit WAV ストリーム書き込み |
-| `Resources/Avatars/UnityArmature/` | 中性マネキン（Unity Starter Assets Armature、Unity Companion License、`LICENSE.md` 参照） |
+| `Resources/Avatars/MakeHuman/Neutral_Adult_01/` | 比較用の中性マネキン（MakeHuman、CC0）。`Tools/MakeHuman/generate_neutral_avatar.py` で生成 |
+| `Editor/MakeHumanAvatarImport.cs` | MakeHuman FBX の Humanoid 取り込み（Read/Write 有効）とマテリアル設定 |
+| `Resources/Avatars/UnityArmature/` | 既定の中性マネキン（Unity Starter Assets Armature、Unity Companion License、`LICENSE.md` 参照） |
 | `Editor/UnityArmatureAvatarImport.cs` | Armature FBX の Humanoid 取り込み（Read/Write 有効）とマテリアル設定 |
 
 鳥の「目」の位置は `BirdFirstPersonDriver.eyeOffsetFromHeadBone`（頭ボーン基準、ルート座標系）で調整できます。
@@ -296,10 +336,18 @@ Play 開始時や Quest のリセンターのたびに二つの空間がずれ�
 
 `Avian_Lab_Embodiment.unity` is a copy of `Avian_Lab.unity` plus: Meta Quest body tracking (IOBT) driving the
 avatar, the avatar eyes locked to the XR camera, and an avatar switch (bird `PlayerParrot` ⇄ human). The human body
-is one gender-neutral mannequin: the Unity Starter Assets "Armature" robot (Unity Companion License), the same model
-Meta ships as the stylized character of its body-tracking samples, so Meta's retargeting is known to keep its body and
-hands intact. Retargeting is rotation-only (hips position only, fingers kept, no pelvis tweak, T-pose re-applied right
-before the SDK snapshot) so the avatar keeps its proportions. The study has four conditions, avatar (bird / human) x
+is the Unity Starter Assets "Armature" mannequin (id `neutral`, as in all recordings). A gender-neutral MakeHuman
+mannequin (CC0; gender 0.5, minimal cup size, no face texture / hair / clothes, one plain matte colour, generated by
+`Tools/MakeHuman/generate_neutral_avatar.py`) stays selectable for comparison (it was the default for part of
+2026-11-07). The generator bakes the body-shape targets into the mesh before the FBX export: left as shape keys
+they reached Unity as dropped blend shapes, so the unshaped base mesh showed (chest visible) with the rig fitted to the
+shaped body (hand joints up to 6 cm off the fingers, which collapsed when bent). Retargeting is rotation-only (hips
+position only, no pelvis tweak, T-pose re-applied right before the SDK snapshot) so the avatar keeps its proportions.
+Forearms, wrists and fingers are retargeted by `HandFrameRetargeting`: full bone frames (direction + palm normal) from
+joint positions, matched between the tracked bind pose and the avatar's skin bind pose, because the SDK's
+direction-only match leaves the hand rolled (measured on Quest data: wrists 25 deg, fingers up to 78 deg off). Human
+avatar skins use 4 bones per vertex (the project's "Low" quality level allows 2, which collapses blended finger joints).
+Check without a headset with Debug / Hand Retarget Self-Test (with images) and Debug / Render Avatar Hand States. The study has four conditions, avatar (bird / human) x
 voice feedback (the participant's own voice heard as bird chirps / as a sung human vowel, or not at all), chosen from the
 experimenter panel; the participant's own head (bird or human) is hidden from the headset camera but visible in the
 mirror. Toggle bird / human with **V** (keyboard).
