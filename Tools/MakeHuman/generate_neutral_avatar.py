@@ -58,6 +58,8 @@ def parse_args():
     parser.add_argument("--proportions", type=float, default=0.5)
     parser.add_argument("--cupsize", type=float, default=0.0, help="0 = flat chest (androgynous)")
     parser.add_argument("--firmness", type=float, default=0.5)
+    parser.add_argument("--flat-chest", type=float, default=1.0,
+                        help="1 = refill the chest flat (no breast mounds), 0 = MakeHuman's chest as is")
     parser.add_argument("--asian", type=float, default=0.5)
     parser.add_argument("--caucasian", type=float, default=0.25)
     parser.add_argument("--african", type=float, default=0.25)
@@ -181,6 +183,121 @@ def split_head_material(basemesh, head_bone="mixamorig:Head", neck_bone="mixamor
             poly.material_index = head_slot
             count += 1
     print("[neutral-avatar] head faces:", count, "of", len(mesh.polygons))
+
+
+def flatten_chest(basemesh, strength=1.0, arm_groups=("mixamorig:LeftArm", "mixamorig:RightArm", "upperarm01.L", "upperarm01.R")):
+    """Remove the breast mounds: refill the chest with a smooth surface that continues the body around it.
+
+    Even at gender 0.5 with the smallest cup size, MakeHuman's female half leaves small breasts (the macro breast target
+    only reaches the "mincup" shape, and pushing it further distorts the chest). Here the chest is seen as a radius
+    around the torso's vertical axis, r(angle, height), from the front round to the sides below the armpits. The radius
+    of the chest vertices is replaced by a thin-plate spline fitted to three rings of untouched vertices around that
+    region (belly below, upper chest above, torso sides) and to the breastbone line, so the fill continues the surrounding surface and its slope:
+    the ribcage, the breastbone line, the upper chest, the belly and the overall body shape stay, only the mounds
+    (and nipples) go.
+    Works on the baked mesh (no shape keys) in the rest pose; MakeHuman faces -Y in Blender.
+    Returns (vertex count changed, max change in m).
+    """
+    import math
+
+    import numpy as np
+
+    mesh = basemesh.data
+    n = len(mesh.vertices)
+    co = np.empty(n * 3, np.float64)
+    mesh.vertices.foreach_get("co", co)
+    co = co.reshape(n, 3)
+    nor = np.empty(n * 3, np.float32)
+    mesh.vertices.foreach_get("normal", nor)
+    nor = nor.reshape(n, 3)
+    edges = np.empty(len(mesh.edges) * 2, np.int64)
+    mesh.edges.foreach_get("vertices", edges)
+    edges = edges.reshape(-1, 2)
+
+    floor = co[:, 2].min()
+    height = co[:, 2].max() - floor
+    scale = height / 1.635  # the region sizes below were set on the default 1.635 m body
+
+    arm = np.zeros(n, bool)
+    group_index = {g.name: g.index for g in basemesh.vertex_groups}
+    arm_indices = {group_index[name] for name in arm_groups if name in group_index}
+    if arm_indices:
+        for v in mesh.vertices:
+            for g in v.groups:
+                if g.group in arm_indices and g.weight > 0.5:
+                    arm[v.index] = True
+                    break
+
+    x, y, z = co[:, 0], co[:, 1], co[:, 2] - floor
+
+    # Breast apex: the most forward front-facing vertex beside the midline in the chest band (above the belly).
+    band = (nor[:, 1] < -0.2) & ~arm & (np.abs(x) > 0.025 * scale) & (np.abs(x) < 0.15 * scale)         & (z > 0.66 * height) & (z < 0.80 * height)
+    if not band.any():
+        print("[neutral-avatar] chest not found; chest left as is")
+        return 0, 0.0
+    apex = np.flatnonzero(band)[np.argmin(y[band])]
+    ax, az = abs(x[apex]), z[apex]
+    z_lo, z_hi = az - 0.12 * scale, az + 0.13 * scale
+
+    # Torso axis: halfway between the front and the back of the trunk near the midline in that band.
+    trunk = ~arm & (np.abs(x) < 0.05 * scale) & (z > z_lo) & (z < z_hi)
+    yc = 0.5 * (y[trunk].min() + y[trunk].max())
+    theta = np.arctan2(x, yc - y)  # 0 = straight ahead, +-90 deg = the sides
+    radius = np.hypot(x, y - yc)
+
+    # The chest from the inframammary fold to below the collarbones, round to the sides below the armpits. The
+    # breastbone line stays as it is and anchors the fill too: without it the spline domes the middle of the chest
+    # forward (it continues the belly's forward slope below and the upper chest's backward slope above).
+    sternum = np.abs(x) < 0.012 * scale
+    region = ~arm & ~sternum & (np.abs(theta) < math.radians(72)) & (z > z_lo) & (z < z_hi)
+    if not region.any():
+        return 0, 0.0
+
+    neighbours = [[] for _ in range(n)]
+    for a, b in edges:
+        neighbours[a].append(b)
+        neighbours[b].append(a)
+    inner = set(np.flatnonzero(region).tolist())
+    anchors, frontier, seen = [], inner, set(inner)
+    for _ in range(3):
+        frontier = {j for i in frontier for j in neighbours[i] if j not in seen}
+        seen |= frontier
+        anchors += [j for j in frontier if not arm[j] and abs(theta[j]) < math.radians(110)]
+    anchors += np.flatnonzero(sternum & ~arm & (z > z_lo) & (z < z_hi) & (theta.__abs__() < 0.5)).tolist()
+    unknown = np.array(sorted(inner))
+    anchors = np.array(sorted(set(anchors)))
+
+    # Thin-plate spline r(u, z) with u = arc length round the axis, through the anchor rings.
+    r0 = float(np.median(radius[unknown]))
+    def param(ids):
+        return np.stack([theta[ids] * r0, z[ids]], axis=1)
+    def kernel(a, b):
+        d = np.linalg.norm(a[:, None, :] - b[None, :, :], axis=2)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            k = d * d * np.log(d)
+        return np.nan_to_num(k)
+    pa = param(anchors)
+    m = len(anchors)
+    system = np.zeros((m + 3, m + 3))
+    system[:m, :m] = kernel(pa, pa) + 1e-7 * np.eye(m)
+    system[:m, m] = 1.0
+    system[:m, m + 1:] = pa
+    system[m, :m] = 1.0
+    system[m + 1:, :m] = pa.T
+    rhs = np.concatenate([radius[anchors], np.zeros(3)])
+    coef = np.linalg.solve(system, rhs)
+    pu = param(unknown)
+    fitted = kernel(pu, pa) @ coef[:m] + coef[m] + pu @ coef[m + 1:]
+
+    new_radius = radius[unknown] + strength * (fitted - radius[unknown])
+    change = new_radius - radius[unknown]
+    co[unknown, 0] = new_radius * np.sin(theta[unknown])
+    co[unknown, 1] = yc - new_radius * np.cos(theta[unknown])
+    mesh.vertices.foreach_set("co", co.reshape(-1).astype(np.float32))
+    mesh.update()
+    print("[neutral-avatar] chest flattened: apex (x %.3f, z %.3f), %d vertices, %d anchors, %.1f mm in / %.1f mm out"
+          % (ax, az + floor, len(unknown), m, -1000 * change.min(), 1000 * change.max()))
+    return len(unknown), float(np.abs(change).max())
 
 
 def remove_print_from_shirt(png_path, top_fraction=0.45, saturation=0.12, block=32, reach=3):
@@ -326,6 +443,8 @@ def main():
     if export_basemesh.data.shape_keys:
         TargetService.bake_targets(export_basemesh)
         print("[neutral-avatar] body-shape targets baked into the mesh")
+    if args.flat_chest > 0:
+        flatten_chest(export_basemesh, strength=args.flat_chest)
     split_head_material(export_basemesh, head_bone="mixamorig:Head" if args.rig.startswith("mixamo") else "head",
                         neck_bone="mixamorig:Neck" if args.rig.startswith("mixamo") else "neck")
     export_root.name = name
@@ -361,7 +480,9 @@ def main():
                 + ", roughness " + repr(args.mannequin_roughness) + "; eyeballs " + args.eyes + ")") if mannequin else (
                 "Style: dressed. Skin: " + args.skin + ", hair: " + args.hair + ", clothes: " + args.clothes + " + " + args.shoes)
         f.write("# " + name + "\n\nGenerated by Tools/MakeHuman/generate_neutral_avatar.py with MakeHuman (MPFB2) in Blender "
-                + bpy.app.version_string + ".\n\nMacro settings: " + repr(macro) + "\n\n" + look + ", rig: " + args.rig
+                + bpy.app.version_string + ".\n\nMacro settings: " + repr(macro) + "\n\n"
+                + ("Chest: breast mounds removed (flatten_chest, strength " + repr(args.flat_chest) + ")\n\n" if args.flat_chest > 0 else "")
+                + look + ", rig: " + args.rig
                 + "\n\nMakeHuman base mesh and system assets are CC0.\n")
 
 

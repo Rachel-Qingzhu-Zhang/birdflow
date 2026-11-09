@@ -168,7 +168,7 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 | Id | モデル | 出典・ライセンス | 置き場所 |
 |----|--------|------------------|----------|
 | `neutral`（既定） | Unity **Starter Assets の Armature**（白いロボット型マネキン。顔・髪・服・性差なし） | Unity Companion License（`LICENSE.md` 同梱）。Meta が Movement SDK の体トラッキングサンプルの「Stylized」キャラクターとして配布しているモデル（oculus-samples/Unity-Movement `Shared/ThirdParty/Unity/`） | `Resources/Avatars/UnityArmature/Armature.fbx`（`UnityArmatureAvatarImport.cs`） |
-| `makehuman` | **MakeHuman の中性マネキン**（性別 0.5・胸の大きさ最小・顔テクスチャ / 髪 / 服なし・単色マット、眼球は同色） | MakeHuman / MPFB2 の CC0 アセット。`Tools/MakeHuman/generate_neutral_avatar.py` で生成（下記） | `Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx`（`MakeHumanAvatarImport.cs` が Humanoid・Read/Write 有効で取り込み） |
+| `makehuman` | **MakeHuman の中性マネキン**（性別 0.5・胸は平ら・顔テクスチャ / 髪 / 服なし・単色マット、眼球は同色） | MakeHuman / MPFB2 の CC0 アセット。`Tools/MakeHuman/generate_neutral_avatar.py` で生成（下記） | `Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx`（`MakeHumanAvatarImport.cs` が Humanoid・Read/Write 有効で取り込み） |
 
 既定は Armature（id `neutral`、これまでの記録と同じ）。2026-11-07 に一度 MakeHuman を既定にしましたが、同日 Armature に戻しました
 （MakeHuman はパネルから比較用に選べます）。MakeHuman を 2026-11-05 に一度外したときの
@@ -177,6 +177,7 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 **体型を当てる前の MakeHuman 基本メッシュ**が表示されていました。リグは体型を当てた体に合わせてあるため、手では関節が指の
 メッシュから最大 6 cm ずれ（指を曲げると細い棒のように潰れる）、胸を小さくする設定も効いていませんでした。生成スクリプトは
 書き出し前に体型をメッシュへ焼き込むようにしたので、今の FBX にはシェイプキーがありません。
+2026-11-08: 性別 0.5・胸の大きさ最小でも小さなふくらみが残るので、生成スクリプトが胸の前面（鎖骨の下〜胸の下、脇の下まで）を周りの体から張った滑らかな面で埋め直して平らにしています（`flatten_chest`、胸骨の線・腹・上胸・体の側面はそのまま、最大 14 mm 引っ込む。`--flat-chest 0` で元の胸）。
 
 別の Humanoid モデルを試すには Resources 配下に置いて `Avian Embodiment` → `Human Avatars` に id / Resources パス /
 目の位置（`Eye Offset From Head Bone`、頭ボーン基準の T ポーズでの目の位置。`Avian Voice/Embodiment/Debug/Measure Human Avatar Eye Point`
