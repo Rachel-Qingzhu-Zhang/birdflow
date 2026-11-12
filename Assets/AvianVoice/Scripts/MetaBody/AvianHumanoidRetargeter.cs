@@ -21,6 +21,9 @@ namespace AvianVoice.MetaBody
     /// the hands come out rotated and the fingers bend about the wrong axes (crumpled hands);</item>
     /// <item>no default pelvis tilt (the SDK ships a 60 degree Hips rotation tweak meant for its own sample
     /// rig, which bends other rigs' torsos the wrong way);</item>
+    /// <item>the torso (hips to head, collarbones) keeps the avatar's own shape and takes the tracked rotations as
+    /// changes from the tracker's bind pose (<see cref="keepAvatarTorsoShape"/>); the SDK would match each bone's
+    /// start-to-end direction, which bends a torso whose joints sit elsewhere;</item>
     /// <item>the owner re-poses the rig into its T-pose right before the SDK takes its one-time snapshot
     /// (<see cref="BeforeCaptureRestPose"/>), so a fallback pose applied earlier cannot poison the offsets.</item>
     /// </list>
@@ -40,6 +43,13 @@ namespace AvianVoice.MetaBody
         [Tooltip("Write the tracked hips position (crouching, leaning). Off: only rotations; the owner places the root.")]
         public bool positionHips = true;
 
+        [Tooltip("Hips, spine, chest, neck, head and collarbones turn by the tracked bones' rotation away from the tracker's " +
+                 "bind pose, starting from the avatar's own T-pose. Off: the SDK default, which turns each of these bones so " +
+                 "its start-to-end direction matches the tracked skeleton's; on a rig whose joints sit elsewhere (MakeHuman: " +
+                 "pelvis, neck and collarbone joints) that bends the torso, tips the head and pulls the shoulders. Arms, legs " +
+                 "and hands keep the direction match either way, so they still point where the real ones do.")]
+        public bool keepAvatarTorsoShape = true;
+
         public bool RestPoseCaptured { get; private set; }
 
         /// <summary>Hand frames calibrated against the current bind pose (data arrived at least once).</summary>
@@ -54,6 +64,18 @@ namespace AvianVoice.MetaBody
         Animator targetAnimator;
         int calibratedForCount = -1;
         string handSummary = "not calibrated";
+
+        static readonly HumanBodyBones[] TorsoBones =
+        {
+            HumanBodyBones.Hips, HumanBodyBones.Spine, HumanBodyBones.Chest, HumanBodyBones.UpperChest,
+            HumanBodyBones.Neck, HumanBodyBones.Head, HumanBodyBones.LeftShoulder, HumanBodyBones.RightShoulder,
+        };
+
+        /// <summary>Torso bones' rotation in the root frame in the rig's T-pose (recorded with the SDK's snapshot).</summary>
+        readonly Dictionary<HumanBodyBones, Quaternion> torsoRest = new();
+        int torsoCorrectedForCount = -1;
+        Vector3 torsoCorrectedScale;
+        string torsoSummary = "not calibrated";
 
         /// <summary>Tracked fingertip joints, keyed by the Humanoid distal bone they end.</summary>
         static readonly Dictionary<BoneId, HumanBodyBones> TipToDistal = new()
@@ -109,7 +131,8 @@ namespace AvianVoice.MetaBody
             base.Start();
             RestPoseCaptured = true;
             Debug.Log("[AvianVoice] Humanoid retargeter on '" + name + "': rest pose captured (rotation-only"
-                      + (positionHips ? " + hips position" : "") + ", hands "
+                      + (positionHips ? " + hips position" : "") + ", torso "
+                      + (keepAvatarTorsoShape ? "keeps the avatar's shape" : "SDK direction match") + ", hands "
                       + (frameAlignedHands ? "frame-aligned" : "SDK") + ", fingers "
                       + (driveFingers ? "driven" : "kept") + ", " + targetRest.joints.Count + " hand/arm bones on the rig).");
         }
@@ -117,15 +140,91 @@ namespace AvianVoice.MetaBody
         protected override void Update()
         {
             base.Update();
-            if (frameAlignedHands && ShouldRunUpdateThisFrame())
+            if (!ShouldRunUpdateThisFrame())
+                return;
+
+            // The SDK recomputes its corrections when the tracked skeleton changes; replace the torso ones and pose
+            // this frame again with them (from the next frame on the SDK applies them itself).
+            if (keepAvatarTorsoShape && UpdateTorsoCorrections())
+                ReapplyCorrections();
+            if (frameAlignedHands)
                 ApplyHandFrames();
         }
 
         /// <summary>One line for the diagnostics menus.</summary>
         public string DescribeHands()
         {
-            return "hands=" + (frameAlignedHands ? "frame-aligned" : "SDK") + " fingers=" + (driveFingers ? "driven" : "kept")
+            return "torso=" + (keepAvatarTorsoShape ? torsoSummary : "SDK direction match")
+                   + " hands=" + (frameAlignedHands ? "frame-aligned" : "SDK") + " fingers=" + (driveFingers ? "driven" : "kept")
                    + " " + (HandsCalibrated ? handSummary : "not calibrated (no tracking data yet)");
+        }
+
+        /// <summary>
+        /// Replaces the SDK's torso corrections (inverse(bind) * shortest turn of the avatar's T-pose bone direction
+        /// onto the tracked one * avatar T-pose) by inverse(bind) * avatar T-pose: at the tracker's bind pose (a
+        /// T-pose) the torso stands in the avatar's own T-pose, and every tracked rotation away from it is passed on.
+        /// This needs no bone directions, so it also drives the bones the SDK leaves alone because their direction
+        /// is undefined (the head, whose tracked joint has no end; any joint that sits on its neighbour in the frame
+        /// the SDK computes in). Returns true when the corrections were (re)written this frame.
+        /// </summary>
+        bool UpdateTorsoCorrections()
+        {
+            if (!IsInitialized || BindPoses == null || BindPoses.Count == 0 || TargetSkeletonData == null || torsoRest.Count == 0)
+                return false;
+
+            var scale = transform.lossyScale;
+            if (torsoCorrectedForCount == SkeletonChangedCount && (scale - torsoCorrectedScale).sqrMagnitude <= Mathf.Epsilon)
+                return false;
+
+            var sb = new StringBuilder("avatar shape (SDK direction match would turn at the bind pose:");
+            var count = 0;
+            for (var i = 0; i < BindPoses.Count; i++)
+            {
+                var bind = BindPoses[i];
+                if (bind?.Transform == null ||
+                    !CustomBoneIdToHumanBodyBone.TryGetValue(bind.Id, out var human) ||
+                    !torsoRest.TryGetValue(human, out var restInRoot) ||
+                    !TargetSkeletonData.BodyToBoneData.TryGetValue(human, out var data) ||
+                    data.OriginalJoint == null)
+                    continue;
+
+                var keep = Quaternion.Inverse(bind.Transform.rotation) * transform.rotation * restInRoot;
+                sb.Append(' ').Append(human).Append('=')
+                  .Append(data.CorrectionQuaternion.HasValue ? Quaternion.Angle(data.CorrectionQuaternion.Value, keep).ToString("0") : "undriven");
+                data.CorrectionQuaternion = keep;
+                count++;
+            }
+
+            if (count == 0)
+                return false;
+
+            torsoCorrectedForCount = SkeletonChangedCount;
+            torsoCorrectedScale = scale;
+            sb.Append(" deg)");
+            torsoSummary = sb.ToString();
+            Debug.Log("[AvianVoice] Torso on '" + name + "' keeps the avatar's shape, " + count + " bones; " + torsoSummary);
+            return true;
+        }
+
+        /// <summary>The SDK's per-frame pose (AlignTargetWithSource) with the current corrections, parents first.</summary>
+        void ReapplyCorrections()
+        {
+            if (Bones == null)
+                return;
+
+            for (var i = 0; i < Bones.Count; i++)
+            {
+                var bone = Bones[i];
+                if (bone?.Transform == null ||
+                    !CustomBoneIdToHumanBodyBone.TryGetValue(bone.Id, out var human) ||
+                    !TargetSkeletonData.BodyToBoneData.TryGetValue(human, out var data) ||
+                    !data.CorrectionQuaternion.HasValue || data.OriginalJoint == null)
+                    continue;
+
+                data.OriginalJoint.rotation = bone.Transform.rotation * data.CorrectionQuaternion.Value;
+                if (positionHips && human == HumanBodyBones.Hips)
+                    data.OriginalJoint.position = bone.Transform.position;
+            }
         }
 
         /// <summary>
@@ -183,6 +282,15 @@ namespace AvianVoice.MetaBody
             // Forearms, wrists, fingers, and the palm reference joints (normal + across) even when fingers are not driven.
             foreach (var bone in HandFrameRetargeting.SnapshotBones)
                 AddTargetBone(bone);
+
+            torsoRest.Clear();
+            var rootInverse = Quaternion.Inverse(transform.rotation);
+            foreach (var bone in TorsoBones)
+            {
+                var t = targetAnimator.GetBoneTransform(bone);
+                if (t != null)
+                    torsoRest[bone] = rootInverse * t.rotation;
+            }
 
             targetFingertips = HandFrameRetargeting.ComputeFingertips(targetAnimator);
             // Reference = the pose the mesh was skinned in, not the Humanoid muscle-zero T-pose (which may turn

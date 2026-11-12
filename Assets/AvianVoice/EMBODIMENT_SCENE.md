@@ -200,9 +200,18 @@ Armature は +0.035 m 上 / +0.09 m 前）を足します。モデルが無い i
 `OVRUnityHumanoidSkeletonRetargeter` は既定で ほぼ全関節の **位置** を被験者の関節位置で上書きし（体格が違うと体が伸び縮みして
 崩れる）、**指** も個別にリターゲットし（指の軸が違うと手が潰れる）、さらに骨盤に 60° の回転補正（Meta のサンプル用）を
 掛けます。本プロジェクトの派生クラスはこれを **回転のみ（腰の位置だけ追従）、骨盤補正なし** に変え、SDK が T ポーズの
-スナップショットを取る直前に `HumanFirstPersonDriver` がリグを T ポーズ（Humanoid の筋肉値 0）に戻します。体格差で頭の高さが
+スナップショットを取る直前に `HumanFirstPersonDriver` がリグを T ポーズに戻します。体格差で頭の高さが
 ずれる分は、毎フレーム体全体を平行移動して目をヘッドセットに合わせます（骨は触りません）。トラッキングが途切れたら
 リターゲットを一時停止して腕を下ろした姿勢に戻します。
+
+**胴体の形**（`keepAvatarTorsoShape`、2026-11-10）: SDK は各骨の「始点→終点の向き」を被験者の骨格に合わせますが、
+骨盤・首・鎖骨の関節の位置はリグごとに違うので、向きを合わせると胴体が曲がり、頭が傾き、肩が引っ張られます（実機の
+基準姿勢で SDK は MakeHuman の鎖骨を 35°、Armature の骨盤を 59°・鎖骨を 22° 回していました。2026-11-10 の「MakeHuman の肩が
+不自然」の原因）。骨盤・背骨・胸・首・頭・鎖骨は、被験者の骨が基準姿勢（T ポーズ）から回った分だけを、アバター自身の T ポーズに
+掛けます（腕・脚・手は従来どおり向きを合わせるので、本物の手足と同じ方向を指します）。この方法は骨の向きを使わないので、SDK が
+向きを決められずに動かさなかった頭も被験者の頭に追従します。T ポーズは Avatar に保存された T ポーズ（`HumanoidTPose`）です。
+以前の「筋肉値 0」は T ポーズではなく、腕が約 40° 下・前、肘と膝が曲がった姿勢でした（トラッキングが途切れたときの姿勢も
+膝が曲がっていました）。
 
 **手と指**（`HandFrameRetargeting`、2026-11-07）: SDK は骨を **向きだけ** で合わせる（`FromToRotation`）ので、骨の軸まわりの
 回転（手のひらの向き）はアバターの T ポーズのまま残ります。アバターの手のひらの向きが Meta の基準姿勢と違うと手が回ったまま
@@ -222,6 +231,10 @@ Armature は +0.035 m 上 / +0.09 m 前）を足します。モデルが無い i
   比べます（新方式は 0.1° 程度、SDK 方式は手のひらが 46〜86° ずれる）。画像は `Temp/HandRetargetTest/`。
 - **Debug/Render Avatar Hand States**: 各アバターの手を取り込みのまま / 筋肉値 0 / 指を 60° 反らす / 60° 握る、で描画
   （スキンが壊れていれば一目で分かります）。
+- **Debug/Body Retarget Self-Test (with images)**: Armature を「トラッキングされた体」役にして、腕を下ろす・上げる・前に出す・
+  肩をすくめる・体をひねる・首を回すなどの全身の姿勢を MakeHuman へ移し、Unity 標準の対応付け（正解）と、実行時と同じ方式
+  （修正前 / 修正後）を比べます。修正後は肩関節と手首の位置が正解とほぼ一致（多くの姿勢で 0.0〜0.2 cm、修正前は 4 cm）。
+  画像は `Temp/BodyRetargetTest/`（正面 = 鏡に映る姿、一人称視点）。
 - Play 中の **Log Avatar State** に、手のキャリブレーション結果と、被験者の手とアバターの手の向きの誤差（度）が出ます。
 
 **鏡と頭部**: HMD の一人称視点では **自分のアバターの頭部が見えない**ようにし、鏡（Fragilem17 の反射カメラ）には顔ごと
@@ -278,6 +291,8 @@ Armature は +0.035 m 上 / +0.09 m 前）を足します。モデルが無い i
 | `Scripts/MetaBody/AvianHumanoidRetargeter.cs` | Meta のリターゲッタの派生: 回転のみ・腰の位置だけ追従・骨盤補正なし・T ポーズ取得直前のコールバック。前腕・手首・指は `HandFrameRetargeting` で上書き |
 | `Scripts/BodyTracking/HandFrameRetargeting.cs` | リグに依存しない手・指のリターゲット計算（骨の向き + 手のひらの法線の座標系、スキンのバインドポーズ、メッシュからの指先） |
 | `Editor/HandRetargetSelfTest.cs` | ヘッドセット無しの手のリターゲット検証と、手の描画確認メニュー |
+| `Editor/BodyRetargetSelfTest.cs` | ヘッドセット無しの全身のリターゲット検証（正解 / 修正前 / 修正後の比較画像） |
+| `Scripts/BodyTracking/HumanoidTPose.cs` | Avatar に保存された T ポーズをリグに適用（筋肉値 0 は T ポーズではない） |
 | `Scripts/Embodiment/Avatar/HumanFirstPersonDriver.cs` | 人間: ルートをトラッキング原点に置き目をカメラに合わせる。T ポーズの再適用、トラッキング無しのフォールバック姿勢、データ途切れ時のリターゲット一時停止 |
 | `Scripts/Embodiment/Avatar/FirstPersonHeadHider.cs` | 一人称カメラだけ頭部（頭ボーン以下の三角形 / 頭・髪のマテリアル）を非表示（鏡・池の反射には映る）。鳥と人間の両方 |
 | `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、**条件（アバター × 声のフィードバック）** の設定と記録 |
@@ -348,7 +363,13 @@ Forearms, wrists and fingers are retargeted by `HandFrameRetargeting`: full bone
 joint positions, matched between the tracked bind pose and the avatar's skin bind pose, because the SDK's
 direction-only match leaves the hand rolled (measured on Quest data: wrists 25 deg, fingers up to 78 deg off). Human
 avatar skins use 4 bones per vertex (the project's "Low" quality level allows 2, which collapses blended finger joints).
-Check without a headset with Debug / Hand Retarget Self-Test (with images) and Debug / Render Avatar Hand States. The study has four conditions, avatar (bird / human) x
+Check without a headset with Debug / Hand Retarget Self-Test (with images) and Debug / Render Avatar Hand States.
+The torso (hips, spine, chest, neck, head, collarbones) keeps the avatar's own shape (`keepAvatarTorsoShape`, 2026-11-10):
+it takes the tracked bones' rotation away from the tracker's bind pose, applied to the avatar's T-pose, instead of the
+SDK's per-bone direction match, which bent rigs whose pelvis / neck / collarbone joints sit elsewhere (on real Quest
+data the SDK turned MakeHuman's collarbones 35 deg, the Armature's pelvis 59 deg). The rest pose handed to the SDK is
+the Avatar's stored T-pose (`HumanoidTPose`), not muscle zero (arms 40 deg down and forward, elbows and knees bent).
+Check with Debug / Body Retarget Self-Test (with images). The study has four conditions, avatar (bird / human) x
 voice feedback (the participant's own voice heard as bird chirps / as a sung human vowel, or not at all), chosen from the
 experimenter panel; the participant's own head (bird or human) is hidden from the headset camera but visible in the
 mirror. Toggle bird / human with **V** (keyboard).

@@ -10,7 +10,7 @@ namespace AvianVoice.Embodiment.Avatars
     /// eyes sit on the headset. Without body tracking the avatar stands with arms down, head on the camera.
     ///
     /// The retargeter takes one snapshot of the rig's T-pose when it starts; this driver re-poses the rig
-    /// into T-pose right before that (muscle-space neutral pose) and never writes bones while the retargeter
+    /// into T-pose right before that (the Avatar's stored T-pose) and never writes bones while the retargeter
     /// is driving them. When tracking data stops, retargeting is paused (the SDK would keep writing stale
     /// joints) and the fallback pose takes over.
     /// </summary>
@@ -46,6 +46,7 @@ namespace AvianVoice.Embodiment.Avatars
         HumanPose humanPose;
         Vector3 tPoseBodyPosition;
         Quaternion tPoseBodyRotation = Quaternion.identity;
+        float[] tPoseMuscles;
         Quaternion headLocalFromRoot = Quaternion.identity;
         Vector3 eyeOffsetInHead;
         bool restCaptured;
@@ -256,43 +257,53 @@ namespace AvianVoice.Embodiment.Avatars
         }
 
         /// <summary>
-        /// Unity's muscle-space neutral pose (all muscles 0): the Humanoid T-pose with arms horizontal, legs
-        /// straight, fingers flat. This is what the retargeter must see when it records the rig.
+        /// The Avatar's own T-pose (<see cref="HumanoidTPose"/>: arms horizontal, elbows and knees straight). This is
+        /// what the retargeter must see when it records the rig. All Humanoid muscles at 0 is not a T-pose: it
+        /// leaves the arms about 40 degrees down and forward and the elbows and knees bent; it is only used when the
+        /// Avatar stores no skeleton.
         /// </summary>
         void ForceTPose()
         {
             if (poseHandler == null)
                 return;
 
-            poseHandler.GetHumanPose(ref humanPose);
-            if (humanPose.muscles != null)
+            if (HumanoidTPose.Apply(animator) == 0)
             {
-                for (var i = 0; i < humanPose.muscles.Length; i++)
-                    humanPose.muscles[i] = 0f;
+                poseHandler.GetHumanPose(ref humanPose);
+                if (humanPose.muscles != null)
+                {
+                    for (var i = 0; i < humanPose.muscles.Length; i++)
+                        humanPose.muscles[i] = 0f;
+                }
+
+                if (restPoseCount > 0)
+                {
+                    humanPose.bodyPosition = tPoseBodyPosition;
+                    humanPose.bodyRotation = tPoseBodyRotation;
+                }
+
+                poseHandler.SetHumanPose(ref humanPose);
             }
 
             if (restPoseCount == 0)
             {
+                poseHandler.GetHumanPose(ref humanPose);
                 tPoseBodyPosition = humanPose.bodyPosition;
                 tPoseBodyRotation = humanPose.bodyRotation;
-            }
-            else
-            {
-                humanPose.bodyPosition = tPoseBodyPosition;
-                humanPose.bodyRotation = tPoseBodyRotation;
+                tPoseMuscles = humanPose.muscles != null ? (float[])humanPose.muscles.Clone() : null;
             }
 
-            poseHandler.SetHumanPose(ref humanPose);
             restPoseCount++;
         }
 
+        /// <summary>Without tracking: the T-pose with the arms lowered (elbows and knees stay straight).</summary>
         void ApplyFallbackPose()
         {
             if (poseHandler == null || humanPose.muscles == null)
                 return;
 
             for (var i = 0; i < humanPose.muscles.Length; i++)
-                humanPose.muscles[i] = 0f;
+                humanPose.muscles[i] = tPoseMuscles != null && i < tPoseMuscles.Length ? tPoseMuscles[i] : 0f;
             if (leftArmMuscle >= 0)
                 humanPose.muscles[leftArmMuscle] = fallbackArmDownUp;
             if (rightArmMuscle >= 0)

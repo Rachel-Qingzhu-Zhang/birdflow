@@ -225,9 +225,11 @@ namespace AvianVoice.Editor
                     return;
                 }
 
-                // Muscle-space neutral pose = the T-pose HumanFirstPersonDriver measures the eye offset in.
-                using (var handler = new HumanPoseHandler(animator.avatar, root))
+                // The Avatar's T-pose = the pose HumanFirstPersonDriver measures the eye offset in (muscle zero only
+                // when the Avatar stores no skeleton; the head bone is the same in both).
+                if (AvianVoice.BodyTracking.HumanoidTPose.Apply(animator) == 0)
                 {
+                    using var handler = new HumanPoseHandler(animator.avatar, root);
                     var pose = new HumanPose();
                     handler.GetHumanPose(ref pose);
                     for (var i = 0; i < pose.muscles.Length; i++)

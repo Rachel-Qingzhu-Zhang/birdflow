@@ -33,9 +33,9 @@ namespace AvianVoice.Editor
         /// positions keep sub-micrometre resolution (at 5000 m they resolve only ~0.5 mm, several degrees on a
         /// 2 cm finger segment).
         /// </summary>
-        static readonly Vector3 TestOrigin = new(0f, -100f, 0f);
+        internal static readonly Vector3 TestOrigin = new(0f, -100f, 0f);
 
-        sealed class Rig
+        internal sealed class Rig
         {
             public GameObject go;
             public Animator animator;
@@ -359,7 +359,7 @@ namespace AvianVoice.Editor
 
         // ------------------------------------------------------------------ rigs
 
-        static Rig Load(string resourcesPath, Vector3 position)
+        internal static Rig Load(string resourcesPath, Vector3 position)
         {
             var prefab = Resources.Load<GameObject>(resourcesPath);
             if (prefab == null)
@@ -393,7 +393,7 @@ namespace AvianVoice.Editor
         /// Muscle pose with the body position / rotation read once at load (a GetHumanPose / SetHumanPose round trip
         /// drifts the body when the root is away from the origin).
         /// </summary>
-        static void SetMuscles(Rig rig, Action<float[]> set)
+        internal static void SetMuscles(Rig rig, Action<float[]> set)
         {
             for (var i = 0; i < rig.pose.muscles.Length; i++)
                 rig.pose.muscles[i] = 0f;
@@ -403,7 +403,7 @@ namespace AvianVoice.Editor
             rig.handler.SetHumanPose(ref rig.pose);
         }
 
-        static void Destroy(params Rig[] rigs)
+        internal static void Destroy(params Rig[] rigs)
         {
             foreach (var rig in rigs)
             {
@@ -421,7 +421,7 @@ namespace AvianVoice.Editor
             HumanBodyBones.RightIndexProximal, HumanBodyBones.RightMiddleProximal, HumanBodyBones.RightRingProximal, HumanBodyBones.RightLittleProximal,
         };
 
-        static void Snap(Rig rig, HandFrameRetargeting.Snapshot snapshot)
+        internal static void Snap(Rig rig, HandFrameRetargeting.Snapshot snapshot)
         {
             snapshot.Clear();
             var root = rig.go.transform;
@@ -443,7 +443,7 @@ namespace AvianVoice.Editor
         }
 
         /// <summary>The runtime rule: avatarBone = sourceBone * correction (root-local rotations), parents first.</summary>
-        static void Drive(Rig source, Rig target, Func<HumanBodyBones, (bool ok, Quaternion correction)> correction)
+        internal static void Drive(Rig source, Rig target, Func<HumanBodyBones, (bool ok, Quaternion correction)> correction)
         {
             var sourceRootInv = Quaternion.Inverse(source.go.transform.rotation);
             var targetRoot = target.go.transform.rotation;
@@ -504,7 +504,19 @@ namespace AvianVoice.Editor
             var hand = rig.animator.GetBoneTransform(HumanBodyBones.LeftHand);
             var middle = rig.animator.GetBoneTransform(HumanBodyBones.LeftMiddleProximal);
             var center = middle != null ? Vector3.Lerp(hand.position, middle.position, 0.8f) : hand.position;
+            // In front of the avatar (Humanoid faces +Z), a little above the hand.
+            var camPosition = center + new Vector3(0.05f, 0.18f, 0.42f);
+            return RenderView(rig, all, camPosition, Quaternion.LookRotation(center - camPosition), 32f, Tile, 0.01f);
+        }
 
+        /// <summary>
+        /// Renders only <paramref name="rig"/> (all rigs' skinned meshes hidden, this rig's baked copy shown) from a
+        /// camera pose. The skinned meshes are baked first: within one editor frame a skinned mesh keeps the skin of
+        /// its last render, so it would not show a pose set just before.
+        /// </summary>
+        internal static Texture2D RenderView(Rig rig, Rig[] all, Vector3 camPosition, Quaternion camRotation, float fieldOfView,
+            int size, float nearClip)
+        {
             var temporary = new List<UnityEngine.Object>();
             var hidden = new List<SkinnedMeshRenderer>();
             foreach (var r in all)
@@ -538,7 +550,7 @@ namespace AvianVoice.Editor
             var lightGo = new GameObject("HandTestLight") { hideFlags = HideFlags.HideAndDontSave };
             temporary.Add(camGo);
             temporary.Add(lightGo);
-            var rt = new RenderTexture(Tile, Tile, 24, RenderTextureFormat.ARGB32);
+            var rt = new RenderTexture(size, size, 24, RenderTextureFormat.ARGB32);
             try
             {
                 var light = lightGo.AddComponent<Light>();
@@ -549,19 +561,17 @@ namespace AvianVoice.Editor
                 var cam = camGo.AddComponent<Camera>();
                 cam.clearFlags = CameraClearFlags.SolidColor;
                 cam.backgroundColor = new Color(0.62f, 0.64f, 0.66f);
-                cam.fieldOfView = 32f;
-                cam.nearClipPlane = 0.01f;
-                cam.farClipPlane = 5f;
+                cam.fieldOfView = fieldOfView;
+                cam.nearClipPlane = nearClip;
+                cam.farClipPlane = 6f;
                 cam.targetTexture = rt;
-                // In front of the avatar (Humanoid faces +Z), a little above the hand.
-                camGo.transform.position = center + new Vector3(0.05f, 0.18f, 0.42f);
-                camGo.transform.LookAt(center);
+                camGo.transform.SetPositionAndRotation(camPosition, camRotation);
                 cam.Render();
 
                 var previous = RenderTexture.active;
                 RenderTexture.active = rt;
-                var tex = new Texture2D(Tile, Tile, TextureFormat.RGB24, false);
-                tex.ReadPixels(new Rect(0, 0, Tile, Tile), 0, 0);
+                var tex = new Texture2D(size, size, TextureFormat.RGB24, false);
+                tex.ReadPixels(new Rect(0, 0, size, size), 0, 0);
                 tex.Apply();
                 RenderTexture.active = previous;
                 return tex;
@@ -579,20 +589,28 @@ namespace AvianVoice.Editor
 
         static void SaveGrid(List<Texture2D> tiles, int columns, string path)
         {
+            SaveGrid(tiles, columns, path, "[AvianVoice] HAND TEST image: " + path +
+                                           " (rows = poses, columns = tracked source / frame-aligned / SDK direction-only)");
+        }
+
+        /// <summary>Square tiles of equal size, first row at the top.</summary>
+        internal static void SaveGrid(List<Texture2D> tiles, int columns, string path, string logLine)
+        {
+            var size = tiles[0].width;
             var rows = (tiles.Count + columns - 1) / columns;
-            var grid = new Texture2D(columns * Tile, rows * Tile, TextureFormat.RGB24, false);
+            var grid = new Texture2D(columns * size, rows * size, TextureFormat.RGB24, false);
             for (var i = 0; i < tiles.Count; i++)
             {
-                var x = (i % columns) * Tile;
-                var y = (rows - 1 - i / columns) * Tile; // first row at the top
-                grid.SetPixels(x, y, Tile, Tile, tiles[i].GetPixels());
+                var x = (i % columns) * size;
+                var y = (rows - 1 - i / columns) * size;
+                grid.SetPixels(x, y, size, size, tiles[i].GetPixels());
             }
 
             grid.Apply();
             Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
             File.WriteAllBytes(path, grid.EncodeToPNG());
             UnityEngine.Object.DestroyImmediate(grid);
-            Debug.Log("[AvianVoice] HAND TEST image: " + path + " (rows = poses, columns = tracked source / frame-aligned / SDK direction-only)");
+            Debug.Log(logLine);
         }
     }
 }
