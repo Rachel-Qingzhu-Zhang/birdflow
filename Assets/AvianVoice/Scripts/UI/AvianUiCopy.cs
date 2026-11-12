@@ -5,6 +5,25 @@ namespace AvianVoice.UI
     /// </summary>
     public static class AvianUiCopy
     {
+        /// <summary>
+        /// True while the participant's avatar is the human body (set by AvatarEmbodimentController). The meeting,
+        /// breathing and rest scenes then speak of the participant instead of the bird ("this is you", "your chest",
+        /// "this body").
+        /// </summary>
+        public static bool HumanAvatar { get; private set; }
+
+        /// <summary>Raised when <see cref="HumanAvatar"/> changes, so that a line on screen can be rewritten.</summary>
+        public static event System.Action AvatarChanged;
+
+        public static void SetHumanAvatar(bool human)
+        {
+            if (HumanAvatar == human)
+                return;
+
+            HumanAvatar = human;
+            AvatarChanged?.Invoke();
+        }
+
         public static string MenuTitle => AvianUiLanguage.Pick("Choose a scene", "場面を選ぶ");
 
         public static string MenuChip => AvianUiLanguage.Pick("I want …", "場面 …");
@@ -19,6 +38,9 @@ namespace AvianVoice.UI
                 + "練習です。鳥が歌った音を、同じように歌ってください。実験者が説明します。練習する"
                 + "鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。"
                 + "鳥の胸を見て、一緒に呼吸してください。"
+                + "鏡の中の自分の胸を見て、一緒に呼吸してください。"
+                + "鏡の中にいるのが、あなたです。"
+                + "この体でいるのは、どんな感じでしたか。"
                 + "鳥は自分で滑空します。大きく、または高く歌うと上昇し、黙ると下降します。"
                 + "鳥が一つの音を歌います。鳴き終わったら、同じ音を歌ってください。次の音も同じです。"
                 + "鳥が一つの音を歌います。同じ音を歌うと仲間が飛んできます。音ごとに鳥が増えます。"
@@ -36,12 +58,20 @@ namespace AvianVoice.UI
                 "practice" => AvianUiLanguage.Pick(
                     "Practice. The bird sings a note; sing it back. The experimenter will explain.",
                     "練習です。鳥が歌った音を、同じように歌ってください。実験者が説明します。"),
-                "meet" => AvianUiLanguage.Pick(
-                    "This is your bird self in the mirror. Look at it — no need to breathe yet.",
-                    "鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。"),
-                "breath_sync" => AvianUiLanguage.Pick(
-                    "Watch the bird's chest and breathe with it.",
-                    "鳥の胸を見て、一緒に呼吸してください。"),
+                "meet" => HumanAvatar
+                    ? AvianUiLanguage.Pick(
+                        "This is you in the mirror. Look at yourself — no need to breathe yet.",
+                        "鏡の中にいるのが、あなたです。しばらく見ていてください。まだ呼吸しなくて大丈夫です。")
+                    : AvianUiLanguage.Pick(
+                        "This is your bird self in the mirror. Look at it — no need to breathe yet.",
+                        "鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。"),
+                "breath_sync" => HumanAvatar
+                    ? AvianUiLanguage.Pick(
+                        "Watch your chest in the mirror and breathe with it.",
+                        "鏡の中の自分の胸を見て、一緒に呼吸してください。")
+                    : AvianUiLanguage.Pick(
+                        "Watch the bird's chest and breathe with it.",
+                        "鳥の胸を見て、一緒に呼吸してください。"),
                 "flying" => AvianUiLanguage.Pick(
                     "The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.",
                     "鳥は自分で滑空します。大きく、または高く歌うと上昇し、黙ると下降します。"),
@@ -51,9 +81,13 @@ namespace AvianVoice.UI
                 "call_friends" => AvianUiLanguage.Pick(
                     "The bird sings one note. Sing it back and one friend flies in.",
                     "鳥が一つの音を歌います。同じ音を歌うと、仲間が一羽飛んできます。"),
-                "reflection" => AvianUiLanguage.Pick(
-                    "Rest by the water and look over your scores. How did it feel to become a bird?",
-                    "水辺で休み、ここまでの感覚を見てください。鳥になるのは、どんな感じでしたか。"),
+                "reflection" => HumanAvatar
+                    ? AvianUiLanguage.Pick(
+                        "Rest by the water and look over your scores. How did it feel to be in this body?",
+                        "水辺で休み、ここまでの感覚を見てください。この体でいるのは、どんな感じでしたか。")
+                    : AvianUiLanguage.Pick(
+                        "Rest by the water and look over your scores. How did it feel to become a bird?",
+                        "水辺で休み、ここまでの感覚を見てください。鳥になるのは、どんな感じでしたか。"),
                 _ => ""
             };
         }

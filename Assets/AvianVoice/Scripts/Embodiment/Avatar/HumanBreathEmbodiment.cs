@@ -6,30 +6,38 @@ using UnityEngine;
 namespace AvianVoice.Embodiment.Avatars
 {
     /// <summary>
-    /// Gentle chest breathing for the human avatar, the counterpart of the parrot's (much larger) breath chest in
-    /// ParrotBreathEmbodiment. Follows the same breath signal (BreathSimulator: the teacher bird's pattern) and is
-    /// active in the breathing scene (Active Tasks) with a short fade in and out.
+    /// Chest breathing for the human avatar, the counterpart of the parrot's breath chest in ParrotBreathEmbodiment:
+    /// a deep breath that is plain to see in the mirror (the chest comes forward by a few centimetres and the
+    /// shoulders rise), so the breathing scene works with the human avatar as it does with the bird. Follows the same
+    /// breath signal (BreathSimulator: the teacher's pattern) and is active in the breathing scene (Active Tasks)
+    /// with a short fade in and out.
     ///
-    /// The bone the neck and shoulders hang from (upper chest) is scaled a little: front-back by Depth Inhale and
-    /// sideways by Width Inhale at full inhale. Its direct children get the inverse scale, so the neck, head and arms
-    /// keep their size and the head stays where it was. The axes are found from joint positions (towards the neck = up,
-    /// shoulder to shoulder = sideways), so it works whatever the rig's bone axes are.
+    /// The bone the neck and shoulders hang from (upper chest) is scaled: front-back by Depth Inhale and sideways by
+    /// Width Inhale at full inhale. Its direct children get the inverse scale, so the neck, head and arms keep their
+    /// size and the head stays where it was. The shoulder bones are lifted by Shoulder Rise. The axes are found from
+    /// joint positions (towards the neck = up, shoulder to shoulder = sideways), so it works whatever the rig's bone
+    /// axes are.
     /// Runs after the body-tracking retargeter (Update) and before HumanFirstPersonDriver places the eyes (31000).
     /// </summary>
     [DefaultExecutionOrder(30500)]
     public sealed class HumanBreathEmbodiment : MonoBehaviour
     {
-        [Tooltip("Front-back expansion of the chest at full inhale (0.06 = 6 %). The bird uses 40 %.")]
-        [SerializeField, Range(0f, 0.2f)]
-        float depthInhale = 0.06f;
+        [Tooltip("Front-back expansion of the chest at full inhale (0.22 = 22 %, a few centimetres: a deep breath that shows " +
+                 "in the mirror; it was 6 % until 2026-11-12, too little to see). The bird uses 40 %.")]
+        [SerializeField, Range(0f, 0.3f)]
+        float depthInhale = 0.22f;
 
-        [Tooltip("Sideways expansion of the chest at full inhale.")]
+        [Tooltip("Sideways expansion of the chest at full inhale: what shows most in the mirror, which is seen from the front.")]
         [SerializeField, Range(0f, 0.2f)]
-        float widthInhale = 0.03f;
+        float widthInhale = 0.1f;
 
         [Tooltip("Lengthening along the spine at full inhale (the chest rises a little).")]
         [SerializeField, Range(0f, 0.1f)]
-        float lengthInhale = 0.01f;
+        float lengthInhale = 0.03f;
+
+        [Tooltip("How far the shoulders rise at full inhale (m).")]
+        [SerializeField, Range(0f, 0.03f)]
+        float shoulderRise = 0.022f;
 
         [Tooltip("Task ids (scenes) in which the human avatar breathes. Empty = always.")]
         [SerializeField]
@@ -47,6 +55,9 @@ namespace AvianVoice.Embodiment.Avatars
         Vector3 boneRestScale = Vector3.one;
         Transform[] children = new Transform[0];
         Vector3[] childRestScales = new Vector3[0];
+        readonly Transform[] shoulders = new Transform[2];
+        readonly Vector3[] shoulderRestPositions = new Vector3[2];
+        float upSign = 1f;
         int upAxis = 1;
         int rightAxis;
         int forwardAxis = 2;
@@ -124,7 +135,9 @@ namespace AvianVoice.Embodiment.Avatars
                 return false;
 
             // Axes in the bone's own frame from joint positions (independent of the rig's bone axis conventions).
-            upAxis = DominantAxis(bone.InverseTransformDirection(neck.position - bone.position));
+            var towardsNeck = bone.InverseTransformDirection(neck.position - bone.position);
+            upAxis = DominantAxis(towardsNeck);
+            upSign = towardsNeck[upAxis] >= 0f ? 1f : -1f;
             rightAxis = DominantAxis(bone.InverseTransformDirection(rightArm.position - leftArm.position), upAxis);
             forwardAxis = 3 - upAxis - rightAxis;
 
@@ -137,11 +150,19 @@ namespace AvianVoice.Embodiment.Avatars
                 childRestScales[i] = children[i].localScale;
             }
 
+            // Shoulder (clavicle) bones, wherever the rig hangs them (under the chest or under the neck).
+            shoulders[0] = animator.GetBoneTransform(HumanBodyBones.LeftShoulder);
+            shoulders[1] = animator.GetBoneTransform(HumanBodyBones.RightShoulder);
+            for (var i = 0; i < shoulders.Length; i++)
+                shoulderRestPositions[i] = shoulders[i] != null ? shoulders[i].localPosition : Vector3.zero;
+
             resolved = true;
             Debug.Log("[AvianVoice] Human breathing on '" + name + "': chest bone " + bone.name + " (axes up=" + "XYZ"[upAxis]
                       + " side=" + "XYZ"[rightAxis] + " depth=" + "XYZ"[forwardAxis] + "), " + children.Length
                       + " children compensated, depth +" + (depthInhale * 100f).ToString("0", CultureInfo.InvariantCulture)
-                      + "% / width +" + (widthInhale * 100f).ToString("0", CultureInfo.InvariantCulture) + "% at full inhale.");
+                      + "% / width +" + (widthInhale * 100f).ToString("0", CultureInfo.InvariantCulture) + "% / shoulders +"
+                      + (shoulderRise * 1000f).ToString("0", CultureInfo.InvariantCulture) + " mm at full inhale"
+                      + (shoulders[0] != null && shoulders[1] != null ? "." : " (no shoulder bones: no shoulder rise)."));
             return true;
         }
 
@@ -172,6 +193,18 @@ namespace AvianVoice.Embodiment.Avatars
                 child.localScale = new Vector3(childRestScales[i].x / d.x, childRestScales[i].y / d.y, childRestScales[i].z / d.z);
             }
 
+            // Shoulders rise along the chest's up direction (world metres, whatever the scale of their parent).
+            var up = Vector3.zero;
+            up[upAxis] = upSign;
+            var rise = bone.TransformDirection(up) * (shoulderRise * emphasis);
+            for (var i = 0; i < shoulders.Length; i++)
+            {
+                var shoulder = shoulders[i];
+                if (shoulder == null || shoulder.parent == null)
+                    continue;
+                shoulder.localPosition = shoulderRestPositions[i] + shoulder.parent.InverseTransformVector(rise);
+            }
+
             applied = true;
         }
 
@@ -185,6 +218,12 @@ namespace AvianVoice.Embodiment.Avatars
             {
                 if (children[i] != null)
                     children[i].localScale = childRestScales[i];
+            }
+
+            for (var i = 0; i < shoulders.Length; i++)
+            {
+                if (shoulders[i] != null)
+                    shoulders[i].localPosition = shoulderRestPositions[i];
             }
 
             applied = false;
@@ -229,9 +268,11 @@ namespace AvianVoice.Embodiment.Avatars
             Apply(0f);
             var rest = ChestExtent(skinned);
             var head0 = head.position; var l0 = lhand.position; var r0 = rhand.position; var headScale0 = head.lossyScale;
+            var shoulder0 = shoulders[0] != null ? shoulders[0].position : Vector3.zero;
             Apply(1f);
             var full = ChestExtent(skinned);
             var head1 = head.position; var l1 = lhand.position; var r1 = rhand.position; var headScale1 = head.lossyScale;
+            var shoulder1 = shoulders[0] != null ? shoulders[0].position : Vector3.zero;
 
             if (wasApplied && previous > 0f)
                 Apply(previous);
@@ -242,7 +283,8 @@ namespace AvianVoice.Embodiment.Avatars
             return "chest depth " + (rest.x * 100f).ToString("0.0", c) + " -> " + (full.x * 100f).ToString("0.0", c) + " cm ("
                    + ((full.x / Mathf.Max(1e-4f, rest.x) - 1f) * 100f).ToString("+0.0;-0.0", c) + "%), width "
                    + (rest.y * 100f).ToString("0.0", c) + " -> " + (full.y * 100f).ToString("0.0", c) + " cm ("
-                   + ((full.y / Mathf.Max(1e-4f, rest.y) - 1f) * 100f).ToString("+0.0;-0.0", c) + "%); head moved "
+                   + ((full.y / Mathf.Max(1e-4f, rest.y) - 1f) * 100f).ToString("+0.0;-0.0", c) + "%); shoulder moved "
+                   + (Vector3.Distance(shoulder0, shoulder1) * 1000f).ToString("0.0", c) + " mm, head moved "
                    + (Vector3.Distance(head0, head1) * 1000f).ToString("0.0", c) + " mm, hands "
                    + (Vector3.Distance(l0, l1) * 1000f).ToString("0.0", c) + "/" + (Vector3.Distance(r0, r1) * 1000f).ToString("0.0", c)
                    + " mm, head size change " + ((headScale1.magnitude / Mathf.Max(1e-4f, headScale0.magnitude) - 1f) * 100f).ToString("+0.00;-0.00", c)

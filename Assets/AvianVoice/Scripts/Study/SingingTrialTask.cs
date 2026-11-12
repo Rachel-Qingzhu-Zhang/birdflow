@@ -232,6 +232,11 @@ namespace AvianVoice.Study
         [SerializeField]
         TeacherVoice teacherVoice = TeacherVoice.Bird;
 
+        [Tooltip("The teacher bird glows cyan while the participant's pitch matches the target (visual feedback on the pitch). " +
+                 "Off since 2026-11-12: the participant gets no visual feedback on how well the pitch matches.")]
+        [SerializeField]
+        bool pitchMatchGlow;
+
         [Tooltip("Space / R on the PC keyboard also starts the next trial (same key as the old replay).")]
         [SerializeField]
         bool acceptKeyboardStart = true;
@@ -525,7 +530,8 @@ namespace AvianVoice.Study
             BirdVoiceMapper.Find()?.SetFollowVoice(false);
             phase = !practiceMode && nextSlot >= schedule.Length ? TrialPhase.Finished : TrialPhase.Idle;
             ShowCue(phase == TrialPhase.Finished ? "finished" : "wait", 0f);
-            recorder?.LogEvent("singing_task_enabled", j => j.Add("next_trial", NextTrialNumber).Add("total", TotalTrials).Add("done", CompletedTrials).Add("practice", practiceMode));
+            recorder?.LogEvent("singing_task_enabled", j => j.Add("next_trial", NextTrialNumber).Add("total", TotalTrials).Add("done", CompletedTrials).Add("practice", practiceMode)
+                .Add("pitch_match_glow", pitchMatchGlow));
             UpdateProgressUi();
         }
 
@@ -638,7 +644,8 @@ namespace AvianVoice.Study
                         var match = BirdSongPhrase.Match(v.pitchHz, current.targetHz, toleranceHz);
                         matchAccum += match;
                         matchCount++;
-                        friendVisuals?.ApplyMatch(match);
+                        if (pitchMatchGlow)
+                            friendVisuals?.ApplyMatch(match);
                     }
                 }
             }

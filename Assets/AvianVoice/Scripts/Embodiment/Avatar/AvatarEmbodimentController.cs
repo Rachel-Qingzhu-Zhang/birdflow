@@ -158,7 +158,10 @@ namespace AvianVoice.Embodiment.Avatars
         }
 
         readonly TrackingSpaceSolver solver = new();
+        // Bird renderers switched off for the human avatar (switched on again with the bird).
         readonly List<Renderer> birdRenderers = new();
+        Renderer[] birdAllRenderers = Array.Empty<Renderer>();
+        float nextBirdRendererScan;
         readonly List<XRHandSubsystem> handSubsystems = new();
         readonly Dictionary<string, HumanInstance> humanInstances = new();
         readonly Dictionary<string, bool> humanAvailability = new();
@@ -272,6 +275,7 @@ namespace AvianVoice.Embodiment.Avatars
                   .Append(" human[").Append(humanDriver != null ? humanDriver.Describe() : "").Append(']')
                   .Append(" humanLayer=").Append(humanRoot.layer);
             var handVisuals = GetComponent<ParticipantHandVisuals>();
+            sb.Append(" birdRenderersVisible=").Append(VisibleBirdRendererCount);
             sb.Append(" controllers=").Append(Core.ParticipantInputPolicy.ControllersEnabled)
               .Append(" handsVisible=").Append(Core.ParticipantInputPolicy.HandsVisible)
               .Append(" handRenderersHidden=").Append(handVisuals != null ? handVisuals.HiddenRendererCount : 0);
@@ -380,6 +384,7 @@ namespace AvianVoice.Embodiment.Avatars
             }
 
             RefreshHint();
+            AvianUiCopy.SetHumanAvatar(!bird);
             AvatarChanged?.Invoke(kind);
             if (logStatus)
                 Debug.Log("[AvianVoice] Avatar: " + CurrentLabel);
@@ -798,14 +803,10 @@ namespace AvianVoice.Embodiment.Avatars
 
             if (!visible)
             {
-                birdRenderers.Clear();
-                foreach (var renderer in birdRoot.GetComponentsInChildren<Renderer>(true))
-                {
-                    if (renderer == null || !renderer.enabled)
-                        continue;
-                    birdRenderers.Add(renderer);
-                    renderer.enabled = false;
-                }
+                // Also called while the bird is already hidden (a change of human body runs SetAvatar again): the
+                // renderers hidden so far stay on the list, so they come back when the bird is shown again.
+                nextBirdRendererScan = 0f;
+                KeepBirdHidden();
                 return;
             }
 
@@ -820,11 +821,46 @@ namespace AvianVoice.Embodiment.Avatars
 
         void KeepBirdHidden()
         {
-            // Task scripts re-enable the player bird; keep it hidden while the human avatar is active.
-            foreach (var renderer in birdRenderers)
+            // Task scripts re-enable the player bird (BirdSceneRoles.EnsurePlayerBirdVisible turns on every renderer,
+            // also ones that were off or did not exist when the human avatar was chosen). So every renderer of the bird
+            // is checked, not only the ones hidden at the switch: with only those, the bird came back over the human
+            // body in the singing scene after the human body had been changed (the list was empty by then).
+            if (birdRoot == null)
+                return;
+
+            if (Time.unscaledTime >= nextBirdRendererScan)
             {
-                if (renderer != null && renderer.enabled)
-                    renderer.enabled = false;
+                nextBirdRendererScan = Time.unscaledTime + 0.5f;
+                birdAllRenderers = birdRoot.GetComponentsInChildren<Renderer>(true);
+            }
+
+            foreach (var renderer in birdAllRenderers)
+            {
+                if (renderer == null || !renderer.enabled)
+                    continue;
+
+                renderer.enabled = false;
+                if (!birdRenderers.Contains(renderer))
+                    birdRenderers.Add(renderer);
+            }
+        }
+
+        /// <summary>Number of the bird's renderers that are enabled right now (0 while the human avatar is shown). Diagnostics.</summary>
+        public int VisibleBirdRendererCount
+        {
+            get
+            {
+                if (birdRoot == null)
+                    return 0;
+
+                var count = 0;
+                foreach (var renderer in birdRoot.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                        count++;
+                }
+
+                return count;
             }
         }
 

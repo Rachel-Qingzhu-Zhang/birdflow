@@ -37,6 +37,28 @@ namespace AvianVoice.Editor
 
             Debug.Log("[AvianVoice] Human breathing now: emphasis " + breathing.Emphasis.ToString("0.00") + " chest scale " + breathing.ChestBone.localScale.ToString("F3"));
         }
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Hold Human Breathing: Full Inhale (Play Mode)")]
+        static void HoldInhale() => Hold(1f, "held at full inhale");
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Hold Human Breathing: Exhale (Play Mode)")]
+        static void HoldExhale() => Hold(0f, "held at exhale");
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Hold Human Breathing: Off, Follow the Breath (Play Mode)")]
+        static void HoldOff() => Hold(-1f, "follows the breath signal again");
+
+        static void Hold(float emphasis, string what)
+        {
+            var breathing = Object.FindAnyObjectByType<HumanBreathEmbodiment>();
+            if (breathing == null)
+            {
+                Debug.Log("[AvianVoice] Human breathing: no human avatar with HumanBreathEmbodiment (switch to Human first)");
+                return;
+            }
+
+            breathing.SetPreviewEmphasis(emphasis);
+            Debug.Log("[AvianVoice] Human breathing " + what + ".");
+        }
     }
 }
 #endif

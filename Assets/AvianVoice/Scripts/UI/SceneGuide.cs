@@ -108,6 +108,9 @@ namespace AvianVoice.UI
             instance = this;
             AvianUiLanguage.Changed -= OnLanguageChanged;
             AvianUiLanguage.Changed += OnLanguageChanged;
+            // The avatar changes some lines too (the breathing scene speaks of the bird's or of the participant's chest).
+            AvianUiCopy.AvatarChanged -= OnLanguageChanged;
+            AvianUiCopy.AvatarChanged += OnLanguageChanged;
             Bind();
             RefreshLabel();
         }
@@ -115,6 +118,7 @@ namespace AvianVoice.UI
         void OnDisable()
         {
             AvianUiLanguage.Changed -= OnLanguageChanged;
+            AvianUiCopy.AvatarChanged -= OnLanguageChanged;
             if (taskManager != null)
                 taskManager.OnTaskChanged -= OnTaskChanged;
         }

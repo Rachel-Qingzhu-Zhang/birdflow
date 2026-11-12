@@ -51,7 +51,7 @@ namespace AvianVoice.Tasks
             BirdVoiceMapper.Find()?.SetFollowVoice(false);
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternB6x6);
             demonstrator?.RestartPattern();
-            SetHud("Breathe with the bird");
+            SetHud(AvianUiCopy.HumanAvatar ? "Breathe with your chest in the mirror" : "Breathe with the bird");
         }
 
         void OnDisable()
