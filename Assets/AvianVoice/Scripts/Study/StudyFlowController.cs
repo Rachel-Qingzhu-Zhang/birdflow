@@ -146,7 +146,7 @@ namespace AvianVoice.Study
             Recorder?.LogEvent("voice_feedback", j => j
                 .Add("feedback", FeedbackName(effective))
                 .Add("converted", voiceFeedback)
-                .Add("condition", ConditionLabel)
+                .Add("condition_label", ConditionLabel)
                 .Add("bird_feedback", mapper != null ? mapper.BirdFeedbackModeName : ""));
             Debug.Log("[AvianVoice] Condition: " + ConditionLabel);
         }
@@ -259,6 +259,13 @@ namespace AvianVoice.Study
                 return;
 
             Recorder = StudyRecorder.Ensure();
+            if (avatar != null)
+            {
+                Recorder.CurrentAvatar = avatar.CurrentLabel;
+                Recorder.CurrentAvatarModel = avatar.CurrentModel;
+            }
+
+            Recorder.CurrentVoiceFeedback = EffectiveFeedbackName;
             Recorder.BeginSession(ParticipantId, SceneManager.GetActiveScene().name);
 
             if (avatar != null)
@@ -282,7 +289,7 @@ namespace AvianVoice.Study
                     .Add("practice", Practice != null)
                     .Add("singing_trials", useSingingTrials)
                     .Add("total_trials", Trials != null ? Trials.TotalTrials : 0)
-                    .Add("condition", ConditionLabel));
+                    .Add("condition_label", ConditionLabel));
             }
 
             Debug.Log("[AvianVoice] Study flow: " + (TaskManager != null ? string.Join(" > ", TaskManager.TaskIds) : "-")
@@ -328,7 +335,7 @@ namespace AvianVoice.Study
                 var option = avatar.CurrentHumanOption;
                 Recorder.LogEvent("avatar_changed", j => j.Add("kind", avatar.Current.ToString()).Add("human_id", avatar.HumanAvatarId)
                     .Add("human_label", option != null ? option.label : "").Add("human_model", option != null ? option.resourcePath : "")
-                    .Add("condition", ConditionLabel));
+                    .Add("condition_label", ConditionLabel));
             }
         }
 

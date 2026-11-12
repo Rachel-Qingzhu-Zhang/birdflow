@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using AvianVoice.Audio;
+using AvianVoice.Core;
 using AvianVoice.Tasks;
 using UnityEngine;
 
@@ -213,10 +214,19 @@ namespace AvianVoice.Study
     /// <item><c>session.json</c>: who / when / devices / sample rates.</item>
     /// <item><c>events.jsonl</c>: every timestamped event (scene changes, avatar changes, trial phases, voice onsets).</item>
     /// <item><c>trials.csv</c>: one row per singing trial with all timestamps and summary measures.</item>
+    /// <item><c>samples.csv</c>: the continuous signals of this session (voice pitch / loudness from the analyzer, breath
+    /// depth / phase), one row per sample (about every frame) with the same time bases as the events.</item>
     /// <item><c>mic.wav</c>: the participant microphone for the whole session (mono, 16-bit).</item>
     /// <item><c>output.wav</c>: what the participant heard (mono downmix of the listener), same session span.</item>
-    /// <item><c>segments/trial_NNN_*.wav</c>: the microphone cut per trial, from trial start to trial end.</item>
+    /// <item><c>conditions.csv</c>: one row per stretch of one condition (avatar x voice feedback) in time order, with
+    /// the range it covers in mic.wav / output.wav.</item>
+    /// <item><c>conditions/&lt;condition&gt;/</c>: the same data sorted by condition (bird_bird-voice, bird_own-voice,
+    /// human_human-voice, human_own-voice): events.jsonl, trials.csv and samples.csv hold the rows written while that
+    /// condition was on (copies of the session-level rows), <c>segments/trial_NNN_*.wav</c> the microphone cut per
+    /// trial, from trial start to trial end.</item>
     /// </list>
+    /// The session-level files are the whole session in time order; the condition folders are the same rows split up.
+    /// Which human body was shown is not a folder: every row carries it (<c>human_avatar</c>, <c>avatar_model</c>).
     /// Every event carries the microphone sample index, so <c>mic.wav</c> can be sliced exactly offline.
     /// </summary>
     [DefaultExecutionOrder(-100)]
@@ -268,6 +278,20 @@ namespace AvianVoice.Study
 
         /// <summary>"bird" / "human" / "none": what the participant hears of their own voice (set by StudyFlowController).</summary>
         public string CurrentVoiceFeedback { get; set; } = "";
+
+        /// <summary>
+        /// The study condition that follows from avatar x voice feedback, also the name of its folder under
+        /// conditions/: "bird_bird-voice", "bird_own-voice", "human_human-voice", "human_own-voice" ("" until both are known).
+        /// </summary>
+        public string CurrentCondition => ConditionId(CurrentAvatar, CurrentVoiceFeedback);
+
+        /// <summary>Which human body is shown ("neutral" / "male" / "female" ...), "" with the bird. A flag on every row, never a folder.</summary>
+        public string CurrentHumanAvatar => HumanAvatarOf(CurrentAvatar);
+
+        /// <summary>Folder of the condition being recorded now, relative to the session folder ("" when none).</summary>
+        public string ConditionFolder => span != null ? span.files.folder : "";
+        public int ConditionTrialRows => span != null ? span.files.trialRows : 0;
+        public long ConditionSampleRows => span != null ? span.files.sampleRows : 0;
         public bool WriteTrialSegments => writeTrialSegments;
         public bool MicrophoneRecording => micWav != null && micWav.IsOpen;
         public bool OutputRecording => outWav != null && outWav.IsOpen;
@@ -278,6 +302,7 @@ namespace AvianVoice.Study
         public double MicSecondsWritten => micRate > 0 ? micSamplesWritten / (double)micRate : 0.0;
         public double OutputSecondsWritten => outRate > 0 ? outFrames / (double)outRate : 0.0;
         public int TrialRowsWritten { get; private set; }
+        public long SampleRowsWritten { get; private set; }
         public string MicDeviceName => mic != null ? mic.DeviceName : "";
 
         MicrophoneCapture mic;
@@ -297,6 +322,18 @@ namespace AvianVoice.Study
 
         StreamWriter events;
         StreamWriter trials;
+        StreamWriter samples;
+        readonly StringBuilder sampleLine = new(256);
+
+        // Per-condition copies (conditions/<condition>/) and the index of condition stretches (conditions.csv).
+        StreamWriter conditionIndex;
+        readonly Dictionary<string, ConditionFiles> conditionFiles = new();
+        ConditionSpan span;
+        int spanCount;
+        bool trackConditions;
+        string seenAvatar;
+        string seenAvatarModel;
+        string seenVoiceFeedback;
         TaskManager taskManager;
         float nextFlush;
 
@@ -336,13 +373,21 @@ namespace AvianVoice.Study
             SessionId = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture) + "_" + ParticipantId;
             SessionDirectory = Path.Combine(RootDirectory, SessionId);
             Directory.CreateDirectory(SessionDirectory);
-            if (writeTrialSegments)
-                Directory.CreateDirectory(Path.Combine(SessionDirectory, "segments"));
 
             var utf8 = new UTF8Encoding(false);
             events = new StreamWriter(Path.Combine(SessionDirectory, "events.jsonl"), false, utf8) { AutoFlush = true };
             trials = new StreamWriter(Path.Combine(SessionDirectory, "trials.csv"), false, utf8) { AutoFlush = true };
             trials.WriteLine(TrialRecord.CsvHeader);
+            samples = new StreamWriter(Path.Combine(SessionDirectory, "samples.csv"), false, utf8) { AutoFlush = true };
+            samples.WriteLine(SampleCsvHeader);
+            SampleRowsWritten = 0;
+            conditionIndex = new StreamWriter(Path.Combine(SessionDirectory, "conditions.csv"), false, utf8) { AutoFlush = true };
+            conditionIndex.WriteLine(ConditionCsvHeader);
+            conditionFiles.Clear();
+            span = null;
+            spanCount = 0;
+            trackConditions = false;
+            seenAvatar = seenAvatarModel = seenVoiceFeedback = null;
             SessionOpen = true;
 
             mic = FindAnyObjectByType<MicrophoneCapture>();
@@ -359,6 +404,8 @@ namespace AvianVoice.Study
 
             WriteSessionInfo(sceneName);
             LogEvent("session_start", j => j.Add("scene", sceneName).Add("participant", ParticipantId));
+            trackConditions = true; // from here on every row also goes into the folder of its condition
+            SyncCondition();
             Debug.Log("[AvianVoice] Study session recording to " + SessionDirectory);
         }
 
@@ -385,6 +432,8 @@ namespace AvianVoice.Study
                 .Add("mic_samples", micSamplesWritten)
                 .Add("output_frames", outFrames)
                 .Add("trial_rows", TrialRowsWritten));
+            CloseSpan();
+            trackConditions = false;
 
             if (taskManager != null)
                 taskManager.OnTaskChanged -= OnTaskChanged;
@@ -398,8 +447,20 @@ namespace AvianVoice.Study
             outWav = null;
             events?.Dispose();
             trials?.Dispose();
+            samples?.Dispose();
+            conditionIndex?.Dispose();
+            foreach (var files in conditionFiles.Values)
+            {
+                files.events?.Dispose();
+                files.trials?.Dispose();
+                files.samples?.Dispose();
+            }
+
+            conditionFiles.Clear();
             events = null;
             trials = null;
+            samples = null;
+            conditionIndex = null;
             SessionOpen = false;
             Debug.Log("[AvianVoice] Study session closed: " + SessionDirectory);
         }
@@ -434,6 +495,7 @@ namespace AvianVoice.Study
             if (!SessionOpen)
                 return;
 
+            SyncCondition();
             PullMicrophone();
             DrainOutput();
 
@@ -460,6 +522,17 @@ namespace AvianVoice.Study
             if (!SessionOpen || events == null)
                 return;
 
+            SyncCondition();
+            WriteEvent(type, fill, span);
+        }
+
+        /// <summary>
+        /// One event line into events.jsonl and, when it belongs to a condition (<paramref name="of"/>), also into that
+        /// condition's events.jsonl. The condition labels come from the stretch, so its closing event is labelled with
+        /// the condition that ends, not the one that follows.
+        /// </summary>
+        void WriteEvent(string type, Action<JsonLine> fill, ConditionSpan of)
+        {
             var t = Now();
             var j = new JsonLine()
                 .Add("type", type)
@@ -470,11 +543,226 @@ namespace AvianVoice.Study
                 .Add("mic_sample", t.micSample)
                 .Add("out_frame", t.outFrame)
                 .Add("task", CurrentTaskId)
-                .Add("avatar", CurrentAvatar)
-                .Add("avatar_model", CurrentAvatarModel)
-                .Add("voice_feedback", CurrentVoiceFeedback);
+                .Add("avatar", of != null ? of.avatar : CurrentAvatar)
+                .Add("avatar_model", of != null ? of.avatarModel : CurrentAvatarModel)
+                .Add("voice_feedback", of != null ? of.voiceFeedback : CurrentVoiceFeedback)
+                .Add("condition", of != null ? of.condition : "")
+                .Add("human_avatar", of != null ? of.humanAvatar : HumanAvatarOf(CurrentAvatar));
             fill?.Invoke(j);
-            events.WriteLine(j.ToString());
+            var line = j.ToString();
+            events.WriteLine(line);
+            if (of != null)
+            {
+                of.files.events.WriteLine(line);
+                of.events++;
+            }
+        }
+
+        // ---- conditions ---------------------------------------------------------------------------
+
+        public const string ConditionsFolderName = "conditions";
+
+        public const string ConditionCsvHeader =
+            "span,condition,folder,avatar,human_avatar,avatar_model,voice_feedback,"
+            + "t_start_utc,t_start_unity,mic_sample_start,out_frame_start,"
+            + "t_end_utc,t_end_unity,mic_sample_end,out_frame_end,duration_s,events,trial_rows,sample_rows";
+
+        /// <summary>The files of one condition folder (opened the first time the condition is used in a session).</summary>
+        sealed class ConditionFiles
+        {
+            public string folder = "";
+            public StreamWriter events;
+            public StreamWriter trials;
+            public StreamWriter samples;
+            public int trialRows;
+            public long sampleRows;
+        }
+
+        /// <summary>One uninterrupted stretch of one condition with one avatar model: a row of conditions.csv.</summary>
+        sealed class ConditionSpan
+        {
+            public int index;
+            public string condition = "";
+            public string avatar = "";
+            public string humanAvatar = "";
+            public string avatarModel = "";
+            public string voiceFeedback = "";
+            public StudyTime start;
+            public ConditionFiles files;
+            public int events;
+            public int trialRows;
+            public long sampleRows;
+        }
+
+        /// <summary>
+        /// Condition id from the avatar label ("Bird" / "Human:&lt;id&gt;") and the voice feedback ("bird" / "human" /
+        /// "none"): "&lt;avatar&gt;_&lt;voice&gt;-voice", where the voice is "own" when nothing is converted. "" while
+        /// either is unknown. The human body is deliberately not part of it.
+        /// </summary>
+        public static string ConditionId(string avatar, string voiceFeedback)
+        {
+            if (string.IsNullOrEmpty(avatar) || string.IsNullOrEmpty(voiceFeedback))
+                return "";
+
+            var colon = avatar.IndexOf(':');
+            var kind = (colon >= 0 ? avatar.Substring(0, colon) : avatar).ToLowerInvariant();
+            var voice = voiceFeedback == "none" ? "own" : voiceFeedback.ToLowerInvariant();
+            var b = new StringBuilder(kind.Length + voice.Length + 8);
+            foreach (var c in kind + "_" + voice + "-voice")
+                b.Append(char.IsLetterOrDigit(c) || c == '-' || c == '_' ? c : '_');
+            return b.ToString();
+        }
+
+        /// <summary>"Human:male" -> "male"; "" for the bird.</summary>
+        public static string HumanAvatarOf(string avatar)
+        {
+            if (string.IsNullOrEmpty(avatar) || !avatar.StartsWith("Human", StringComparison.OrdinalIgnoreCase))
+                return "";
+
+            var colon = avatar.IndexOf(':');
+            return colon >= 0 ? avatar.Substring(colon + 1) : "";
+        }
+
+        /// <summary>
+        /// Keep the open stretch in line with the avatar / voice feedback set by StudyFlowController. Called before
+        /// every write, so a row never lands in the folder of the condition that has just ended.
+        /// </summary>
+        void SyncCondition()
+        {
+            if (!trackConditions)
+                return;
+            if (CurrentAvatar == seenAvatar && CurrentAvatarModel == seenAvatarModel && CurrentVoiceFeedback == seenVoiceFeedback)
+                return;
+
+            seenAvatar = CurrentAvatar;
+            seenAvatarModel = CurrentAvatarModel;
+            seenVoiceFeedback = CurrentVoiceFeedback;
+
+            var condition = ConditionId(CurrentAvatar, CurrentVoiceFeedback);
+            if (span != null && span.condition == condition && span.avatar == CurrentAvatar && span.avatarModel == CurrentAvatarModel)
+                return;
+
+            CloseSpan();
+            if (condition.Length == 0)
+                return;
+
+            var s = new ConditionSpan
+            {
+                index = ++spanCount,
+                condition = condition,
+                avatar = CurrentAvatar,
+                humanAvatar = HumanAvatarOf(CurrentAvatar),
+                avatarModel = CurrentAvatarModel,
+                voiceFeedback = CurrentVoiceFeedback,
+                start = Now(),
+                files = FilesFor(condition)
+            };
+            span = s;
+            WriteEvent("condition_start", j => j.Add("span", s.index).Add("folder", s.files.folder), s);
+        }
+
+        /// <summary>End the open stretch: its closing event and its row in conditions.csv.</summary>
+        void CloseSpan()
+        {
+            var s = span;
+            if (s == null)
+                return;
+
+            span = null;
+            WriteEvent("condition_end", j => j.Add("span", s.index).Add("trial_rows", s.trialRows).Add("sample_rows", s.sampleRows), s);
+            if (conditionIndex == null)
+                return;
+
+            var c = CultureInfo.InvariantCulture;
+            var end = Now();
+            var sb = new StringBuilder(256);
+            sb.Append(s.index).Append(',').Append(CsvField(s.condition)).Append(',').Append(CsvField(s.files.folder)).Append(',')
+              .Append(CsvField(s.avatar)).Append(',').Append(CsvField(s.humanAvatar)).Append(',').Append(CsvField(s.avatarModel)).Append(',')
+              .Append(CsvField(s.voiceFeedback)).Append(',')
+              .Append(s.start.utc).Append(',').Append(s.start.unity.ToString("0.######", c)).Append(',')
+              .Append(Math.Max(0, s.start.micSample)).Append(',').Append(Math.Max(0, s.start.outFrame)).Append(',')
+              .Append(end.utc).Append(',').Append(end.unity.ToString("0.######", c)).Append(',')
+              .Append(Math.Max(0, end.micSample)).Append(',').Append(Math.Max(0, end.outFrame)).Append(',')
+              .Append((end.unity - s.start.unity).ToString("0.###", c)).Append(',')
+              .Append(s.events).Append(',').Append(s.trialRows).Append(',').Append(s.sampleRows);
+            conditionIndex.WriteLine(sb.ToString());
+        }
+
+        ConditionFiles FilesFor(string condition)
+        {
+            if (conditionFiles.TryGetValue(condition, out var files))
+                return files;
+
+            var directory = Path.Combine(SessionDirectory, ConditionsFolderName, condition);
+            Directory.CreateDirectory(directory);
+            var utf8 = new UTF8Encoding(false);
+            files = new ConditionFiles
+            {
+                folder = ConditionsFolderName + "/" + condition,
+                events = new StreamWriter(Path.Combine(directory, "events.jsonl"), false, utf8) { AutoFlush = true },
+                trials = new StreamWriter(Path.Combine(directory, "trials.csv"), false, utf8) { AutoFlush = true },
+                samples = new StreamWriter(Path.Combine(directory, "samples.csv"), false, utf8) { AutoFlush = true }
+            };
+            files.trials.WriteLine(TrialRecord.CsvHeader);
+            files.samples.WriteLine(SampleCsvHeader);
+            conditionFiles[condition] = files;
+            return files;
+        }
+
+        public const string SampleCsvHeader =
+            "t_utc,t_unity,t_dsp,mic_sample,out_frame,task,avatar,voice_feedback,condition,human_avatar,voice_mode,"
+            + "pitch_hz,pitch_confidence,voiced,loudness,latency_ms,breath_depth,breath_phase,inhaling,"
+            + "score_task,score,breath_sync_score,breath_pattern";
+
+        /// <summary>
+        /// One row of samples.csv: what the voice analyzer and the breath model report right now, stamped in every
+        /// time base (so it lines up with mic.wav and the events). <paramref name="scoreTask"/> is empty for the
+        /// periodic samples and the task id on the rows a task writes when it scores.
+        /// </summary>
+        public void WriteSample(VoiceFrame voice, BreathFrame breath, string voiceMode, string scoreTask, float score,
+            float breathSyncScore, string breathPattern)
+        {
+            if (!SessionOpen || samples == null)
+                return;
+
+            SyncCondition();
+            var c = CultureInfo.InvariantCulture;
+            var t = Now();
+            var sb = sampleLine;
+            sb.Length = 0;
+            sb.Append(t.utc).Append(',')
+              .Append(t.unity.ToString("0.######", c)).Append(',').Append(t.dsp.ToString("0.######", c)).Append(',')
+              .Append(t.micSample).Append(',').Append(t.outFrame).Append(',')
+              .Append(CsvField(CurrentTaskId)).Append(',').Append(CsvField(CurrentAvatar)).Append(',').Append(CsvField(CurrentVoiceFeedback)).Append(',')
+              .Append(span != null ? span.condition : "").Append(',')
+              .Append(CsvField(span != null ? span.humanAvatar : HumanAvatarOf(CurrentAvatar))).Append(',')
+              .Append(CsvField(voiceMode)).Append(',')
+              .Append(SampleNumber(voice.pitchHz, "0.###")).Append(',').Append(SampleNumber(voice.pitchConfidence, "0.###")).Append(',')
+              .Append(SampleNumber(voice.voiced, "0.###")).Append(',').Append(SampleNumber(voice.loudness, "0.######")).Append(',')
+              .Append(SampleNumber(voice.latencyMs, "0.#")).Append(',')
+              .Append(SampleNumber(breath.depth, "0.#####")).Append(',').Append(SampleNumber(breath.phase, "0.#####")).Append(',')
+              .Append(breath.isInhaling ? '1' : '0').Append(',')
+              .Append(CsvField(scoreTask)).Append(',').Append(SampleNumber(score, "0.####")).Append(',')
+              .Append(SampleNumber(breathSyncScore, "0.####")).Append(',').Append(CsvField(breathPattern));
+            var line = sb.ToString();
+            samples.WriteLine(line);
+            SampleRowsWritten++;
+            if (span != null)
+            {
+                span.files.samples.WriteLine(line);
+                span.files.sampleRows++;
+                span.sampleRows++;
+            }
+        }
+
+        static string SampleNumber(float v, string format) =>
+            float.IsNaN(v) || float.IsInfinity(v) ? "" : v.ToString(format, CultureInfo.InvariantCulture);
+
+        static string CsvField(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return "";
+            return s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) < 0 ? s : "\"" + s.Replace("\"", "\"\"") + "\"";
         }
 
         public void WriteTrial(TrialRecord record)
@@ -482,8 +770,19 @@ namespace AvianVoice.Study
             if (!SessionOpen || trials == null || record == null)
                 return;
 
-            trials.WriteLine(record.ToCsvRow());
+            var row = record.ToCsvRow();
+            trials.WriteLine(row);
             TrialRowsWritten++;
+
+            // The trial belongs to the condition it started in (TrialRecord.condition), whatever is set now.
+            if (!string.IsNullOrEmpty(record.condition))
+            {
+                var files = FilesFor(record.condition);
+                files.trials.WriteLine(row);
+                files.trialRows++;
+                if (span != null && span.condition == record.condition)
+                    span.trialRows++;
+            }
         }
 
         // ---- microphone ---------------------------------------------------------------------------
@@ -603,10 +902,13 @@ namespace AvianVoice.Study
 
         /// <summary>
         /// Cut [startSample, endSample) of the session microphone stream into its own WAV (from the in-memory
-        /// ring, so only the last <see cref="RingSeconds"/> are available). Returns the path relative to the
-        /// session folder, or null.
+        /// ring, so only the last <see cref="RingSeconds"/> are available). The file goes into the segments folder
+        /// of <paramref name="condition"/> (conditions/&lt;condition&gt;/segments/), or into segments/ of the session
+        /// when no condition is known. An existing file is never overwritten: trial numbers start again at 1 in each
+        /// condition, and a condition can be run twice, so a second file of the same name gets "_2", "_3" ...
+        /// Returns the path relative to the session folder, or null.
         /// </summary>
-        public string WriteSegment(long startSample, long endSample, string fileName)
+        public string WriteSegment(long startSample, long endSample, string fileName, string condition = null)
         {
             if (!SessionOpen || !writeTrialSegments || ring == null || micRate <= 0)
                 return null;
@@ -628,9 +930,17 @@ namespace AvianVoice.Study
                     read = 0;
             }
 
-            var relative = Path.Combine("segments", fileName);
-            WavWriter.WriteFile(Path.Combine(SessionDirectory, relative), buffer, count, micRate, 1);
-            return relative.Replace('\\', '/');
+            var folder = string.IsNullOrEmpty(condition) ? "segments" : ConditionsFolderName + "/" + condition + "/segments";
+            var directory = Path.GetFullPath(Path.Combine(SessionDirectory, folder));
+            Directory.CreateDirectory(directory);
+            var name = fileName;
+            var stem = Path.GetFileNameWithoutExtension(fileName);
+            var extension = Path.GetExtension(fileName);
+            for (var n = 2; File.Exists(Path.Combine(directory, name)); n++)
+                name = stem + "_" + n.ToString(CultureInfo.InvariantCulture) + extension;
+
+            WavWriter.WriteFile(Path.Combine(directory, name), buffer, count, micRate, 1);
+            return folder + "/" + name;
         }
 
         // ---- listener output ----------------------------------------------------------------------
@@ -704,7 +1014,8 @@ namespace AvianVoice.Study
                 .AddArray("microphone_devices", Microphone.devices)
                 .Add("output_sample_rate", config.sampleRate)
                 .Add("dsp_buffer_size", config.dspBufferSize)
-                .Add("files", "events.jsonl, trials.csv, mic.wav (participant microphone, mono 16-bit), output.wav (listener mix, mono 16-bit), segments/trial_*.wav")
+                .Add("files", "events.jsonl, trials.csv, samples.csv (voice pitch / loudness and breath depth, one row per sample), mic.wav (participant microphone, mono 16-bit), output.wav (listener mix, mono 16-bit): the whole session in time order. conditions.csv: one row per stretch of one condition with its range in mic.wav / output.wav. conditions/<condition>/: events.jsonl, trials.csv, samples.csv (the rows of that condition, copies of the session-level rows) and segments/trial_*.wav (microphone per trial)")
+                .Add("conditions", "avatar x voice feedback: bird_bird-voice, bird_own-voice, human_human-voice, human_own-voice. The human body (neutral / male / female) is not a folder: see human_avatar and avatar_model on every row")
                 .Add("time_bases", "t_utc/t_local: wall clock ISO-8601; t_unity: Time.realtimeSinceStartup (s); t_dsp: AudioSettings.dspTime (s); mic_sample: sample index into mic.wav; out_frame: frame index into output.wav");
             File.WriteAllText(Path.Combine(SessionDirectory, "session.json"), j.ToString(), new UTF8Encoding(false));
         }
@@ -727,7 +1038,8 @@ namespace AvianVoice.Study
             return "dir=" + SessionDirectory
                    + " mic=" + (MicrophoneRecording ? MicSecondsWritten.ToString("0.0") + "s@" + micRate + "Hz (" + MicDeviceName + ")" : "none")
                    + " output=" + (OutputRecording ? OutputSecondsWritten.ToString("0.0") + "s@" + outRate + "Hz" : "none")
-                   + " trials=" + TrialRowsWritten;
+                   + " trials=" + TrialRowsWritten + " samples=" + SampleRowsWritten
+                   + " condition=" + (span != null ? span.files.folder + (span.humanAvatar.Length > 0 ? " human_avatar=" + span.humanAvatar : "") : "none");
         }
     }
 }

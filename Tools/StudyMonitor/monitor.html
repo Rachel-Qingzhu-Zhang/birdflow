@@ -1,0 +1,1349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Monitor</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --mic: #2a78d6; --analyzer: #eb6834; --out: #1baf7a; --guide: #eda100; --response: #e87ba4;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --good-text: #006300;
+    --on-guide: #0b0b0b; --on-response: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --mic: #3987e5; --analyzer: #d95926; --out: #199e70; --guide: #c98500; --response: #d55181;
+      --good-text: #0ca30c; --on-guide: #ffffff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; position: sticky; top: 0; z-index: 5;
+         background: var(--page); border-bottom: 1px solid var(--border); }
+  .bar h1 { font-size: 15px; margin: 0 6px 0 0; font-weight: 600; }
+  .bar label { color: var(--ink2); display: flex; align-items: center; gap: 6px; }
+  .pid { display: inline-flex; align-items: baseline; gap: 7px; color: var(--ink2); padding: 2px 12px; border: 1px solid var(--axis); border-radius: 8px; background: var(--surface); }
+  .pid b { font-size: 20px; line-height: 1.2; font-weight: 700; color: var(--ink); }
+  .spacer { flex: 1; }
+  select, button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 4px 8px; }
+  button { cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--ink2); font-weight: 600; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .good .dot { background: var(--good); } .warning .dot { background: var(--warning); } .critical .dot { background: var(--critical); }
+  main { padding: 12px 16px 24px; display: grid; gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  .tile { padding: 10px 12px; min-width: 0; }
+  .tile .k { color: var(--ink2); font-size: 11.5px; }
+  .tile .v { font-size: 22px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .st { display: flex; align-items: baseline; gap: 5px; font-weight: 600; margin-top: 2px; }
+  .tile .d { color: var(--ink2); font-size: 11.5px; margin-top: 2px; overflow-wrap: anywhere; }
+  .ic { display: inline-block; width: 15px; height: 15px; line-height: 15px; border-radius: 50%; text-align: center; font-size: 10px; font-weight: 700; color: #fff; background: var(--muted); flex: none; transform: translateY(-1px); }
+  .good .ic { background: var(--good); } .warning .ic { background: var(--warning); color: #0b0b0b; } .critical .ic { background: var(--critical); }
+  .meter { position: relative; height: 8px; border-radius: 4px; background: var(--grid); margin: 6px 0 3px; overflow: hidden; }
+  .meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+  .meter b { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); }
+  .charts { padding: 10px 12px 8px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--ink2); font-size: 11.5px; margin-bottom: 4px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; } .sw.line { height: 2px; border-radius: 1px; }
+  .stack { position: relative; touch-action: pan-y; cursor: crosshair; }
+  canvas { display: block; width: 100%; }
+  #tip { position: absolute; pointer-events: none; display: none; min-width: 190px; padding: 7px 9px; border-radius: 8px; background: var(--surface);
+         border: 1px solid var(--axis); box-shadow: 0 4px 14px rgba(0,0,0,0.18); font-size: 11.5px; z-index: 3; }
+  #tip .h { font-weight: 600; margin-bottom: 3px; }
+  #tip .r { display: flex; justify-content: space-between; gap: 14px; } #tip .r span:first-child { color: var(--ink2); display: inline-flex; align-items: center; gap: 5px; }
+  #tip .r span:last-child { font-variant-numeric: tabular-nums; }
+  .scrub { display: flex; align-items: center; gap: 10px; color: var(--ink2); font-size: 11.5px; margin-top: 4px; }
+  .scrub input { flex: 1; }
+  .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+  @media (max-width: 1000px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .card h2 { font-size: 13px; margin: 0; padding: 10px 12px 6px; font-weight: 600; }
+  .card h2 small { font-weight: 400; color: var(--ink2); margin-left: 8px; }
+  .scroll { max-height: 330px; overflow: auto; padding: 0 12px 10px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th { text-align: right; font-weight: 600; color: var(--ink2); font-size: 11.5px; position: sticky; top: 0; background: var(--surface); padding: 4px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+  td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th.l, td.l { text-align: left; }
+  tr.jump { cursor: pointer; } tr.jump:hover td { background: var(--page); }
+  .tag { display: inline-flex; align-items: center; gap: 4px; }
+  .evt { display: grid; grid-template-columns: 62px 150px minmax(0, 1fr); gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--grid); cursor: pointer; }
+  .evt:hover { background: var(--page); }
+  .evt .t { color: var(--ink2); font-variant-numeric: tabular-nums; } .evt .n { font-weight: 600; } .evt .x { color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { color: var(--ink2); padding: 8px 0; }
+  .bar.warning { border-bottom: 3px solid var(--warning); } .bar.critical { border-bottom: 3px solid var(--critical); }
+  .badge.critical { background: var(--critical); border-color: var(--critical); color: #fff; } .badge.critical .dot { background: #fff; }
+  .pid small { font-size: 11.5px; color: var(--ink2); }
+  .saved h2 small { overflow-wrap: anywhere; user-select: all; }
+  .files { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; padding: 0 4px 8px; }
+  .file { padding: 4px 8px 6px; border-left: 1px solid var(--grid); min-width: 0; }
+  .file:first-child { border-left: 0; }
+  .file .fn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file .fs { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .file .st { display: flex; align-items: baseline; gap: 5px; font-weight: 600; }
+  .file .d { color: var(--ink2); font-size: 11.5px; overflow-wrap: anywhere; }
+  .player { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--ink2); font-size: 11.5px; margin-top: 6px; }
+  .player audio { height: 30px; flex: 1; min-width: 220px; max-width: 520px; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.play { padding: 1px 7px; margin-left: 6px; }
+  .boardhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 2px -4px; }
+  .boardhead h2 { font-size: 13px; margin: 0; font-weight: 600; } .boardhead small { color: var(--ink2); font-size: 11.5px; }
+  .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 1100px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .board { grid-template-columns: minmax(0, 1fr); } }
+  .cond { padding: 10px 12px; min-width: 0; }
+  .cond.now { border-color: var(--good); box-shadow: 0 0 0 1px var(--good); }
+  .cond .top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .cond .name { font-weight: 600; font-size: 14px; }
+  .cond .rec { color: var(--good-text); font-weight: 600; font-size: 11.5px; white-space: nowrap; }
+  .cond .id { color: var(--ink2); font-size: 11.5px; overflow-wrap: anywhere; }
+  .cond .count { font-size: 22px; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; }
+  .cond .count small { font-size: 11.5px; font-weight: 400; color: var(--ink2); }
+  .cond .st { display: flex; align-items: baseline; gap: 5px; font-weight: 600; }
+  .cond .d { color: var(--ink2); font-size: 11.5px; overflow-wrap: anywhere; }
+  .wavs { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; margin-top: 8px; }
+  .wav { position: relative; height: 34px; padding: 0; border: 1px solid var(--axis); border-radius: 4px; background: var(--page); overflow: hidden; }
+  .wav svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .wav .no { position: absolute; left: 1px; top: 1px; padding: 0 2px; border-radius: 2px; background: var(--page); font-size: 9.5px; line-height: 11px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .wav .ic { position: absolute; right: 1px; top: 1px; width: 12px; height: 12px; line-height: 12px; font-size: 8px; transform: none; }
+  .wav.warning { border-color: var(--warning); border-width: 2px; } .wav.critical { border-color: var(--critical); border-width: 2px; }
+  .wav.todo { border-style: dashed; border-color: var(--grid); background: none; cursor: default; }
+  .wav.fresh { animation: fresh 2s ease-out; }
+  @keyframes fresh { from { box-shadow: 0 0 0 3px var(--good); } to { box-shadow: 0 0 0 0 transparent; } }
+</style>
+</head>
+<body>
+<div class="bar" id="bar">
+  <h1>Study Monitor</h1>
+  <span class="pid" title="Participant ID of the session shown (session.json)">Participant <b id="pid">—</b><small id="pidNote"></small></span>
+  <label>Session <select id="session"></select></label>
+  <span id="badge" class="badge"><span class="dot"></span><span id="badgeText">connecting…</span></span>
+  <span class="spacer"></span>
+  <label>Window
+    <select id="win"><option value="10">10 s</option><option value="30" selected>30 s</option><option value="60">60 s</option><option value="120">120 s</option></select>
+  </label>
+  <button id="live" aria-pressed="true" title="Follow the newest data">Live</button>
+</div>
+<main>
+  <div class="boardhead"><h2>Trial WAVs by condition</h2>
+    <small>one tile per WAV saved on disk, added as it is written · tile = the sound in that file (height: level, −60 to 0 dB) · click a tile to see it in the charts and, after the recording, hear it</small></div>
+  <section id="board" class="board"></section>
+
+  <section id="tiles" class="tiles"></section>
+
+  <section class="card saved">
+    <h2>Saved on disk <small id="folder"></small></h2>
+    <div class="files" id="files"></div>
+  </section>
+
+  <section class="card charts">
+    <div class="legend">
+      <span><i class="sw" style="background:var(--mic)"></i>Microphone (mic.wav, pitch estimated here)</span>
+      <span><i class="sw" style="background:var(--analyzer)"></i>Unity analyzer samples (pitch, breath)</span>
+      <span><i class="sw" style="background:var(--out)"></i>Output heard by the participant</span>
+      <span><i class="sw" style="background:var(--guide)"></i>Guide note</span>
+      <span><i class="sw" style="background:var(--response)"></i>Response window</span>
+      <span><i class="sw" style="background:var(--ink2)"></i>Voice detected by Unity</span>
+      <span><i class="sw line" style="background:var(--ink)"></i>Target pitch</span>
+    </div>
+    <div class="stack" id="stack"><canvas id="cv"></canvas><div id="tip"></div></div>
+    <div class="scrub"><span id="scrubL">0:00</span><input type="range" id="scrub" min="0" max="1" step="0.1" value="1" aria-label="Position in the session"><span id="scrubR">0:00</span></div>
+    <div class="player">
+      <span>Listen to what was saved:</span>
+      <button id="playMic">▶ mic.wav (this window)</button>
+      <button id="playOut">▶ output.wav (this window)</button>
+      <audio id="player" controls preload="none"></audio>
+      <span id="playLabel"></span>
+    </div>
+  </section>
+
+  <section class="two">
+    <div class="card"><h2>Trials <small id="trialsNote"></small></h2><div class="scroll" id="trials"></div></div>
+    <div class="card"><h2>Events <small id="eventsNote"></small></h2><div class="scroll" id="events"></div></div>
+  </section>
+</main>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const POLL_MS = 250, CAP_S = 150, BLOCK = 256;
+const PAGE_ID = Math.random().toString(36).slice(2, 10);
+const F_LO = 70, F_HI = 900;            // pitch search range / pitch axis (Hz)
+const PITCH_GATE = 0.002, CLARITY = 0.75;
+const SEGMENT_TOLERANCE_S = 1.0;
+const DEFAULT_PARTICIPANT = 'P000';     // StudyFlowController's fallback when no ID was entered in the experimenter panel
+const QUIET_RMS_DB = -78;               // RMS over 5 s; the noise floor of a live microphone is above this, a muted / virtual device below
+const QUIET_PEAK_DB = -50;              // a trial WAV whose loudest sample stays below this holds no usable sound
+// The four study conditions (avatar x voice feedback) = the folders under conditions/ (StudyRecorder.ConditionId).
+const CONDITIONS = [
+  { id: 'bird_bird-voice', name: 'Bird + bird voice' },
+  { id: 'bird_own-voice', name: 'Bird + own voice only' },
+  { id: 'human_human-voice', name: 'Human + human voice' },
+  { id: 'human_own-voice', name: 'Human + own voice only' },
+];
+const MARKERS = new Set(['condition_start', 'session_start', 'session_end', 'task_changed', 'avatar_changed', 'voice_feedback', 'mic_restart', 'protocol_start', 'protocol_complete', 'protocol_reset', 'trial_repeat', 'auto_advance']);
+
+// ---- PCM track: a ring of the newest samples, with min/max blocks and a pitch track ------------------------------
+class Track {
+  constructor(name) { this.name = name; this.rate = 0; this.total = 0; this.ring = null; this.busy = false; this.lo = this.hi = 0; this.grow = []; }
+  init(rate) {
+    if (rate === this.rate && this.ring) return;
+    this.rate = rate; this.cap = rate * CAP_S; this.ring = new Int16Array(this.cap);
+    this.nb = Math.ceil(this.cap / BLOCK) + 2; this.bmin = new Int16Array(this.nb); this.bmax = new Int16Array(this.nb);
+    this.hop = Math.round(rate / 50); this.dec = Math.max(1, Math.round(rate / 16000)); this.fs = rate / this.dec;
+    this.W = Math.round(this.fs * 0.04); this.half = Math.ceil(this.W * this.dec / 2);
+    this.nf = Math.ceil(this.cap / this.hop) + 2; this.pf = new Float32Array(this.nf);
+    this.x = new Float32Array(this.W); this.sq = new Float64Array(this.W + 1);
+    this.tmax = Math.min(this.W - 2, Math.ceil(this.fs / F_LO)); this.tmin = Math.floor(this.fs / F_HI);
+    this.nsdf = new Float32Array(this.tmax + 2); this.peaks = [];
+    this.replace(0);
+  }
+  replace(a) {
+    this.lo = this.hi = a;
+    this.bFirst = this.bHi = Math.ceil(a / BLOCK);
+    this.pFirst = this.pHi = Math.max(0, Math.ceil((a + this.half) / this.hop));
+  }
+  append(s) {
+    const cap = this.cap, r = this.ring;
+    let p = this.hi % cap;
+    for (let i = 0; i < s.length; i++) { r[p] = s[i]; if (++p === cap) p = 0; }
+    this.hi += s.length;
+    if (this.hi - this.lo > cap) this.lo = this.hi - cap;
+    const bEnd = Math.floor(this.hi / BLOCK);
+    for (let b = this.bHi; b < bEnd; b++) {
+      let mn = 32767, mx = -32768, q = (b * BLOCK) % cap;
+      for (let i = 0; i < BLOCK; i++) { const v = r[q]; if (v < mn) mn = v; if (v > mx) mx = v; if (++q === cap) q = 0; }
+      this.bmin[b % this.nb] = mn; this.bmax[b % this.nb] = mx;
+    }
+    if (bEnd > this.bHi) this.bHi = bEnd;
+  }
+  /** min / max of samples [s0, s1) into out[0], out[1]; false when nothing of it is loaded. */
+  range(s0, s1, out) {
+    s0 = Math.max(Math.floor(s0), this.lo); s1 = Math.min(Math.ceil(s1), this.hi);
+    if (s1 <= s0) return false;
+    const r = this.ring, cap = this.cap;
+    let mn = 32767, mx = -32768, a = s0, b = s1;
+    if (s1 - s0 >= BLOCK * 2) {
+      const b0 = Math.max(Math.ceil(s0 / BLOCK), this.bFirst, Math.ceil(this.lo / BLOCK)), b1 = Math.min(Math.floor(s1 / BLOCK), this.bHi);
+      if (b1 > b0) {
+        for (let k = b0; k < b1; k++) { const i = k % this.nb; if (this.bmin[i] < mn) mn = this.bmin[i]; if (this.bmax[i] > mx) mx = this.bmax[i]; }
+        let p = s0 % cap;
+        for (let i = s0, e = b0 * BLOCK; i < e; i++) { const v = r[p]; if (v < mn) mn = v; if (v > mx) mx = v; if (++p === cap) p = 0; }
+        a = b1 * BLOCK;
+      }
+    }
+    let p = a % cap;
+    for (let i = a; i < b; i++) { const v = r[p]; if (v < mn) mn = v; if (v > mx) mx = v; if (++p === cap) p = 0; }
+    out[0] = mn; out[1] = mx;
+    return true;
+  }
+  /** RMS and peak (0..1) and the number of full-scale samples in [s0, s1). */
+  level(s0, s1) {
+    s0 = Math.max(Math.floor(s0), this.lo); s1 = Math.min(Math.ceil(s1), this.hi);
+    if (s1 <= s0) return null;
+    const r = this.ring, cap = this.cap;
+    let p = s0 % cap, e = 0, pk = 0, clip = 0;
+    for (let i = s0; i < s1; i++) {
+      const v = r[p]; e += v * v;
+      const a = v < 0 ? -v : v; if (a > pk) pk = a; if (a >= 32760) clip++;
+      if (++p === cap) p = 0;
+    }
+    return { rms: Math.sqrt(e / (s1 - s0)) / 32768, peak: pk / 32768, clip, seconds: (s1 - s0) / this.rate };
+  }
+  /** Load [a, b) (sample indices) from the server, extending what is there or starting over. */
+  async ensure(a, b, pad) {
+    if (this.busy || !this.ring) return;
+    const sid = S.sid;
+    b = Math.min(this.total, Math.ceil(b)); a = Math.max(0, Math.floor(a));
+    if (b - a > this.cap) a = b - this.cap;
+    if (b <= a) return;
+    let from;
+    if (this.hi > this.lo && a >= this.lo && a <= this.hi) {
+      if (b <= this.hi) return;
+      from = this.hi;
+    } else {
+      from = Math.max(0, a - Math.max(0, Math.min(Math.floor(pad || 0), this.cap - (b - a))));
+      this.replace(from);
+    }
+    this.busy = true;
+    try {
+      const res = await fetch(`/api/pcm?session=${encodeURIComponent(sid)}&file=${this.name}&from=${from}&count=${b - from}`);
+      if (!res.ok) return;
+      const buf = await res.arrayBuffer();
+      if (S.sid !== sid) return;
+      const got = +res.headers.get('X-From');
+      if (got !== this.hi) this.replace(got);
+      this.append(new Int16Array(buf.slice(0, buf.byteLength & ~1)));
+    } catch (e) { /* the server went away; the poll loop reports it */ }
+    finally { this.busy = false; }
+  }
+  /** Compute pitch frames that have their samples, for at most budgetMs. */
+  pitchStep(budgetMs) {
+    if (!this.ring) return;
+    const t0 = performance.now();
+    let n = 0;
+    while (this.pHi * this.hop + this.half <= this.hi) {
+      const k = this.pHi, s0 = k * this.hop - this.half;
+      if (s0 >= this.lo) this.pf[k % this.nf] = this.pitchAt(s0); else this.pFirst = k + 1;
+      this.pHi++;
+      if ((++n & 7) === 0 && performance.now() - t0 > budgetMs) break;
+    }
+  }
+  /** Pitch of frame k in Hz: 0 = unvoiced, -1 = not available. */
+  pitch(k) { return (k < this.pFirst || k >= this.pHi || k <= this.pHi - this.nf) ? -1 : this.pf[k % this.nf]; }
+  /** McLeod pitch method (normalized square difference) on a 40 ms frame decimated to about 16 kHz. */
+  pitchAt(s0) {
+    const W = this.W, D = this.dec, r = this.ring, cap = this.cap, x = this.x, sq = this.sq, nsdf = this.nsdf, tmax = this.tmax;
+    let p = ((s0 % cap) + cap) % cap, mean = 0;
+    for (let i = 0; i < W; i++) { let a = 0; for (let j = 0; j < D; j++) { a += r[p]; if (++p === cap) p = 0; } x[i] = a / D; mean += x[i]; }
+    mean /= W;
+    sq[0] = 0;
+    for (let i = 0; i < W; i++) { x[i] -= mean; sq[i + 1] = sq[i] + x[i] * x[i]; }
+    if (Math.sqrt(sq[W] / W) / 32768 < PITCH_GATE) return 0;
+    for (let t = 1; t <= tmax + 1; t++) {
+      const n = W - t; let acf = 0;
+      for (let i = 0; i < n; i++) acf += x[i] * x[i + t];
+      const m = sq[n] + sq[W] - sq[t];
+      nsdf[t] = m > 0 ? 2 * acf / m : 0;
+    }
+    let t = 1, best = 0;
+    const peaks = this.peaks; peaks.length = 0;
+    while (t <= tmax && nsdf[t] > 0) t++;                       // leave the lobe around lag 0
+    while (t <= tmax) {
+      while (t <= tmax && nsdf[t] <= 0) t++;
+      let pt = -1, pv = 0;
+      while (t <= tmax && nsdf[t] > 0) { if (nsdf[t] > pv && nsdf[t] >= nsdf[t - 1] && nsdf[t] >= nsdf[t + 1]) { pv = nsdf[t]; pt = t; } t++; }
+      if (pt > 0) { peaks.push(pt); if (pv > best) best = pv; }
+    }
+    if (best < CLARITY) return 0;
+    for (const pt of peaks) {
+      if (nsdf[pt] < 0.9 * best) continue;
+      if (pt < this.tmin) return 0;
+      const a = nsdf[pt - 1], b = nsdf[pt], c = nsdf[pt + 1], den = a - 2 * b + c;
+      return this.fs / (pt + (den !== 0 ? 0.5 * (a - c) / den : 0));
+    }
+    return 0;
+  }
+}
+
+// ---- state --------------------------------------------------------------------------------------------------------
+const S = {
+  sel: 'latest', sid: null, info: null, sessions: [], root: '', serverMs: 0, connected: false, error: '',
+  events: [], evNext: 0, trials: [], markers: [], ended: false, ref: null, wall: null, outOffset: 0,
+  mic: new Track('mic'), out: new Track('output'), hasMic: false, hasOut: false, micMtime: 0,
+  conditions: null, condCsv: null, env: {}, envBusy: false, segSeen: new Map(), segPrimed: false, pageVersion: '',
+  trialRows: 0, segments: {}, csv: null, files: null, disk: null, sameParticipant: [], micInfo: null, outInfo: null, playT0: 0, playObj: null,
+  trk: { file: '', next: 0, cols: null, rows: [], startMs: 0, present: false },
+  smp: { rows: [], next: -1, t0: 0, tEnd: 0, available: false, source: '' },
+  follow: true, win: 30, viewEnd: 0, hoverX: -1, hoverY: 0, lastFrame: 0,
+};
+
+function resetSession(sid) {
+  S.sid = sid; S.info = null; S.events = []; S.evNext = 0; S.trials = []; S.markers = []; S.ended = false; S.ref = null; S.wall = null; S.outOffset = 0;
+  S.mic = new Track('mic'); S.out = new Track('output'); S.hasMic = S.hasOut = false;
+  S.trialRows = 0; S.segments = {}; S.csv = null; S.files = null; S.sameParticipant = []; S.micInfo = S.outInfo = null;
+  S.conditions = null; S.condCsv = null; S.env = {}; S.segSeen = new Map(); S.segPrimed = false;
+  stopPlayback();
+  S.trk = { file: '', next: 0, cols: null, rows: [], startMs: 0, present: false };
+  S.smp = { rows: [], next: -1, t0: 0, tEnd: 0, available: S.smp.available, source: '' };
+  S.follow = true; S.viewEnd = 0;
+  $('live').setAttribute('aria-pressed', 'true');
+}
+
+// ---- small helpers ------------------------------------------------------------------------------------------------
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+function fmtT(s) { const neg = s < 0; s = Math.abs(s); const m = Math.floor(s / 60), r = s - m * 60; return (neg ? '−' : '') + m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); }
+function fmtMS(s) { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function fmtClock(ms) { return isFinite(ms) ? new Date(ms).toLocaleTimeString([], { hour12: false }) : ''; }
+const dB = v => v > 0 ? 20 * Math.log10(v) : -Infinity;
+const fmtDb = v => isFinite(v) ? (v <= -99.5 ? '−∞' : v.toFixed(0).replace('-', '−')) + ' dB' : '−∞ dB';
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+function noteName(hz) { const n = Math.round(12 * Math.log2(hz / 440)) + 69; return NOTES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1); }
+const cents = (hz, ref) => 1200 * Math.log2(hz / ref);
+const fmtCents = c => (c >= 0 ? '+' : '−') + Math.abs(c).toFixed(0) + ' ¢';
+const parseUtc = s => s ? Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1')) : NaN;
+const num = (v, d) => (v == null || v === '' || !isFinite(+v)) ? null : (+v).toFixed(d);
+function fmtBytes(n) {
+  if (n == null) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' kB';
+  if (n < 1073741824) return (n / 1048576).toFixed(2) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+function fmtWritten(ms) {
+  const s = (S.serverMs - ms) / 1000, d = new Date(ms);
+  if (s < 2) return 'written just now';
+  if (s < 90) return 'written ' + s.toFixed(0) + ' s ago';
+  return 'written ' + (d.toDateString() === new Date(S.serverMs).toDateString() ? '' : d.toLocaleDateString() + ' ') + fmtClock(ms);
+}
+/** Same rule as StudyRecorder.ConditionId: "Human:male" + "human" -> "human_human-voice"; "none" = own voice only. */
+function conditionId(avatar, fb) {
+  if (!avatar || !fb) return '';
+  return (String(avatar).split(':')[0] + '_' + (fb === 'none' ? 'own' : fb) + '-voice').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+}
+const humanOf = avatar => /^human:/i.test(avatar || '') ? String(avatar).slice(String(avatar).indexOf(':') + 1) : '';
+const conditionName = id => (CONDITIONS.find(c => c.id === id) || { name: id || 'unknown condition' }).name;
+function lowerBound(rows, t, key) { let lo = 0, hi = rows.length; while (lo < hi) { const m = (lo + hi) >> 1; if (key(rows[m]) < t) lo = m + 1; else hi = m; } return lo; }
+function median(a) { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; }
+
+// ---- timeline: seconds into mic.wav ---------------------------------------------------------------------------------
+function evSec(e, sampleKey, unityKey) {
+  const mr = S.hasMic ? S.mic.rate : 0, ms = sampleKey ? e[sampleKey] : e.mic_sample, tu = unityKey && e[unityKey] != null ? e[unityKey] : e.t_unity;
+  if (mr && ms >= 0) return ms / mr;
+  if (S.ref) return S.ref.mic_sample / mr + (tu - S.ref.t_unity);
+  return S.events.length ? tu - S.events[0].t_unity : 0;
+}
+const wallMs = sec => S.wall ? S.wall.ms + (sec - S.wall.sec) * 1000 : NaN;
+const secOfWall = ms => S.wall ? S.wall.sec + (ms - S.wall.ms) / 1000 : NaN;
+function headSec() {
+  if (S.hasMic) return S.mic.total / S.mic.rate;
+  if (S.hasOut) return S.out.total / S.out.rate + S.outOffset;
+  return S.events.length ? evSec(S.events[S.events.length - 1]) : 0;
+}
+
+function rebuild() {
+  const ev = S.events, mr = S.hasMic ? S.mic.rate : 0;
+  S.ref = mr ? (ev.find(e => e.mic_sample >= 0) || null) : null;
+  S.wall = null;
+  for (let i = ev.length - 1; i >= 0; i--) { const ms = parseUtc(ev[i].t_utc); if (isFinite(ms)) { S.wall = { sec: evSec(ev[i]), ms }; break; } }
+  if (S.hasOut) {
+    const offs = [];
+    for (const e of ev) if (e.out_frame > 0) offs.push(evSec(e) - e.out_frame / S.out.rate);
+    S.outOffset = offs.length ? median(offs) : (S.hasMic ? S.mic.total / S.mic.rate - S.out.total / S.out.rate : 0);
+  }
+  S.trials = []; S.markers = []; S.ended = false; S.totalTrials = 0; S.cond = ''; S.micDevice = ''; S.micRestarts = 0; S.rateMismatch = false;
+  let cur = null;
+  for (const e of ev) {
+    const t = evSec(e);
+    switch (e.type) {
+      case 'trial_start':
+        cur = { trial: e.trial, attempt: e.attempt, note: e.note || '', hz: e.target_hz, practice: !!e.practice, t0: t, t1: null, g0: null, g1: null, r0: null, voiced: [], end: null, avatar: e.avatar, fb: e.voice_feedback };
+        S.trials.push(cur); break;
+      case 'guide_start': if (cur) cur.g0 = t; break;
+      case 'guide_end': if (cur) cur.g1 = t; break;
+      case 'response_start': if (cur) cur.r0 = t; break;
+      case 'voice_onset': if (cur) cur.voiced.push([evSec(e, 'mic_sample_onset', 't_onset_unity'), null]); break;
+      case 'voice_offset':
+        if (cur && cur.voiced.length) { const v = cur.voiced[cur.voiced.length - 1]; if (v[1] == null) v[1] = e.forced ? t : evSec(e, 'mic_sample_offset', 't_offset_unity'); }
+        break;
+      case 'trial_end':
+        if (cur) { cur.t1 = t; cur.end = e; for (const v of cur.voiced) if (v[1] == null) v[1] = t; cur = null; }
+        break;
+      case 'session_end': S.ended = true; break;
+      case 'study_flow': if (e.total_trials) S.totalTrials = e.total_trials; break;
+      case 'mic_start': S.micDevice = e.device || ''; break;
+      case 'mic_restart': S.micRestarts++; S.micDevice = e.device || S.micDevice; if (e.sample_rate !== e.file_rate) S.rateMismatch = true; break;
+    }
+    if (MARKERS.has(e.type)) {
+      let label = e.type.replace(/_/g, ' ');
+      if (e.type === 'task_changed') label = '→ ' + (e.task_id || '');
+      else if (e.type === 'condition_start') label = '▸ ' + conditionName(e.condition) + (e.human_avatar ? ' (' + e.human_avatar + ')' : '');
+      else if (e.type === 'avatar_changed') label = 'avatar ' + (e.kind || '');
+      else if (e.type === 'voice_feedback') label = 'hears ' + (e.feedback || '');
+      else if (e.type === 'session_start') label = 'start'; else if (e.type === 'session_end') label = 'end';
+      S.markers.push({ t, label, type: e.type });
+    }
+  }
+}
+
+// ---- polling ------------------------------------------------------------------------------------------------------
+function sampleQuery() {
+  if (!S.wall) return '';
+  const m = S.smp, want = wallMs(S.viewEnd - S.win - 5);
+  if (!isFinite(want)) return '';
+  if (m.next < 0 || !m.t0 || want < m.t0 - 1000 || want > m.tEnd + 120000) {
+    m.rows = []; m.t0 = want; m.tEnd = want; m.next = -1;
+    return '&smpsrc=' + m.source + '&smp_t0=' + Math.floor(want);
+  }
+  if (m.rows.length && m.rows[m.rows.length - 1][0] > wallMs(S.viewEnd) + 30000) return '';   // far enough ahead of the view
+  return '&smpsrc=' + m.source + '&smp=' + m.next;
+}
+
+async function poll() {
+  try {
+    const t = S.trk;
+    const res = await fetch(`/api/state?v=2&page=${PAGE_ID}&session=${encodeURIComponent(S.sel)}&cur=${encodeURIComponent(S.sid || '')}&ev=${S.evNext}&trk=${t.next}&trkf=${encodeURIComponent(t.file)}${sampleQuery()}`);
+    const st = await res.json();
+    if (st.error) throw new Error(st.error);
+    S.connected = true; S.error = ''; S.serverMs = st.server_time_ms; S.root = st.root;
+    // monitor.html was updated on disk: show the new page (not in the middle of listening to something).
+    if (st.page_version) {
+      if (!S.pageVersion) S.pageVersion = st.page_version;
+      else if (S.pageVersion !== st.page_version && $('player').paused) { location.reload(); return; }
+    }
+    if (JSON.stringify(st.sessions) !== JSON.stringify(S.sessions)) { S.sessions = st.sessions; fillSessions(); }
+    if (st.session !== S.sid) resetSession(st.session);
+    if (st.session) {
+      S.info = st.info;
+      S.hasMic = !!st.mic; S.hasOut = !!st.output;
+      if (st.mic) { S.mic.init(st.mic.rate); track(S.mic, st.mic.frames); S.micMtime = st.mic.mtime * 1000; }
+      if (st.output) { S.out.init(st.output.rate); track(S.out, st.output.frames); }
+      let changed = false;
+      if (st.events.reset) { S.events = []; changed = true; }
+      if (st.events.rows.length) { for (const e of st.events.rows) S.events.push(e); changed = true; }
+      S.evNext = st.events.next;
+      if (changed || (!S.wall && S.events.length) || (S.hasMic && !S.ref)) rebuild();
+      S.trialRows = st.trial_rows; S.segments = st.segments || {};
+      S.conditions = st.conditions || null; S.condCsv = st.conditions_csv || null;
+      loadEnvelopes();
+      S.csv = st.trials_csv; S.files = st.files; S.disk = st.disk; S.sameParticipant = st.same_participant || []; S.micInfo = st.mic; S.outInfo = st.output;
+      if (st.tracking) {
+        if (st.tracking.reset || st.tracking.file !== t.file) { t.rows = []; t.cols = null; }
+        t.present = true; t.file = st.tracking.file; t.next = st.tracking.next; t.startMs = st.tracking.start_ms;
+        if (st.tracking.header) { t.cols = {}; st.tracking.header.forEach((h, i) => t.cols[h] = i); }
+        if (t.cols) for (const r of st.tracking.rows) t.rows.push(trackRow(r, t.cols));
+      } else t.present = false;
+      const sm = st.samples;
+      if (sm) {
+        S.smp.available = sm.available;
+        if (sm.source !== S.smp.source) { S.smp.source = sm.source; S.smp.rows = []; S.smp.next = -1; S.smp.t0 = 0; }   // samples.csv appeared, or another session
+        else if (sm.next >= 0) {
+          S.smp.next = sm.next;
+          for (const r of sm.rows) S.smp.rows.push(r);
+          if (S.smp.rows.length) S.smp.tEnd = Math.max(S.smp.tEnd, S.smp.rows[S.smp.rows.length - 1][0]);
+          if (S.smp.rows.length > 40000) { S.smp.rows.splice(0, 15000); S.smp.t0 = S.smp.rows[0][0]; }
+        }
+      }
+      await loadAudio();
+    }
+  } catch (e) {
+    S.connected = false; S.error = String(e && e.message || e);
+  }
+  renderDom();
+  setTimeout(poll, POLL_MS);
+}
+
+/** The small waveform of each trial WAV, fetched when a WAV appears that the page has not drawn yet. */
+async function loadEnvelopes() {
+  if (S.envBusy || !S.sid) return;
+  const missing = Object.keys(S.segments).some(k => S.segments[k].finalized && S.segments[k].frames > 0 && !S.env[k]);
+  if (!missing) return;
+  S.envBusy = true;
+  const sid = S.sid;
+  try {
+    const res = await fetch('/api/segments?session=' + encodeURIComponent(sid));
+    const env = res.ok ? await res.json() : null;
+    if (env && sid === S.sid) for (const k in S.segments) S.env[k] = env[k] || S.env[k] || [];   // [] = asked, nothing to draw
+  } catch (e) { /* the next poll asks again */ }
+  S.envBusy = false;
+}
+
+function track(tr, frames) {
+  const now = performance.now();
+  if (frames !== tr.total || !tr.grow.length) tr.grow.push({ t: now, n: frames });
+  tr.total = frames;
+  while (tr.grow.length > 2 && now - tr.grow[1].t > 6000) tr.grow.shift();
+}
+function trackRow(r, c) {
+  const f = k => { const v = r[c[k]]; return v === '' || v == null ? NaN : +v; }, b = k => r[c[k]] === 'True';
+  return { t: f('t_s'), dtMean: f('dt_mean_ms'), dtMax: f('dt_max_ms'), avatar: r[c.avatar], space: r[c.space], body: b('body_data'), staleMax: f('body_stale_max_ms'), conf: f('conf'),
+           calib: r[c.calib], joints: f('joints_tracked'), wl: b('wrist_tracked_L'), wr: b('wrist_tracked_R'), hl: b('xr_hand_L'), hr: b('xr_hand_R'), cl: b('controller_L'), cr: b('controller_R'), event: r[c.event] || '' };
+}
+
+async function loadAudio() {
+  const head = headSec();
+  if (S.follow) {
+    const jobs = [];
+    if (S.hasMic) jobs.push(S.mic.ensure((head - S.win - 3) * S.mic.rate, S.mic.total));
+    if (S.hasOut) jobs.push(S.out.ensure((head - S.win - 3 - S.outOffset) * S.out.rate, S.out.total));
+    await Promise.all(jobs);
+  } else {
+    const a = S.viewEnd - S.win - 1, b = S.viewEnd + 1, jobs = [];
+    if (S.hasMic) jobs.push(S.mic.ensure(a * S.mic.rate, b * S.mic.rate, S.win * 0.5 * S.mic.rate));
+    if (S.hasOut) jobs.push(S.out.ensure((a - S.outOffset) * S.out.rate, (b - S.outOffset) * S.out.rate, S.win * 0.5 * S.out.rate));
+    await Promise.all(jobs);
+  }
+}
+
+// ---- checks and DOM -----------------------------------------------------------------------------------------------
+function growth(tr) {
+  const g = tr.grow, now = performance.now();
+  if (!g.length) return { growing: false, ratio: 0 };
+  const last = g[g.length - 1], first = g[0];
+  const growing = g.length > 1 && now - last.t < 2500;
+  const span = (last.t - first.t) / 1000;
+  return { growing, ratio: span > 1.5 ? (last.n - first.n) / tr.rate / span : NaN };
+}
+
+/** The rows of trials.csv as they are on disk, each with a check of its segment WAV (exists, and as long as the trial). */
+function savedTrials() {
+  const csv = S.csv;
+  if (!csv || !csv.header.length) return [];
+  const c = {}; csv.header.forEach((h, i) => c[h] = i);
+  const mr = S.hasMic ? S.mic.rate : 0;
+  const rows = csv.rows.map((r, row) => {
+    const g = k => r[c[k]] == null ? '' : r[c[k]];
+    const s0 = +g('mic_sample_start'), s1 = +g('mic_sample_end'), seg = g('segment_file'), info = seg ? S.segments[seg] : null;
+    const expect = mr && s1 > s0 ? (s1 - s0) / mr : NaN, dur = info && info.rate ? info.frames / info.rate : NaN;
+    let segState = 'ok';
+    if (!seg) segState = 'none'; else if (!info) segState = 'missing'; else if (!(dur > 0)) segState = 'empty';
+    // The recorder cuts the segment from what it has already pulled from the microphone, so it ends 0.1-0.3 s before
+    // mic_sample_end. A real problem is a trial longer than the recorder's 120 s ring: then the start is missing.
+    else if (isFinite(expect) && Math.abs(dur - expect) > SEGMENT_TOLERANCE_S) segState = 'short';
+    return { saved: true, trial: g('trial'), attempt: +g('attempt'), note: g('note'), hz: +g('target_hz'), med: g('median_pitch_hz'), match: g('pitch_match'), onset: g('onset_latency_s'),
+             voiced: g('voiced_s'), voice: +g('voice_segments') > 0, reason: g('end_reason'), seg, segState, dur, expect, t0: mr ? s0 / mr : NaN, t1: mr ? s1 / mr : NaN,
+             row, cid: g('condition') || conditionId(g('avatar'), g('voice_feedback')), human: g('human_avatar') || humanOf(g('avatar')),
+             peak: info ? info.peak : undefined, rms: info ? info.rms : undefined, written: info && info.mtime ? info.mtime * 1000 : NaN };
+  });
+  // Recordings made before the condition folders: trial numbers start again at 1 in each condition, so a later
+  // trial wrote over the WAV of an earlier one. Only the last row that names a file still has its sound in it.
+  const lastRef = {};
+  rows.forEach((x, i) => { if (x.seg) lastRef[x.seg] = i; });
+  rows.forEach((x, i) => { if (x.seg && lastRef[x.seg] !== i && x.segState !== 'missing') x.segState = 'overwritten'; });
+  for (const x of rows) { x.cond = conditionName(x.cid) + (x.human ? ' · ' + x.human : ''); x.check = wavCheck(x); }
+  return rows;
+}
+
+/** Is the sound of this trial really in its WAV? {level, text} */
+function wavCheck(x) {
+  if (x.segState === 'none') return { level: 'critical', text: 'no WAV written' };
+  if (x.segState === 'missing') return { level: 'critical', text: 'WAV file missing' };
+  if (x.segState === 'empty') return { level: 'critical', text: 'empty WAV' };
+  if (x.segState === 'overwritten') return { level: 'warning', text: 'overwritten by a later trial with the same number (the sound is still in mic.wav)' };
+  if (x.peak === 0) return { level: 'critical', text: 'digital silence' };
+  if (x.peak > 0 && dB(x.peak) < QUIET_PEAK_DB) return { level: 'warning', text: 'almost silent (peak ' + fmtDb(dB(x.peak)) + ')' };
+  if (x.segState === 'short') return { level: 'warning', text: 'shorter than the trial (' + x.dur.toFixed(1) + ' of ' + x.expect.toFixed(1) + ' s)' };
+  if (!x.voice) return { level: 'warning', text: 'no voice detected by Unity' };
+  return { level: 'good', text: 'sound recorded' };
+}
+
+function miniWave(env) {
+  if (!env || !env.length) return '';
+  const n = env.length, hgt = v => clamp((dB(v) + 60) / 60, 0, 1) * 9.5;
+  let top = '', bot = '';
+  env.forEach((v, i) => { const x = ((i + 0.5) / n * 40).toFixed(1), y = hgt(v); top += `${x},${(10 - y).toFixed(1)} `; bot = `${x},${(10 + y).toFixed(1)} ` + bot; });
+  return `<svg viewBox="0 0 40 20" preserveAspectRatio="none" aria-hidden="true"><polygon points="0,10 ${top}40,10 ${bot}" fill="var(--mic)"/></svg>`;
+}
+
+/** One card per condition: every trial WAV saved for it, as a tile that shows the sound in the file. */
+function renderBoard(add, live, saved) {
+  const last = S.events[S.events.length - 1] || {};
+  const nowId = live ? conditionId(last.avatar, last.voice_feedback) : '';
+  const by = new Map(CONDITIONS.map(c => [c.id, []]));
+  for (const x of saved) { const id = x.cid || 'unknown'; if (!by.has(id)) by.set(id, []); by.get(id).push(x); }
+  if (nowId && !by.has(nowId)) by.set(nowId, []);
+  const running = S.trials.length && !S.trials[S.trials.length - 1].end ? S.trials[S.trials.length - 1] : null;
+  const tr = S.mic, s1 = headSec() * (tr.rate || 1), lv = live && S.hasMic ? tr.level(s1 - tr.rate, s1) : null;
+  const clock = performance.now(), total = S.totalTrials || 0;
+  let h = '';
+  for (const [id, rows] of by) {
+    const now = id === nowId, name = conditionName(id);
+    const bad = rows.filter(x => x.check.level !== 'good'), withWav = rows.filter(x => x.dur > 0 && x.segState !== 'overwritten');
+    const secs = withWav.reduce((n, x) => n + x.dur, 0), distinct = new Set(rows.map(x => x.trial)).size;
+    const folder = S.conditions ? S.conditions[id] : null;
+    let level = 'neutral', status = now ? 'Recording now · no WAV yet' : 'Not recorded yet';
+    if (bad.length) {
+      level = bad.some(x => x.check.level === 'critical') ? 'critical' : 'warning';
+      const same = bad.every(x => x.check.text === bad[0].check.text);
+      status = bad.length + ' of ' + rows.length + ' WAV' + (rows.length === 1 ? '' : 's') + (same ? ': ' + bad[0].check.text.replace(/ \(.*$/, '') : ' with a problem');
+    } else if (folder && folder.trial_rows !== rows.length) {
+      level = 'warning'; status = `trials.csv of this folder has ${folder.trial_rows} rows, the session has ${rows.length}`;
+    } else if (S.conditions && rows.length && !folder) {
+      level = 'warning'; status = 'No folder for this condition';
+    } else if (rows.length) { level = 'good'; status = 'Every WAV has sound'; }
+    add(level, name + ': ' + status);
+
+    const tiles = rows.slice().sort((p, q) => (isFinite(p.t0) ? p.t0 : 0) - (isFinite(q.t0) ? q.t0 : 0)).map(x => {
+      const key = x.row + '|' + x.seg;
+      if (!S.segSeen.has(key)) S.segSeen.set(key, S.segPrimed ? clock : -1e9);
+      const fresh = clock - S.segSeen.get(key) < 2000, c = x.check;
+      const title = `trial ${x.trial}${x.attempt > 1 ? ' (try ' + x.attempt + ')' : ''} · ${x.note}` + (x.dur > 0 ? ' · ' + x.dur.toFixed(1) + ' s' : '') +
+        (x.peak >= 0 ? ' · peak ' + fmtDb(dB(x.peak)) : '') + (x.human ? ' · human avatar: ' + x.human : '') + ' · ' + c.text + (x.seg ? ' · ' + x.seg : '');
+      return `<button class="wav${c.level === 'good' ? '' : ' ' + c.level}${fresh ? ' fresh' : ''}" data-seg="${x.dur > 0 && x.segState !== 'overwritten' ? esc(x.seg) : ''}" data-a="${isFinite(x.t0) ? x.t0.toFixed(3) : ''}" data-b="${isFinite(x.t1) ? x.t1.toFixed(3) : ''}" ` +
+        `data-t0="${isFinite(x.t1) && x.dur > 0 ? (x.t1 - x.dur).toFixed(3) : ''}" title="${esc(title)}" aria-label="${esc(title)}">${x.segState === 'overwritten' ? '' : miniWave(S.env[x.seg])}` +
+        `<span class="no">${esc(x.trial)}${x.attempt > 1 ? '·' + esc(x.attempt) : ''}</span>${c.level === 'good' ? '' : `<span class="ic">${ICON[c.level]}</span>`}</button>`;
+    });
+    if (total && (rows.length || now)) for (let i = distinct; i < total; i++) tiles.push('<span class="wav todo" title="not recorded yet"></span>');
+
+    const d = [];
+    if (now && running && !running.practice) d.push(`now: trial ${esc(running.trial)} · ${esc(running.note)} · ${running.r0 != null ? 'response' : running.g1 != null ? 'gap' : 'guide'}`);
+    if (now && lv) d.push('microphone ' + fmtDb(dB(lv.rms)));
+    const newest = withWav.reduce((m, x) => !m || x.t0 > m.t0 ? x : m, null);
+    if (newest) d.push(`last WAV: trial ${esc(newest.trial)} · ${esc(newest.note)} · ${newest.dur.toFixed(1)} s` + (newest.peak >= 0 ? ' · peak ' + fmtDb(dB(newest.peak)) : '') + (isFinite(newest.written) ? ' · ' + fmtWritten(newest.written) : ''));
+    const humans = {};
+    for (const x of rows) if (x.human) humans[x.human] = (humans[x.human] || 0) + 1;
+    if (Object.keys(humans).length) d.push('human avatar: ' + Object.entries(humans).map(([k, n]) => esc(k) + ' ×' + n).join(', '));
+    else if (now && last.avatar && humanOf(last.avatar)) d.push('human avatar: ' + esc(humanOf(last.avatar)));
+    if (folder) d.push(`conditions/${esc(id)}/ · trials.csv ${folder.trial_rows} row${folder.trial_rows === 1 ? '' : 's'}` + (folder.files['samples.csv'] ? ' · samples.csv ' + fmtBytes(folder.files['samples.csv'].size) : ''));
+    else if (!S.conditions && rows.length) d.push('older recording: its WAVs are in segments/, not in a condition folder');
+
+    h += `<div class="card cond${now ? ' now' : ''}"><div class="top"><span class="name">${esc(name)}</span>${now ? '<span class="rec">● recording now</span>' : ''}</div>` +
+      `<div class="count">${withWav.length} <small>WAV${withWav.length === 1 ? '' : 's'}${total && (rows.length || now) ? ' · trial ' + distinct + ' of ' + total : ''}${secs > 0 ? ' · ' + fmtMS(secs) + ' of sound' : ''}</small></div>` +
+      `<div class="st ${level}"><span class="ic">${ICON[level]}</span><span>${esc(status)}</span></div>${now ? meter(lv, 'var(--mic)') : ''}` +
+      `<div class="d">${d.join('<br>')}</div><div class="wavs">${tiles.join('')}</div></div>`;
+  }
+  S.segPrimed = S.segPrimed || !!S.csv;
+  setHtml('board', h);
+}
+
+function fillSessions() {
+  const sel = $('session'), keep = S.sel;
+  sel.innerHTML = '<option value="latest">Latest (auto-follow)</option>' + S.sessions.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  sel.value = S.sessions.includes(keep) ? keep : 'latest';
+  S.sel = sel.value;
+}
+
+const ICON = { good: '✓', warning: '!', critical: '×', neutral: '–' };
+function tile(k, v, level, status, detail, extra) {
+  return `<div class="card tile"><div class="k">${esc(k)}</div><div class="v" title="${esc(v)}">${esc(v)}</div>${extra || ''}` +
+    `<div class="st ${level}"><span class="ic">${ICON[level]}</span><span>${esc(status)}</span></div><div class="d">${detail || ''}</div></div>`;
+}
+function meter(lv, color) {
+  const pos = v => clamp((dB(v) + 60) / 60 * 100, 0, 100);
+  if (!lv) return '<div class="meter"></div>';
+  return `<div class="meter" role="img" aria-label="level"><i style="width:${pos(lv.rms).toFixed(1)}%;background:${color}"></i><b style="left:calc(${pos(lv.peak).toFixed(1)}% - 1px)"></b></div>`;
+}
+let lastHtml = {};
+function setHtml(id, html) { if (lastHtml[id] !== html) { lastHtml[id] = html; $(id).innerHTML = html; } }
+
+function renderDom() {
+  const issues = [];   // {level, text}
+  const add = (level, text) => { if (level === 'warning' || level === 'critical') issues.push({ level, text }); };
+  const tiles = [];
+  const head = headSec();
+  const gm = growth(S.mic), go = growth(S.out);
+  const live = !!S.sid && !S.ended && (gm.growing || go.growing);
+  const age = S.hasMic ? (S.serverMs - S.micMtime) / 1000 : NaN;
+  S.live = live;
+  const pid = participantId();
+  $('pid').textContent = pid || '—';
+  $('pidNote').textContent = S.sid && S.sameParticipant.length ? 'recording ' + (S.sameParticipant.length + 1) + ' with this ID' : '';
+  const saved = savedTrials();
+  const player = $('player');
+  if (live && !player.paused) player.pause();
+  $('playMic').disabled = live || !S.hasMic; $('playOut').disabled = live || !S.hasOut;
+  $('playMic').title = $('playOut').title = live ? 'Off while recording, so the playback cannot leak into the microphone' : 'Plays the stretch shown in the charts, read from the file on disk';
+  if (live) $('playLabel').textContent = 'off while recording (it could leak into the microphone)';
+  else if ($('playLabel').textContent.startsWith('off while')) $('playLabel').textContent = '';
+
+  if (!S.connected) {
+    setBadge('critical', 'Monitor server not reachable'); $('bar').className = 'bar critical'; setHtml('board', '');
+    setHtml('tiles', tile('Monitor', 'Offline', 'critical', 'study_monitor.py is not answering', esc(S.error)));
+    return;
+  }
+  if (!S.sid) {
+    setBadge('neutral', 'No session yet'); $('bar').className = 'bar'; setHtml('board', ''); setHtml('files', '<div class="empty" style="padding:0 8px">Nothing saved yet.</div>'); $('folder').textContent = S.root;
+    setHtml('tiles', tile('Recording', 'Waiting', 'neutral', 'No session folder found', 'Looking in ' + esc(S.root) + '. A session appears when Play starts recording.'));
+    setHtml('trials', '<div class="empty">No trials.</div>'); setHtml('events', '<div class="empty">No events.</div>');
+    return;
+  }
+
+  // Recording
+  {
+    let level = 'good', status = 'Recording', detail = [];
+    if (S.ended) { level = 'neutral'; status = 'Session closed'; }
+    else if (!live) {
+      if (isFinite(age) && age < 20) { level = 'critical'; status = 'Stalled: files stopped growing'; }
+      else if (S.hasMic || S.hasOut) { level = 'warning'; status = 'Not closed properly (no session_end)'; }
+      else { level = 'warning'; status = 'No audio file yet'; }
+    } else if (isFinite(gm.ratio) && (gm.ratio < 0.9 || gm.ratio > 1.1)) { level = 'warning'; status = 'Mic data at ' + gm.ratio.toFixed(2) + '× real time'; }
+    if (live && isFinite(gm.ratio) && level === 'good') status += ' · ' + gm.ratio.toFixed(2) + '× real time';
+    if (S.hasMic) detail.push('mic ' + fmtMS(S.mic.total / S.mic.rate) + ' @ ' + S.mic.rate / 1000 + ' kHz');
+    if (S.hasOut) detail.push('output ' + fmtMS(S.out.total / S.out.rate) + ' @ ' + S.out.rate / 1000 + ' kHz');
+    if (S.micRestarts) { detail.push('mic restarted ×' + S.micRestarts + (S.rateMismatch ? ' at a different sample rate' : '')); if (level === 'good') { level = 'warning'; status = 'Microphone capture restarted'; } }
+    if (pid === DEFAULT_PARTICIPANT) {
+      const msg = 'Participant ID is the default (' + pid + ')';
+      if (level === 'good' || level === 'neutral') { detail.unshift(status.toLowerCase()); level = 'warning'; status = msg; } else add('warning', msg);
+    }
+    add(level, status);
+    tiles.push(tile('Recording' + (pid ? ' · participant ' + pid : ''), fmtMS(head), level, status, esc(detail.join(' · '))));
+  }
+
+  // Microphone / output levels at the right edge of the view
+  const at = S.follow ? head : Math.min(S.viewEnd, head), where = S.follow ? '' : ' at view end';
+  {
+    const tr = S.mic, s1 = at * (tr.rate || 1), lv = S.hasMic ? tr.level(s1 - tr.rate, s1) : null, lv5 = S.hasMic ? tr.level(s1 - 5 * tr.rate, s1) : null;
+    let level = 'good', status = 'Signal present' + where;
+    if (!S.hasMic) { level = S.ended ? 'warning' : 'critical'; status = 'mic.wav missing'; }
+    else if (live && !gm.growing) { level = 'critical'; status = 'mic.wav stopped growing'; }
+    else if (!lv) { level = 'neutral'; status = 'Loading…'; }
+    else if (lv5 && lv5.peak === 0 && lv5.seconds > 1.5) { level = 'critical'; status = 'No signal (digital silence)' + where; }
+    else if (lv5 && lv5.seconds > 1.5 && dB(lv5.rms) < QUIET_RMS_DB) { level = 'warning'; status = 'Almost no signal (' + fmtDb(dB(lv5.rms)) + '): muted or wrong device?' + where; }
+    else if (lv5 && lv5.clip > 0) { level = 'warning'; status = 'Clipping (' + lv5.clip + ' samples / 5 s)' + where; }
+    add(level, 'Microphone: ' + status);
+    tiles.push(tile('Microphone', lv ? fmtDb(dB(lv.rms)) : '—', level, status,
+      (lv ? 'peak ' + fmtDb(dB(lv.peak)) + ' · ' : '') + esc(S.micDevice), meter(lv, 'var(--mic)')));
+  }
+  {
+    const tr = S.out, s1 = (at - S.outOffset) * (tr.rate || 1), lv = S.hasOut ? tr.level(s1 - tr.rate, s1) : null;
+    let level = 'good', status = 'Recording' + where;
+    if (!S.hasOut) { level = S.ended ? 'warning' : 'critical'; status = 'output.wav missing'; }
+    else if (live && !go.growing) { level = 'critical'; status = 'output.wav stopped growing'; }
+    else if (S.ended || !live) { level = 'neutral'; status = 'Recorded'; }
+    add(level, 'Output: ' + status);
+    tiles.push(tile('Output (heard by participant)', lv ? fmtDb(dB(lv.rms)) : '—', level, status,
+      lv ? 'peak ' + fmtDb(dB(lv.peak)) + (lv.peak === 0 ? ' · silent now' : '') : '', meter(lv, 'var(--out)')));
+  }
+
+  // Trials
+  {
+    const done = S.trials.filter(x => x.end && !x.practice), running = S.trials.length && !S.trials[S.trials.length - 1].end ? S.trials[S.trials.length - 1] : null;
+    const distinct = new Set(saved.map(x => x.trial)).size, noVoice = saved.filter(x => !x.voice).length;
+    const missing = saved.filter(x => x.segState === 'missing' || x.segState === 'none' || x.segState === 'empty').length, short = saved.filter(x => x.segState === 'short').length;
+    const over = saved.filter(x => x.segState === 'overwritten').length;
+    let level = 'good', status = saved.length + ' row' + (saved.length === 1 ? '' : 's') + ' saved in trials.csv';
+    if (S.trialRows !== done.length) { level = 'critical'; status = `trials.csv has ${S.trialRows} rows, events say ${done.length}`; }
+    else if (missing) { level = 'warning'; status = missing + ' trial segment file' + (missing > 1 ? 's' : '') + ' missing'; }
+    else if (over) { level = 'warning'; status = over + ' trial WAV' + (over > 1 ? 's' : '') + ' overwritten by a later condition'; }
+    else if (short) { level = 'warning'; status = short + ' trial segment' + (short > 1 ? 's' : '') + ' shorter than the trial'; }
+    else if (noVoice) { level = 'warning'; status = noVoice + ' trial' + (noVoice > 1 ? 's' : '') + ' without detected voice'; }
+    else if (!done.length) { level = 'neutral'; status = 'No completed trial yet'; }
+    add(level, 'Trials: ' + status);
+    let phase = 'idle';
+    if (running) phase = running.r0 != null ? 'response' : running.g1 != null ? 'gap' : 'guide';
+    const detail = running ? `now: ${running.practice ? 'practice ' : ''}#${running.trial} ${esc(running.note)} ${num(running.hz, 0)} Hz · ${phase}` : 'no trial running';
+    tiles.push(tile('Singing trials', distinct + (S.totalTrials ? ' / ' + S.totalTrials : ''), level, status, detail));
+  }
+
+  // Condition
+  {
+    const last = S.events[S.events.length - 1] || {}, id = conditionId(last.avatar, last.voice_feedback), human = humanOf(last.avatar);
+    tiles.push(tile('Condition', id ? conditionName(id) : '—', 'neutral', 'task: ' + (last.task || '—'),
+      (human ? 'human avatar: ' + esc(human) + ' · ' : '') + 'hears ' + esc(last.voice_feedback === 'none' ? 'own voice only' : (last.voice_feedback || '—') + ' voice') + (id ? ' · folder conditions/' + esc(id) : '')));
+  }
+
+  // Tracking
+  {
+    // The row at the right edge of the view (the newest one while live).
+    const rows = S.trk.rows, base = S.wall ? secOfWall(S.trk.startMs) : NaN;
+    let r = rows[rows.length - 1];
+    if (r && isFinite(base) && !live) { const i = lowerBound(rows, at + 1.5 - base, q => q.t); r = rows[Math.max(0, i - 1)]; }
+    if (!S.trk.present || !r) tiles.push(tile('Body tracking', '—', 'neutral', 'No tracking log for this session', 'diagnostics/tracking_*.csv'));
+    else {
+      const rowAge = (S.serverMs - (S.trk.startMs + r.t * 1000)) / 1000;
+      let level = 'good', status = 'Body tracked';
+      if (live && rowAge > 5) { level = 'warning'; status = 'Tracking log stopped ' + rowAge.toFixed(0) + ' s ago'; }
+      else if (!r.body) { level = 'warning'; status = 'No body tracking data'; }
+      else if (r.staleMax > 250) { level = 'warning'; status = 'Body data stale (' + r.staleMax.toFixed(0) + ' ms)'; }
+      if (!live) { if (level === 'good') { level = 'neutral'; status = 'Last row: body ' + (r.body ? 'tracked' : 'not tracked'); } }
+      else add(level, 'Tracking: ' + status);
+      const yn = v => v ? 'yes' : 'no';
+      tiles.push(tile('Body tracking', isFinite(r.conf) ? 'conf ' + r.conf.toFixed(2) : '—', level, status,
+        `${isFinite(r.dtMean) && r.dtMean > 0 ? (1000 / r.dtMean).toFixed(0) + ' fps · ' : ''}joints ${isFinite(r.joints) ? r.joints : '—'} · wrists L ${yn(r.wl)} R ${yn(r.wr)} · hands L ${yn(r.hl)} R ${yn(r.hr)}`));
+    }
+  }
+
+  // Analyzer log
+  {
+    const rows = S.smp.rows, r = rows[rows.length - 1];
+    const own = S.smp.source === 'session', from = own ? 'samples.csv' : 'shared avian_trials.jsonl';
+    if (!S.smp.available) tiles.push(tile('Voice / breath samples', '—', 'neutral', 'No sample file', 'samples.csv (pitch, loudness, breath depth)'));
+    else {
+      let level = 'good', status = 'Samples arriving';
+      const ageS = r ? (S.serverMs - r[0]) / 1000 : Infinity;
+      if (!live) { level = 'neutral'; status = r ? 'Samples recorded' : 'No samples in this part'; }
+      else if (ageS > 5) { level = 'warning'; status = r ? 'No sample for ' + ageS.toFixed(0) + ' s' : 'No samples'; }
+      else if (!own) { level = 'warning'; status = 'Not saved in the session folder'; }
+      add(level, 'Voice / breath samples: ' + status);
+      tiles.push(tile('Voice / breath samples', r ? 'breath ' + r[3].toFixed(2) : '—', level, status, (r ? `pitch ${r[1] > 0 ? r[1].toFixed(0) + ' Hz' : '—'} · loudness ${r[2].toFixed(3)} · ` : '') + 'from ' + from));
+    }
+  }
+  setHtml('tiles', tiles.join(''));
+
+  // badge
+  renderBoard(add, live, saved);
+  renderFiles(add, live, gm, go, saved);
+  const crit = issues.filter(i => i.level === 'critical'), warn = issues.filter(i => i.level === 'warning');
+  const summary = saved.length + ' trial' + (saved.length === 1 ? '' : 's') + ' in trials.csv, files closed properly';
+  if (crit.length) setBadge('critical', crit[0].text + (issues.length > 1 ? ` (+${issues.length - 1} more)` : ''));
+  else if (warn.length) setBadge('warning', warn[0].text + (warn.length > 1 ? ` (+${warn.length - 1} more)` : ''));
+  else if (live) setBadge('good', 'Recording · all checks OK');
+  else if (S.ended && S.sel === 'latest') setBadge('neutral', 'Waiting for the next recording · last one saved: ' + summary);
+  else setBadge('neutral', S.ended ? 'Session closed · ' + summary : 'Not recording');
+  $('bar').className = 'bar ' + (crit.length ? 'critical' : warn.length ? 'warning' : '');
+  document.title = (crit.length ? '× ' : warn.length ? '! ' : live ? '● ' : '') + (pid ? pid + ' · ' : '') + 'Study Monitor' + (S.sid ? ' · ' + S.sid : '');
+
+  renderTrials(saved, live); renderEvents();
+  const sc = $('scrub'); sc.max = Math.max(1, head).toFixed(1);
+  if (document.activeElement !== sc) sc.value = S.viewEnd.toFixed(1);
+  $('scrubR').textContent = fmtMS(head);
+}
+
+/** Participant of the session shown: session.json, else the session_start event, else the folder name (date_time_ID). */
+function participantId() {
+  if (!S.sid) return '';
+  if (S.info && S.info.participant) return String(S.info.participant);
+  const start = S.events.find(e => e.type === 'session_start' && e.participant);
+  if (start) return String(start.participant);
+  const m = /^\d{8}_\d{6}_(.+)$/.exec(S.sid);
+  return m ? m[1] : '';
+}
+
+function setBadge(level, text) { const b = $('badge'); b.className = 'badge ' + level; $('badgeText').textContent = text; }
+
+/** What is on disk right now: one cell per file with its size, when it was last written and whether it is intact. */
+function renderFiles(add, live, gm, go, saved) {
+  const f = S.files;
+  if (!f) { setHtml('files', ''); return; }
+  $('folder').textContent = f.folder + (S.disk ? '  ·  ' + fmtBytes(S.disk.free) + ' free on this drive' : '');
+  if (S.disk && S.disk.free < 1073741824) add('critical', 'Disk almost full: ' + fmtBytes(S.disk.free) + ' free');
+  else if (S.disk && S.disk.free < 5 * 1073741824) add('warning', 'Disk space low: ' + fmtBytes(S.disk.free) + ' free');
+  const cell = (name, entry, level, status, detail) =>
+    `<div class="file"><div class="fn" title="${esc(name)}">${esc(name)}</div><div class="fs">${entry ? fmtBytes(entry.size) : '—'}</div>` +
+    `<div class="st ${level}"><span class="ic">${ICON[level]}</span><span>${esc(status)}</span></div><div class="d">${esc(detail)}${entry ? ' · ' + fmtWritten(entry.mtime) : ''}</div></div>`;
+  const wav = (name, entry, info, g, tr) => {
+    if (!entry || !info) return cell(name, entry, S.ended ? 'warning' : 'critical', 'missing', '');
+    const detail = fmtT(info.frames / info.rate) + ' of audio';
+    if (live) return g.growing ? cell(name, entry, 'good', 'being written', detail) : cell(name, entry, 'critical', 'stopped growing', detail);
+    if (!info.finalized) { add('warning', name + ' was not closed properly (header not finalized; the audio is there)'); return cell(name, entry, 'warning', 'header not finalized', detail); }
+    return cell(name, entry, 'good', 'closed, header OK', detail);
+  };
+  const text = (name, entry, detail) => entry ? cell(name, entry, 'good', live ? 'being written' : 'saved', detail) : cell(name, null, 'critical', 'missing', '');
+  if (!f['events.jsonl']) add('critical', 'events.jsonl is missing');
+  if (!f['trials.csv']) add('critical', 'trials.csv is missing');
+  const segs = Object.values(S.segments), segBytes = segs.reduce((n, x) => n + (x.size || 0), 0), want = saved.filter(x => x.seg).length;
+  const bad = saved.filter(x => x.segState !== 'ok').length;
+  const h = [
+    wav('mic.wav', f['mic.wav'], S.micInfo, gm, S.mic),
+    wav('output.wav', f['output.wav'], S.outInfo, go, S.out),
+    text('events.jsonl', f['events.jsonl'], S.events.length + ' events'),
+    text('trials.csv', f['trials.csv'], S.trialRows + ' trial row' + (S.trialRows === 1 ? '' : 's')),
+    f['samples.csv'] ? (live && S.serverMs - f['samples.csv'].mtime > 5000
+        ? cell('samples.csv', f['samples.csv'], 'warning', 'stopped growing', 'pitch, loudness, breath depth')
+        : cell('samples.csv', f['samples.csv'], 'good', live ? 'being written' : 'saved', 'pitch, loudness, breath depth'))
+      : cell('samples.csv', null, live ? 'warning' : 'neutral', live ? 'missing' : 'not in this session', 'recorded before samples.csv existed'),
+    cell(S.conditions ? 'trial WAVs (conditions/*/segments/)' : 'segments/ (one WAV per trial)', { size: segBytes, mtime: 0 }, bad ? 'warning' : segs.length ? 'good' : 'neutral',
+         bad ? bad + ' of ' + saved.length + ' with a problem' : segs.length ? 'all match their trial' : 'none yet', segs.length + ' file' + (segs.length === 1 ? '' : 's') + ' for ' + want + ' trial' + (want === 1 ? '' : 's')).replace(/ · written[^<]*/, ''),
+    f['session.json'] ? cell('session.json', f['session.json'], 'good', 'saved', 'participant, devices, sample rates') : cell('session.json', null, 'critical', 'missing', ''),
+    f['conditions.csv'] ? cell('conditions.csv', f['conditions.csv'], 'good', live ? 'being written' : 'saved',
+                               (S.condCsv ? S.condCsv.rows.length : 0) + ' finished stretch' + (S.condCsv && S.condCsv.rows.length === 1 ? '' : 'es') + ' (which part of mic.wav is which condition)')
+                        : cell('conditions.csv', null, 'neutral', 'not in this session', 'recorded before the condition folders existed'),
+    f.tracking ? cell('diagnostics/' + f.tracking.path.replace(/^.*[\\/]/, ''), f.tracking, 'good', live ? 'being written' : 'saved', S.trk.rows.length + ' rows, 1 per second')
+               : cell('tracking log', null, 'neutral', 'none for this session', 'diagnostics/tracking_*.csv'),
+  ];
+  if (!f['samples.csv']) h.push(f.samples ? cell('avian_trials.jsonl', f.samples, 'neutral', 'shared by all sessions', 'analyzer samples, kept outside the session folder')
+                                          : cell('avian_trials.jsonl', null, 'neutral', 'not found', 'analyzer samples'));
+  setHtml('files', h.join(''));
+}
+
+/** The trial table shows trials.csv itself; practice and running trials (never written to the CSV) come from events.jsonl. */
+function renderTrials(saved, live) {
+  const extra = S.trials.filter(x => x.practice || !x.end).map(x => ({
+    saved: false, running: !x.end, practice: x.practice, trial: x.trial, attempt: x.attempt, note: x.note, hz: x.hz, t0: x.t0, t1: x.t1 == null ? headSec() : x.t1,
+    med: x.end ? x.end.median_pitch_hz : '', match: x.end ? x.end.pitch_match : '', onset: x.end ? x.end.onset_latency_s : '', voiced: x.end ? x.end.voiced_s : '',
+    voice: x.end ? x.end.had_voice !== false : null, reason: x.end ? x.end.end_reason : '',
+    cond: conditionName(conditionId(x.avatar, x.fb)) + (humanOf(x.avatar) ? ' · ' + humanOf(x.avatar) : '') }));
+  const rows = saved.concat(extra).sort((p, q) => (isFinite(q.t0) ? q.t0 : -1) - (isFinite(p.t0) ? p.t0 : -1));
+  $('trialsNote').textContent = rows.length ? 'the rows of trials.csv as saved · practice and running trials come from events.jsonl · click a row to show it' : '';
+  if (!rows.length) { setHtml('trials', '<div class="empty">No trials in this session yet.</div>'); return; }
+  const tag = (lvl, text) => `<span class="tag ${lvl}"><span class="ic">${ICON[lvl]}</span>${esc(text)}</span>`;
+  let h = '<table><thead><tr><th class="l">Trial</th><th class="l">Note</th><th>Target Hz</th><th>Median Hz</th><th>Off target</th><th>Match</th><th>Onset s</th><th>Voiced s</th>' +
+          '<th class="l">Voice</th><th class="l">Condition</th><th class="l">In trials.csv</th><th class="l">Segment WAV</th></tr></thead><tbody>';
+  for (const x of rows) {
+    const med = +x.med;
+    let seg = '';
+    if (x.saved) {
+      if (x.segState === 'ok') seg = tag('good', x.dur.toFixed(1) + ' s');
+      else if (x.segState === 'short') seg = tag('warning', x.dur.toFixed(1) + ' s of ' + x.expect.toFixed(1) + ' s');
+      else if (x.segState === 'none') seg = tag('warning', 'not written');
+      else if (x.segState === 'overwritten') seg = tag('warning', 'overwritten by a later trial');
+      else seg = tag('critical', x.segState === 'empty' ? 'empty file' : 'file missing');
+      if (x.dur > 0 && x.segState !== 'overwritten') seg += `<button class="play" data-seg="${esc(x.seg)}" data-t0="${(x.t1 - x.dur).toFixed(3)}" ${live ? 'disabled' : ''} title="Play this saved segment">▶</button>`;
+    }
+    h += `<tr class="jump" data-a="${isFinite(x.t0) ? x.t0.toFixed(3) : ''}" data-b="${isFinite(x.t1) ? x.t1.toFixed(3) : ''}">` +
+      `<td class="l">${x.practice ? 'practice ' : ''}#${esc(x.trial)}${x.attempt > 1 ? ' (try ' + esc(x.attempt) + ')' : ''}</td><td class="l">${esc(x.note)}</td><td>${num(x.hz, 1) || ''}</td>` +
+      `<td>${num(x.med, 1) || '—'}</td><td>${med > 0 && x.hz > 0 ? fmtCents(cents(med, x.hz)) : '—'}</td><td>${num(x.match, 2) || '—'}</td><td>${num(x.onset, 2) || '—'}</td><td>${num(x.voiced, 2) || '—'}</td>` +
+      `<td class="l">${x.voice == null ? '' : x.voice ? tag('good', 'detected') : tag('warning', 'none')} <span style="color:var(--ink2)">${esc(String(x.reason || '').replace(/_/g, ' '))}</span></td>` +
+      `<td class="l">${esc(x.cond)}</td><td class="l">${x.saved ? tag('good', 'saved') : tag('neutral', x.running ? 'running' : 'practice (not saved)')}</td><td class="l">${seg}</td></tr>`;
+  }
+  setHtml('trials', h + '</tbody></table>');
+}
+
+// ---- playback of the saved audio (only when nothing is being recorded) -----------------------------------------------
+function stopPlayback() {
+  const a = document.getElementById('player');
+  if (!a) return;
+  a.pause(); a.removeAttribute('src'); a.load();
+  if (S.playObj) { URL.revokeObjectURL(S.playObj); S.playObj = null; }
+  document.getElementById('playLabel').textContent = '';
+}
+async function playSaved(query, t0, label) {
+  if (S.live || !S.sid) return;
+  const a = $('player');
+  try {
+    const res = await fetch('/api/audio?session=' + encodeURIComponent(S.sid) + '&' + query);
+    if (!res.ok) throw new Error('file not available');
+    const blob = await res.blob();
+    if (S.playObj) URL.revokeObjectURL(S.playObj);
+    S.playObj = URL.createObjectURL(blob); S.playT0 = t0;
+    a.src = S.playObj; $('playLabel').textContent = label;
+    await a.play();
+  } catch (e) { $('playLabel').textContent = 'Cannot play: ' + (e && e.message || e); }
+}
+function playWindow(tr, offset, name) {
+  if (!tr.rate) return;
+  const a = Math.max(offset, S.viewEnd - S.win), b = Math.min(headSec(), S.viewEnd);
+  if (b <= a) return;
+  playSaved(`file=${name}&from=${Math.floor((a - offset) * tr.rate)}&count=${Math.ceil((b - a) * tr.rate)}`, a, `${name}.wav ${fmtT(a)} – ${fmtT(b)}`);
+}
+
+const COMMON = new Set(['type', 't_utc', 't_local', 't_unity', 't_dsp', 'mic_sample', 'out_frame', 'task', 'avatar', 'avatar_model', 'voice_feedback', 'condition', 'human_avatar']);
+function renderEvents() {
+  const ev = S.events, n = ev.length;
+  $('eventsNote').textContent = n ? n + ' in events.jsonl · newest first' : '';
+  if (!n) { setHtml('events', '<div class="empty">No events yet.</div>'); return; }
+  let h = '';
+  for (let i = n - 1; i >= Math.max(0, n - 80); i--) {
+    const e = ev[i], parts = [];
+    for (const k in e) { if (COMMON.has(k)) continue; let v = e[k]; if (Array.isArray(v)) v = v.length > 6 ? '[' + v.length + ' values]' : v.join(' '); else if (typeof v === 'number' && !Number.isInteger(v)) v = +v.toFixed(3); parts.push(k + '=' + v); }
+    const x = parts.join('  ');
+    h += `<div class="evt" data-t="${evSec(e).toFixed(3)}"><span class="t">${fmtT(evSec(e))}</span><span class="n">${esc(e.type)}</span><span class="x" title="${esc(x)}">${esc(x)}</span></div>`;
+  }
+  setHtml('events', h);
+}
+
+// ---- drawing ------------------------------------------------------------------------------------------------------
+const PANELS = [
+  { id: 'phase', title: 'Trials', h: 46 },
+  { id: 'mic', title: 'Microphone waveform (mic.wav)', h: 116 },
+  { id: 'pitch', title: 'Voice pitch (Hz, log scale)', h: 170 },
+  { id: 'out', title: 'Output waveform: what the participant hears (output.wav)', h: 92 },
+  { id: 'breath', title: 'Breath depth (Unity analyzer samples)', h: 58 },
+  { id: 'frame', title: 'Frame time, worst per second (ms)', h: 50 },
+  { id: 'stale', title: 'Body tracking data age, worst per second (ms)', h: 50 },
+  { id: 'conf', title: 'Body tracking confidence', h: 50 },
+];
+const GUT = 58, PADR = 14, TITLE_H = 17, GAP = 9, AXIS_H = 22;
+const cv = $('cv'), ctx = cv.getContext('2d');
+let cssW = 800, cssH = 600, dpr = 1, COL = {};
+function layout() {
+  let y = 2;
+  for (const p of PANELS) { p.y = y + TITLE_H; y = p.y + p.h + GAP; }
+  cssH = y + AXIS_H; cssW = Math.max(320, $('stack').clientWidth);
+  dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.height = cssH + 'px';
+}
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ['surface', 'ink', 'ink2', 'muted', 'grid', 'axis', 'mic', 'analyzer', 'out', 'guide', 'response', 'critical', 'on-guide', 'on-response']) COL[k] = cs.getPropertyValue('--' + k).trim();
+}
+const panel = id => PANELS.find(p => p.id === id);
+const mm = [0, 0];
+
+function draw() {
+  const W = cssW, PW = W - GUT - PADR, t1 = S.viewEnd, t0 = t1 - S.win, xs = t => GUT + (t - t0) / S.win * PW;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, cssH);
+  ctx.font = '11px system-ui, -apple-system, "Segoe UI", sans-serif'; ctx.textBaseline = 'middle';
+  const last = PANELS[PANELS.length - 1], bottom = last.y + last.h;
+
+  // time grid and axis
+  const step = S.win <= 10 ? 1 : S.win <= 30 ? 5 : S.win <= 60 ? 10 : 20;
+  ctx.fillStyle = COL.grid;
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) for (const p of PANELS) ctx.fillRect(Math.round(xs(t)), p.y, 1, p.h);
+  ctx.fillStyle = COL.muted; ctx.textAlign = 'center';
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) if (t >= 0) ctx.fillText(fmtMS(t), xs(t), bottom + 12);
+  ctx.textAlign = 'left';
+  ctx.fillText(S.follow ? (S.live ? 'live' : 'end') : 'review', W - PADR - 34, 9);
+
+  for (const p of PANELS) {
+    ctx.fillStyle = COL.ink2; ctx.textAlign = 'left'; ctx.fillText(p.title, GUT, p.y - 8);
+    ctx.fillStyle = COL.axis; ctx.fillRect(GUT, p.y + p.h, PW, 1);
+  }
+  const yl = (text, y) => { ctx.fillStyle = COL.muted; ctx.textAlign = 'right'; ctx.fillText(text, GUT - 6, y); };
+  const clip = (p, fn) => { ctx.save(); ctx.beginPath(); ctx.rect(GUT, p.y, PW, p.h); ctx.clip(); fn(); ctx.restore(); };
+
+  // -- phases: a light wash behind the audio panels, blocks in the Trials lane
+  const vis = S.trials.filter(x => (x.t1 == null ? t1 : x.t1) >= t0 && x.t0 <= t1);
+  for (const id of ['mic', 'pitch', 'out']) {
+    const p = panel(id);
+    clip(p, () => {
+      ctx.globalAlpha = 0.10;
+      for (const x of vis) {
+        if (x.g0 != null) { ctx.fillStyle = COL.guide; ctx.fillRect(xs(x.g0), p.y, Math.max(1, xs(x.g1 == null ? t1 : x.g1) - xs(x.g0)), p.h); }
+        if (x.r0 != null) { ctx.fillStyle = COL.response; ctx.fillRect(xs(x.r0), p.y, Math.max(1, xs(x.t1 == null ? t1 : x.t1) - xs(x.r0)), p.h); }
+      }
+      ctx.globalAlpha = 1;
+    });
+  }
+  {
+    const p = panel('phase'), rowLabel = p.y + 7, rowBlock = p.y + 16, rowVoice = p.y + 36;
+    yl('phase', rowBlock + 7); yl('voice', rowVoice + 3);
+    clip(p, () => {
+      // Labels: trials first, other events only where they do not collide with anything already placed.
+      const taken = [];
+      const label = (text, x, color) => {
+        const a = Math.max(x + 3, GUT + 2), b = a + ctx.measureText(text).width;
+        if (b < GUT || taken.some(s => a < s[1] + 8 && b > s[0] - 8)) return;
+        taken.push([a, b]);
+        ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.fillText(text, a, rowLabel);
+      };
+      for (const x of vis) label((x.practice ? 'practice ' : '') + '#' + x.trial + ' ' + x.note + (x.hz ? ' ' + Math.round(x.hz) + ' Hz' : ''), xs(x.t0), COL.ink);
+      for (const m of S.markers) {
+        if (m.t < t0 - S.win || m.t > t1) continue;
+        const x = xs(m.t);
+        ctx.fillStyle = m.type === 'mic_restart' ? COL.critical : COL.axis; ctx.fillRect(Math.round(x), p.y, 1, p.h);
+        label(m.label, x, COL.muted);
+      }
+      const block = (a, b, color, text, on) => {
+        const xa = xs(a), w = Math.max(2, xs(b) - xa - 2);
+        ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(xa, rowBlock, w, 14, 3); ctx.fill();
+        if (w > ctx.measureText(text).width + 10) { ctx.fillStyle = on; ctx.textAlign = 'left'; ctx.fillText(text, Math.max(xa, GUT) + 5, rowBlock + 7.5); }
+      };
+      for (const x of vis) {
+        if (x.g0 != null) block(x.g0, x.g1 == null ? t1 : x.g1, COL.guide, 'guide', COL['on-guide']);
+        if (x.r0 != null) block(x.r0, x.t1 == null ? t1 : x.t1, COL.response, 'response', COL['on-response']);
+        ctx.fillStyle = COL.ink2;
+        for (const v of x.voiced) { const xa = xs(v[0]); ctx.beginPath(); ctx.roundRect(xa, rowVoice, Math.max(2, xs(v[1] == null ? t1 : v[1]) - xa), 6, 3); ctx.fill(); }
+      }
+    });
+  }
+
+  // -- waveforms
+  drawWave(panel('mic'), S.hasMic ? S.mic : null, 0, COL.mic, xs, t0, PW, yl, clip);
+  drawWave(panel('out'), S.hasOut ? S.out : null, S.outOffset, COL.out, xs, t0, PW, yl, clip);
+
+  // -- pitch
+  {
+    const p = panel('pitch'), lf = Math.log(F_HI / F_LO), yf = hz => p.y + p.h - Math.log(hz / F_LO) / lf * p.h;
+    for (const hz of [100, 200, 400, 800]) { ctx.fillStyle = COL.grid; ctx.fillRect(GUT, Math.round(yf(hz)), PW, 1); yl(String(hz), yf(hz)); }
+    clip(p, () => {
+      // target of each trial
+      for (const x of vis) {
+        if (!(x.hz > 0)) continue;
+        const xa = Math.max(xs(x.t0), GUT), xb = xs(x.t1 == null ? t1 : x.t1), y = yf(x.hz);
+        ctx.fillStyle = COL.ink; ctx.fillRect(xa, Math.round(y) - 0.5, Math.max(1, xb - xa), 1);
+        const text = x.note + ' ' + Math.round(x.hz);
+        if (xb - xa > ctx.measureText(text).width + 8) { ctx.textAlign = 'left'; ctx.fillText(text, xa + 4, y - 8); }
+      }
+      // Unity analyzer pitch
+      const rows = S.smp.rows;
+      if (rows.length && S.wall) {
+        ctx.strokeStyle = ctx.fillStyle = COL.analyzer; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+        let i = Math.max(0, lowerBound(rows, wallMs(t0), r => r[0]) - 1), prev = null;
+        ctx.beginPath();
+        for (; i < rows.length; i++) {
+          const r = rows[i], t = secOfWall(r[0]);
+          if (t > t1 + 1) break;
+          if (r[1] > 0) {
+            const x = xs(t), y = yf(clamp(r[1], F_LO, F_HI));
+            if (prev && t - prev.t < 0.6) { ctx.moveTo(prev.x, prev.y); ctx.lineTo(x, y); } else ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+            prev = { t, x, y };
+          } else prev = null;
+        }
+        ctx.stroke();
+      }
+      // pitch estimated from mic.wav
+      if (S.hasMic) {
+        const tr = S.mic, hopS = tr.hop / tr.rate;
+        ctx.strokeStyle = COL.mic; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+        let pen = false;
+        for (let k = Math.max(0, Math.floor(t0 / hopS)), e = Math.ceil(t1 / hopS); k <= e; k++) {
+          const f = tr.pitch(k);
+          if (f > 0) { const x = xs(k * hopS), y = yf(f); if (pen) ctx.lineTo(x, y); else { ctx.moveTo(x - 0.5, y); ctx.lineTo(x + 0.5, y); pen = true; } }
+          else pen = false;
+        }
+        ctx.stroke();
+      }
+    });
+  }
+
+  // -- low-rate strips
+  {
+    const rows = S.smp.rows, p = panel('breath');
+    const pts = [];
+    if (rows.length && S.wall) for (let i = Math.max(0, lowerBound(rows, wallMs(t0), r => r[0]) - 1); i < rows.length; i++) { const t = secOfWall(rows[i][0]); pts.push([t, rows[i][3]]); if (t > t1) break; }
+    strip(p, pts, 0, 1, COL.analyzer, false, 0.6, xs, yl, clip, v => v.toFixed(1));
+  }
+  {
+    const tr = S.trk, sel = key => {
+      const pts = [];
+      if (tr.rows.length && S.wall) {
+        const base = secOfWall(tr.startMs);
+        for (let i = Math.max(0, lowerBound(tr.rows, t0 - base, r => r.t) - 1); i < tr.rows.length; i++) { const t = base + tr.rows[i].t; pts.push([t, key(tr.rows[i])]); if (t > t1) break; }
+      }
+      return pts;
+    };
+    strip(panel('frame'), sel(r => r.dtMax), 0, 40, COL.ink2, true, 3, xs, yl, clip, v => v.toFixed(0), null, 100);
+    strip(panel('stale'), sel(r => r.body ? r.staleMax : NaN), 0, 500, COL.ink2, true, 3, xs, yl, clip, v => v.toFixed(0), 250, 1000);
+    strip(panel('conf'), sel(r => r.body ? r.conf : NaN), 0, 1, COL.ink2, true, 3, xs, yl, clip, v => v.toFixed(1));
+  }
+
+  // -- playhead of the saved audio being played
+  {
+    const a = $('player');
+    if (S.playObj && !a.ended && (!a.paused || a.currentTime > 0)) {
+      const x = xs(S.playT0 + a.currentTime);
+      if (x >= GUT && x <= W - PADR) { ctx.fillStyle = COL.ink; ctx.fillRect(Math.round(x) - 1, PANELS[0].y, 2, bottom - PANELS[0].y); }
+    }
+  }
+
+  // -- crosshair
+  if (S.hoverX >= GUT && S.hoverX <= W - PADR) {
+    ctx.fillStyle = COL.ink2; ctx.globalAlpha = 0.7; ctx.fillRect(Math.round(S.hoverX), PANELS[0].y, 1, bottom - PANELS[0].y); ctx.globalAlpha = 1;
+    updateTip(t0 + (S.hoverX - GUT) / PW * S.win, PW);
+  }
+}
+
+function drawWave(p, tr, offset, color, xs, t0, PW, yl, clip) {
+  const mid = p.y + p.h / 2;
+  if (!tr || !tr.ring) { ctx.fillStyle = COL.muted; ctx.textAlign = 'left'; ctx.fillText('no file', GUT + 6, mid); return; }
+  const cols = Math.floor(PW), spp = S.win * tr.rate / PW, s0 = (t0 - offset) * tr.rate;
+  if (!drawWave.buf || drawWave.buf.length < cols * 2) drawWave.buf = new Int16Array(cols * 2 + 2);
+  const buf = drawWave.buf;
+  let peak = 0;
+  for (let c = 0; c < cols; c++) {
+    if (tr.range(s0 + c * spp, s0 + (c + 1) * spp, mm)) {
+      buf[c * 2] = mm[0]; buf[c * 2 + 1] = mm[1];
+      const a = Math.max(-mm[0], mm[1]); if (a > peak) peak = a;
+    } else { buf[c * 2] = 1; buf[c * 2 + 1] = -1; }   // marks "no data"
+  }
+  const pn = peak / 32768;
+  let scale = 1; for (const sc of [0.02, 0.05, 0.1, 0.25, 0.5, 1]) if (pn * 1.05 <= sc) { scale = sc; break; }
+  yl('+' + scale, p.y + 6); yl('0', mid); yl('−' + scale, p.y + p.h - 6);
+  ctx.fillStyle = COL.grid; ctx.fillRect(GUT, Math.round(mid), PW, 1);
+  clip(p, () => {
+    const k = p.h / 2 / (32768 * scale);
+    ctx.fillStyle = color;
+    for (let c = 0; c < cols; c++) {
+      const mn = buf[c * 2], mx = buf[c * 2 + 1];
+      if (mn > mx) continue;
+      const ya = mid - mx * k, yb = mid - mn * k;
+      ctx.fillRect(GUT + c, ya, 1, Math.max(1, yb - ya));
+    }
+    ctx.fillStyle = COL.critical;
+    for (let c = 0; c < cols; c++) if (buf[c * 2] <= buf[c * 2 + 1] && (buf[c * 2 + 1] >= 32760 || buf[c * 2] <= -32760)) ctx.fillRect(GUT + c, p.y, 1, 5);
+  });
+}
+
+/** A low-rate series. The axis grows from hiMin up to hiMax with the data; larger values sit on the top edge (the tooltip has the number). */
+function strip(p, pts, lo, hiMin, color, stepped, maxGap, xs, yl, clip, fmt, threshold, hiMax) {
+  let hi = hiMin;
+  for (const q of pts) if (q[1] > hi) hi = q[1];
+  if (hi > hiMin) { const e = Math.pow(10, Math.floor(Math.log10(hi))); hi = Math.ceil(hi / e) * e; }
+  const capped = hiMax != null && hi > hiMax;
+  if (capped) hi = hiMax;
+  const y = v => p.y + p.h - 2 - (clamp(v, lo, hi) - lo) / (hi - lo) * (p.h - 6);
+  yl((capped ? '≥' : '') + fmt(hi), p.y + 6); yl(fmt(lo), p.y + p.h - 6);
+  if (threshold != null) { ctx.fillStyle = COL.grid; ctx.fillRect(GUT, Math.round(y(threshold)), cssW - GUT - PADR, 1); yl(fmt(threshold), y(threshold)); }
+  if (!pts.length) return;
+  clip(p, () => {
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+    let prev = null;
+    for (const q of pts) {
+      if (!isFinite(q[1])) { prev = null; continue; }
+      const x = xs(q[0]), yy = y(q[1]);
+      if (prev && q[0] - prev.t <= maxGap) { if (stepped) ctx.lineTo(x, prev.y); ctx.lineTo(x, yy); }
+      else { ctx.moveTo(x - 1, yy); ctx.lineTo(x + 1, yy); }
+      prev = { t: q[0], y: yy };
+    }
+    ctx.stroke();
+  });
+}
+
+function nearest(rows, t, key, maxDist) {
+  if (!rows.length) return null;
+  const i = lowerBound(rows, t, key);
+  let best = null;
+  for (const j of [i - 1, i]) if (j >= 0 && j < rows.length && (best == null || Math.abs(key(rows[j]) - t) < Math.abs(key(best) - t))) best = rows[j];
+  return best && Math.abs(key(best) - t) <= maxDist ? best : null;
+}
+
+function updateTip(t, PW) {
+  const tip = $('tip'), sw = c => `<i class="sw" style="background:${c}"></i>`;
+  const rows = [];
+  const half = S.win / PW / 2;
+  const x = S.trials.find(q => t >= q.t0 && t <= (q.t1 == null ? Infinity : q.t1));
+  let phase = '';
+  if (x) phase = (x.practice ? 'practice ' : '') + '#' + x.trial + ' ' + x.note + ' · ' + (x.r0 != null && t >= x.r0 ? 'response' : x.g1 != null && t >= x.g1 ? 'gap' : 'guide');
+  if (S.hasMic && S.mic.range((t - half) * S.mic.rate, (t + half) * S.mic.rate + 1, mm)) rows.push([sw('var(--mic)') + 'Mic peak', fmtDb(dB(Math.max(-mm[0], mm[1]) / 32768))]);
+  if (S.hasMic) {
+    const f = S.mic.pitch(Math.round(t * S.mic.rate / S.mic.hop));
+    rows.push([sw('var(--mic)') + 'Pitch', f > 0 ? f.toFixed(1) + ' Hz · ' + noteName(f) + (x && x.hz > 0 ? ' · ' + fmtCents(cents(f, x.hz)) : '') : f === 0 ? 'unvoiced' : '—']);
+  }
+  const sm = S.wall ? nearest(S.smp.rows, wallMs(t), r => r[0], 1000) : null;
+  if (sm) { rows.push([sw('var(--analyzer)') + 'Analyzer pitch', sm[1] > 0 ? sm[1].toFixed(1) + ' Hz' : 'unvoiced']); rows.push([sw('var(--analyzer)') + 'Breath depth', sm[3].toFixed(3)]); }
+  if (x && x.hz > 0) rows.push([sw('var(--ink)') + 'Target', x.note + ' · ' + (+x.hz).toFixed(1) + ' Hz']);
+  if (S.hasOut && S.out.range((t - half - S.outOffset) * S.out.rate, (t + half - S.outOffset) * S.out.rate + 1, mm)) rows.push([sw('var(--out)') + 'Output peak', fmtDb(dB(Math.max(-mm[0], mm[1]) / 32768))]);
+  const tk = S.wall && S.trk.rows.length ? nearest(S.trk.rows, t - secOfWall(S.trk.startMs), r => r.t, 1.5) : null;
+  if (tk) {
+    rows.push(['Frame time (worst)', isFinite(tk.dtMax) ? tk.dtMax.toFixed(1) + ' ms' : '—']);
+    rows.push(['Body tracking', tk.body ? 'conf ' + tk.conf.toFixed(2) + ' · age ' + tk.staleMax.toFixed(0) + ' ms' : 'no data']);
+  }
+  const mk = S.markers.find(m => Math.abs(m.t - t) <= half * 8);
+  tip.innerHTML = `<div class="h">${fmtT(t)}${S.wall ? ' · ' + fmtClock(wallMs(t)) : ''}</div>` + (phase ? `<div class="r"><span>Trial</span><span>${esc(phase)}</span></div>` : '') +
+    (mk ? `<div class="r"><span>Event</span><span>${esc(mk.label)}</span></div>` : '') + rows.map(r => `<div class="r"><span>${r[0]}</span><span>${esc(r[1])}</span></div>`).join('');
+  tip.style.display = 'block';
+  const w = tip.offsetWidth, hh = tip.offsetHeight;
+  tip.style.left = (S.hoverX + 14 + w > cssW ? S.hoverX - 14 - w : S.hoverX + 14) + 'px';
+  tip.style.top = clamp(S.hoverY - hh / 2, 0, Math.max(0, cssH - hh)) + 'px';
+}
+
+// ---- animation: smooth scroll in live mode, pitch in small slices --------------------------------------------------
+function frame(now) {
+  const dt = Math.min(0.25, (now - (S.lastFrame || now)) / 1000); S.lastFrame = now;
+  const head = headSec();
+  if (S.follow) {
+    // Data reaches the files in bursts of up to ~0.7 s; advance at real time and stay inside the newest second.
+    S.viewEnd = S.live ? clamp(S.viewEnd + dt, head - 1.0, head) : head;
+  } else S.viewEnd = clamp(S.viewEnd, Math.min(S.win * 0.2, head), head + S.win * 0.5);
+  S.mic.pitchStep(6);
+  if (cv.width !== Math.round($('stack').clientWidth * (window.devicePixelRatio || 1))) layout();
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// ---- interaction --------------------------------------------------------------------------------------------------
+function setFollow(on) { S.follow = on; $('live').setAttribute('aria-pressed', on ? 'true' : 'false'); }
+function jump(a, b) {
+  setFollow(false);
+  S.viewEnd = (b - a > S.win * 0.8) ? a + S.win * 0.9 : (a + b) / 2 + S.win / 2;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('session').addEventListener('change', e => { S.sel = e.target.value; });
+$('win').addEventListener('change', e => { S.win = +e.target.value; });
+$('live').addEventListener('click', () => setFollow(!S.follow));
+$('scrub').addEventListener('input', e => { setFollow(false); S.viewEnd = +e.target.value; });
+$('trials').addEventListener('click', e => {
+  const btn = e.target.closest('button.play');
+  if (btn) { playSaved('seg=' + encodeURIComponent(btn.dataset.seg), +btn.dataset.t0, btn.dataset.seg); return; }
+  const tr = e.target.closest('tr.jump');
+  if (tr && tr.dataset.a !== '') jump(+tr.dataset.a, tr.dataset.b !== '' ? +tr.dataset.b : +tr.dataset.a);
+});
+$('board').addEventListener('click', e => {
+  const b = e.target.closest('button.wav');
+  if (!b) return;
+  if (b.dataset.a !== '') { setFollow(false); const a = +b.dataset.a, z = b.dataset.b !== '' ? +b.dataset.b : a; S.viewEnd = (z - a > S.win * 0.8) ? a + S.win * 0.9 : (a + z) / 2 + S.win / 2; }
+  if (b.dataset.seg && !S.live) playSaved('seg=' + encodeURIComponent(b.dataset.seg), +b.dataset.t0, b.dataset.seg);
+});
+$('playMic').addEventListener('click', () => playWindow(S.mic, 0, 'mic'));
+$('playOut').addEventListener('click', () => playWindow(S.out, S.outOffset, 'output'));
+$('events').addEventListener('click', e => { const el = e.target.closest('.evt'); if (el) jump(+el.dataset.t, +el.dataset.t); });
+{
+  const stack = $('stack');
+  let drag = null;
+  stack.addEventListener('pointerdown', e => { drag = { x: e.clientX, end: S.viewEnd, moved: false }; stack.setPointerCapture(e.pointerId); });
+  stack.addEventListener('pointermove', e => {
+    const r = cv.getBoundingClientRect(); S.hoverX = e.clientX - r.left; S.hoverY = e.clientY - r.top;
+    if (drag) {
+      const dx = e.clientX - drag.x;
+      if (Math.abs(dx) > 3) { drag.moved = true; setFollow(false); }
+      if (drag.moved) S.viewEnd = drag.end - dx / (cssW - GUT - PADR) * S.win;
+    }
+  });
+  const endDrag = () => { drag = null; };
+  stack.addEventListener('pointerup', endDrag); stack.addEventListener('pointercancel', endDrag);
+  stack.addEventListener('pointerleave', () => { if (!drag) { S.hoverX = -1; $('tip').style.display = 'none'; } });
+}
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') { setFollow(false); S.viewEnd -= S.win * 0.25; }
+  else if (e.key === 'ArrowRight') { setFollow(false); S.viewEnd += S.win * 0.25; }
+  else if (e.key === 'l' || e.key === 'L' || e.key === 'End') setFollow(true);
+});
+window.addEventListener('pagehide', () => navigator.sendBeacon('/api/bye?page=' + PAGE_ID));   // lets the next recording reopen the window
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+window.addEventListener('resize', layout);
+
+readColors(); layout(); poll(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>

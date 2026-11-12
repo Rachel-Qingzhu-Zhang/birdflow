@@ -382,6 +382,30 @@ namespace AvianVoice.Editor
                 Debug.LogWarning("[AvianVoice] No TaskManager in the running scene.");
         }
 
+        // The experimenter's trial buttons as menu items, so a recording can be driven without the panel (tests, MCP).
+        [MenuItem("Avian Voice/Embodiment/Debug/Singing Trial - Start or Next (Play Mode)")]
+        public static void DebugNextTrial() => DebugTrials(trials => trials.StartNextTrial("debug_menu"));
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Singing Trial - End (Play Mode)")]
+        public static void DebugEndTrial() => DebugTrials(trials => trials.EndTrialNow("debug_menu"));
+
+        [MenuItem("Avian Voice/Embodiment/Debug/Singing Trial - Reset To Trial 1 (Play Mode)")]
+        public static void DebugResetTrials() => DebugTrials(trials => trials.ResetProtocol("debug_menu"));
+
+        static void DebugTrials(Action<AvianVoice.Study.SingingTrialTask> action)
+        {
+            var flow = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.StudyFlowController>();
+            if (flow == null || flow.Trials == null)
+            {
+                Debug.LogWarning("[AvianVoice] No singing trial task in the running scene.");
+                return;
+            }
+
+            action(flow.Trials);
+            Debug.Log("[AvianVoice] Singing trials: " + flow.Trials.DescribeState()
+                      + (flow.Recorder != null ? " | " + flow.Recorder.Describe() : " | not recording"));
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Replay Guide Note (Play Mode)")]
         public static void DebugReplayGuideNote()
         {

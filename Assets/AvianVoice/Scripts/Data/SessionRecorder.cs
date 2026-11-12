@@ -2,6 +2,7 @@ using System.IO;
 using AvianVoice.Audio;
 using AvianVoice.Core;
 using AvianVoice.Physiology;
+using AvianVoice.Study;
 using UnityEngine;
 
 namespace AvianVoice.Data
@@ -95,6 +96,12 @@ namespace AvianVoice.Data
 
             var json = JsonUtility.ToJson(entry);
             File.AppendAllText(logPath, json + "\n");
+
+            // The same sample into the study session's own folder (samples.csv), with the session's time bases, so each
+            // participant's signals are in their folder and not only in the log shared by every run on this PC.
+            var study = StudyRecorder.Instance;
+            if (study != null && study.SessionOpen)
+                study.WriteSample(v, b, entry.voiceMode, taskId == "ambient" ? "" : taskId, score, lastBreathSyncScore, lastBreathPatternId);
         }
     }
 }

@@ -50,6 +50,10 @@ namespace AvianVoice.Study
         public string avatar = "";
         public string avatarModel = "";
         public string voiceFeedback = "";
+        /// <summary>Condition the trial started in (StudyRecorder.ConditionId), also its folder under conditions/.</summary>
+        public string condition = "";
+        /// <summary>Human body shown ("neutral" / "male" / "female" ...), "" with the bird avatar.</summary>
+        public string humanAvatar = "";
         public StudyTime start;
         public StudyTime guideStart;
         public StudyTime guideEnd;
@@ -70,7 +74,7 @@ namespace AvianVoice.Study
         public bool HadVoice => voiceOnset.IsSet;
 
         public const string CsvHeader =
-            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,avatar_model,voice_feedback,"
+            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,avatar_model,voice_feedback,condition,human_avatar,"
             + "t_start_utc,t_start_local,t_start_unity,t_start_dsp,mic_sample_start,out_frame_start,"
             + "t_guide_start_unity,mic_sample_guide_start,t_guide_end_unity,mic_sample_guide_end,"
             + "t_response_start_unity,mic_sample_response_start,"
@@ -86,6 +90,7 @@ namespace AvianVoice.Study
             sb.Append(trial).Append(',').Append(attempt).Append(',').Append(block).Append(',').Append(pitchIndex).Append(',')
               .Append(targetHz.ToString("0.###", c)).Append(',').Append(Csv(note)).Append(',').Append(Csv(order)).Append(',')
               .Append(Csv(source)).Append(',').Append(Csv(avatar)).Append(',').Append(Csv(avatarModel)).Append(',').Append(Csv(voiceFeedback)).Append(',')
+              .Append(Csv(condition)).Append(',').Append(Csv(humanAvatar)).Append(',')
               .Append(Csv(start.utc)).Append(',').Append(Csv(start.local)).Append(',').Append(Num(start.unity)).Append(',').Append(Num(start.dsp)).Append(',')
               .Append(start.micSample).Append(',').Append(start.outFrame).Append(',')
               .Append(Num(guideStart.unity)).Append(',').Append(guideStart.micSample).Append(',')
@@ -107,6 +112,7 @@ namespace AvianVoice.Study
             return new JsonLine()
                 .Add("trial", trial).Add("attempt", attempt).Add("block", block).Add("pitch_index", pitchIndex)
                 .Add("target_hz", targetHz).Add("note", note).Add("order", order).Add("source", source).Add("avatar", avatar).Add("avatar_model", avatarModel).Add("voice_feedback", voiceFeedback)
+                .Add("condition", condition).Add("human_avatar", humanAvatar)
                 .Add("start", start).Add("guide_start", guideStart).Add("guide_end", guideEnd)
                 .Add("response_start", responseStart).Add("voice_onset", voiceOnset).Add("voice_offset", voiceOffset).Add("end", end)
                 .Add("end_reason", endReason).Add("voice_segments", voiceSegments)
@@ -453,7 +459,9 @@ namespace AvianVoice.Study
                 source = source ?? "",
                 avatar = recorder != null ? recorder.CurrentAvatar : "",
                 avatarModel = recorder != null ? recorder.CurrentAvatarModel : "",
-                voiceFeedback = recorder != null ? recorder.CurrentVoiceFeedback : ""
+                voiceFeedback = recorder != null ? recorder.CurrentVoiceFeedback : "",
+                condition = recorder != null ? recorder.CurrentCondition : "",
+                humanAvatar = recorder != null ? recorder.CurrentHumanAvatar : ""
             };
 
             ResetResponseState();
@@ -719,9 +727,11 @@ namespace AvianVoice.Study
                 // Practice trials stay out of trials.csv and segments/ (events.jsonl keeps them, task "practice").
                 if (!practiceMode)
                 {
+                    // conditions/<condition>/segments/trial_NNN_aN_<note>[_<human body>].wav
                     var safeNote = record.note.Replace('#', 's');
                     record.segmentFile = recorder.WriteSegment(record.start.micSample, record.end.micSample,
-                        "trial_" + record.trial.ToString("000", CultureInfo.InvariantCulture) + "_a" + record.attempt + "_" + safeNote + ".wav") ?? "";
+                        "trial_" + record.trial.ToString("000", CultureInfo.InvariantCulture) + "_a" + record.attempt + "_" + safeNote
+                        + (string.IsNullOrEmpty(record.humanAvatar) ? "" : "_" + record.humanAvatar) + ".wav", record.condition) ?? "";
                     recorder.WriteTrial(record);
                 }
 

@@ -81,3 +81,6 @@ compile.log
 
 # Avian Voice study recordings (events, audio, trials): local only, never shared
 /StudyData/
+
+# Python bytecode caches (Tools/StudyMonitor)
+__pycache__/

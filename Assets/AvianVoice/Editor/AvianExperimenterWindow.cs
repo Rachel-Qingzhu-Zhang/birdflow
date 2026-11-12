@@ -720,6 +720,11 @@ namespace AvianVoice.Editor
                     ? recorder.OutputSecondsWritten.ToString("0", c) + " s  @" + recorder.OutputSampleRate + " Hz"
                     : "idle");
                 EditorGUILayout.LabelField("Trial rows", recorder.TrialRowsWritten.ToString(c));
+                EditorGUILayout.LabelField("Sample rows", recorder.SampleRowsWritten.ToString(c) + "  (samples.csv: pitch, loudness, breath)");
+                EditorGUILayout.LabelField("Condition folder", string.IsNullOrEmpty(recorder.ConditionFolder)
+                    ? "none yet"
+                    : recorder.ConditionFolder + "  (trials " + recorder.ConditionTrialRows.ToString(c) + ", samples " + recorder.ConditionSampleRows.ToString(c)
+                      + (string.IsNullOrEmpty(recorder.CurrentHumanAvatar) ? "" : ", human avatar: " + recorder.CurrentHumanAvatar) + ")");
                 EditorGUILayout.LabelField("Folder", recorder.SessionDirectory, EditorStyles.wordWrappedMiniLabel);
                 if (GUILayout.Button("Open this session's folder"))
                     EditorUtility.RevealInFinder(Path.Combine(recorder.SessionDirectory, "session.json"));
