@@ -19,7 +19,8 @@ namespace AvianVoice.Editor
     /// bone exactly as AvianHumanoidRetargeter does at runtime (avatarBone = sourceBone * correction), once with the
     /// full-frame corrections and once with the SDK's direction-only corrections. For a set of hand poses the test
     /// measures how far each driven segment points away from the source segment and how far the palm normals
-    /// differ (degrees). Pairs: MakeHuman -> MakeHuman (control), Armature -> MakeHuman, MakeHuman -> Armature.
+    /// differ (degrees). Pairs: MakeHuman -> MakeHuman (control), Armature -> MakeHuman, MakeHuman -> Armature,
+    /// Armature -> Rocketbox male, Armature -> Rocketbox female.
     ///
     /// Menu: Avian Voice / Embodiment / Debug / Hand Retarget Self-Test (log only, or with images in Temp/HandRetargetTest).
     /// Batch: Unity -batchmode -projectPath . -executeMethod AvianVoice.Editor.HandRetargetSelfTest.Batch -handTestOut &lt;folder&gt;
@@ -110,6 +111,105 @@ namespace AvianVoice.Editor
                 UnityEngine.Object.DestroyImmediate(t);
         }
 
+        /// <summary>
+        /// Turning the wrist (palm towards the floor / the ceiling) on each human body: once with all the twist at the
+        /// wrist, as Meta's body skeleton delivers it (its forearm joint does not turn; the twist is in its wrist-twist
+        /// joint), once shared out along the forearm as at runtime (<see cref="HandFrameRetargeting.DistributeForearmTwist"/>,
+        /// share 0.5). The Armature in its T-pose plays the tracked arm. Rows = bodies, columns = palm turned -80 deg
+        /// as tracked / shared, +80 deg as tracked / shared. Writes Temp/HandRetargetTest/wrist_twist.png.
+        /// </summary>
+        [MenuItem("Avian Voice/Embodiment/Debug/Render Wrist Twist")]
+        public static void RenderWristTwist()
+        {
+            var sourcePath = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.ArmatureAvatarAssetPath);
+            var targets = new[]
+            {
+                AvianEmbodimentSceneSetup.MakeHumanAvatarAssetPath, AvianEmbodimentSceneSetup.RocketboxMaleAvatarAssetPath,
+                AvianEmbodimentSceneSetup.RocketboxFemaleAvatarAssetPath,
+            };
+            const float share = 0.5f;
+            var tiles = new List<Texture2D>();
+            var sb = new StringBuilder("[AvianVoice] WRIST TWIST (left arm, palm turned about the forearm; total twist / forearm part after sharing, deg):");
+            foreach (var asset in targets)
+            {
+                var source = Load(sourcePath, TestOrigin);
+                var target = Load(AvianEmbodimentSceneSetup.ToResourcesPath(asset), TestOrigin + new Vector3(2f, 0f, 0f));
+                if (source == null || target == null)
+                {
+                    Destroy(source, target);
+                    continue;
+                }
+
+                try
+                {
+                    HumanoidTPose.Apply(source.animator);
+                    HumanoidTPose.Apply(target.animator);
+                    var bind = new HandFrameRetargeting.Snapshot();
+                    var rest = new HandFrameRetargeting.Snapshot();
+                    Snap(source, bind);
+                    HandFrameRetargeting.SnapshotFromSkinBindPose(target.animator, target.go.transform,
+                        HandFrameRetargeting.SnapshotBones, target.fingertips, rest);
+                    var frames = new HandFrameRetargeting();
+                    if (!frames.Calibrate(bind, rest, includeForearm: true, includeFingers: true))
+                        continue;
+                    (bool, Quaternion) Frame(HumanBodyBones bone) => (frames.TryGetCorrection(bone, out var c), c);
+
+                    var upper = target.animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+                    var lower = target.animator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
+                    var hand = target.animator.GetBoneTransform(HumanBodyBones.LeftHand);
+                    Drive(source, target, Frame);
+                    var elbowRest = Quaternion.Inverse(upper.rotation) * lower.rotation;
+                    var wristRest = Quaternion.Inverse(lower.rotation) * hand.rotation;
+
+                    var sourceLower = source.animator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
+                    var sourceHand = source.animator.GetBoneTransform(HumanBodyBones.LeftHand);
+                    var sourceHandRest = sourceHand.rotation;
+                    sb.Append("\n  ").Append(Name(AvianEmbodimentSceneSetup.ToResourcesPath(asset)).PadRight(16));
+                    foreach (var turn in new[] { -80f, 80f })
+                    {
+                        var axis = (sourceHand.position - sourceLower.position).normalized;
+                        sourceHand.rotation = Quaternion.AngleAxis(turn, axis) * sourceHandRest;
+                        Drive(source, target, Frame);
+                        tiles.Add(RenderForearm(target, new[] { source, target }));
+                        var total = HandFrameRetargeting.DistributeForearmTwist(upper, lower, hand, elbowRest, wristRest, share);
+                        var forearmPart = HandFrameRetargeting.TwistAngle(
+                            Quaternion.Inverse(elbowRest) * (Quaternion.Inverse(upper.rotation) * lower.rotation),
+                            (Quaternion.Inverse(lower.rotation) * (hand.position - lower.position)).normalized);
+                        tiles.Add(RenderForearm(target, new[] { source, target }));
+                        sb.Append("  turn ").Append(turn.ToString("+0;-0")).Append(": total ").Append(total.ToString("0"))
+                          .Append(" / forearm ").Append(forearmPart.ToString("0"));
+                    }
+
+                    sourceHand.rotation = sourceHandRest;
+                }
+                finally
+                {
+                    Destroy(source, target);
+                }
+            }
+
+            Debug.Log(sb.ToString());
+            if (tiles.Count > 0)
+            {
+                var path = Path.Combine(Path.GetFullPath("Temp/HandRetargetTest"), "wrist_twist.png");
+                SaveGrid(tiles, 4, path, "[AvianVoice] WRIST TWIST image: " + path +
+                                         " (rows = neutral / male / female, columns = palm -80 deg as tracked / shared, +80 deg as tracked / shared)");
+            }
+
+            foreach (var t in tiles)
+                UnityEngine.Object.DestroyImmediate(t);
+        }
+
+        /// <summary>The left forearm and hand from the front and a little above.</summary>
+        static Texture2D RenderForearm(Rig rig, Rig[] all)
+        {
+            var lower = rig.animator.GetBoneTransform(HumanBodyBones.LeftLowerArm).position;
+            var hand = rig.animator.GetBoneTransform(HumanBodyBones.LeftHand).position;
+            var center = Vector3.Lerp(lower, hand, 0.6f);
+            var camPosition = center + new Vector3(0f, 0.16f, 0.5f);
+            return RenderView(rig, all, camPosition, Quaternion.LookRotation(center - camPosition), 40f, Tile, 0.02f);
+        }
+
         /// <summary>Rotate each left finger joint (thumb excepted) about the axis perpendicular to its segment and the palm normal.</summary>
         static void BendLeftFingers(Rig rig, float degrees)
         {
@@ -170,10 +270,14 @@ namespace AvianVoice.Editor
         public static bool Run(string imageDir)
         {
             var makeHuman = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.MakeHumanAvatarAssetPath);
-            var armature = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.HumanAvatarAssetPath);
+            var armature = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.ArmatureAvatarAssetPath);
+            var male = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.RocketboxMaleAvatarAssetPath);
+            var female = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.RocketboxFemaleAvatarAssetPath);
             var ok = RunPair(makeHuman, makeHuman, imageDir); // control: same rig
             ok &= RunPair(armature, makeHuman, imageDir);
             ok &= RunPair(makeHuman, armature, imageDir);
+            ok &= RunPair(armature, male, imageDir);
+            ok &= RunPair(armature, female, imageDir);
             Debug.Log("[AvianVoice] HAND TEST " + (ok ? "PASSED" : "FAILED") + " (frame-aligned segment direction and palm normal within " +
                       PassDegrees + " deg of the source in every pose)");
             return ok;

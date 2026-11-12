@@ -259,6 +259,13 @@ namespace AvianVoice.Study
         public string CurrentTaskId { get; private set; } = "";
         public string CurrentAvatar { get; set; } = "";
 
+        /// <summary>
+        /// Model behind <see cref="CurrentAvatar"/>: the Resources path of the human body (e.g.
+        /// "Avatars/Rocketbox/Female_Adult_01/Female_Adult_01") or the bird's object name. Ids were reused over the
+        /// project's history, the model is unambiguous.
+        /// </summary>
+        public string CurrentAvatarModel { get; set; } = "";
+
         /// <summary>"bird" / "human" / "none": what the participant hears of their own voice (set by StudyFlowController).</summary>
         public string CurrentVoiceFeedback { get; set; } = "";
         public bool WriteTrialSegments => writeTrialSegments;
@@ -464,6 +471,7 @@ namespace AvianVoice.Study
                 .Add("out_frame", t.outFrame)
                 .Add("task", CurrentTaskId)
                 .Add("avatar", CurrentAvatar)
+                .Add("avatar_model", CurrentAvatarModel)
                 .Add("voice_feedback", CurrentVoiceFeedback);
             fill?.Invoke(j);
             events.WriteLine(j.ToString());

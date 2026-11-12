@@ -27,28 +27,46 @@ namespace AvianVoice.Embodiment.Avatars
         [SerializeField]
         AvatarKind startAvatar = AvatarKind.Bird;
 
-        [Tooltip("Human avatars the experimenter can choose from (Resources paths of Humanoid-rigged models, no extension). " +
-                 "Default: the gender-neutral mannequin, the Unity Starter Assets robot that Meta uses as the stylized " +
-                 "body of its body-tracking samples (id \"neutral\", as in all recordings). The MakeHuman mannequin " +
-                 "(gender 0.5) stays selectable for comparison. Missing models are reported and skipped.")]
+        [Tooltip("Human avatars (Resources paths of Humanoid-rigged models, no extension). The experimenter chooses among " +
+                 "the selectable ones: gender-neutral (MakeHuman, gender 0.5, flat chest), male and female (Microsoft " +
+                 "Rocketbox Male_Adult_01 / Female_Adult_01). The faceless robot mannequin (Unity Starter Assets Armature, " +
+                 "Meta's stylized body-tracking sample body) is kept but not offered: tick 'selectable' to bring it back. " +
+                 "Ids before 2026-11-12: 'neutral' was that mannequin (2026-11-05 to 11-12) and the MakeHuman body was " +
+                 "'makehuman'. Missing models are reported and skipped.")]
         [SerializeField]
         HumanAvatarOption[] humanAvatars =
         {
             new()
             {
-                id = "neutral", label = "mannequin", labelJa = "マネキン",
-                resourcePath = "Avatars/UnityArmature/Armature",
-                // Measured on the Armature in muscle T-pose (menu: Debug / Measure Human Avatar Eye Point): head bone
-                // at 1.59 m, head top 0.15 m above it, face front 0.11 m ahead -> eye line ~0.035 m up, ~0.09 m forward.
-                eyeOffsetFromHeadBone = new Vector3(0f, 0.035f, 0.09f)
+                id = "neutral", label = "neutral (MakeHuman)", labelJa = "中性",
+                resourcePath = "Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01",
+                // Measured in T-pose (menu: Debug / Measure Human Avatar Eye Point): head bone at 1.49 m, eye
+                // bone / eyeball centres 0.038 m up and ~0.075 m forward (face front 0.124 m) -> camera at the eyeballs.
+                eyeOffsetFromHeadBone = new Vector3(0f, 0.038f, 0.075f)
             },
             new()
             {
-                id = "makehuman", label = "mannequin (MakeHuman)", labelJa = "マネキン (MakeHuman)",
-                resourcePath = "Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01",
-                // Measured in muscle T-pose (menu: Debug / Measure Human Avatar Eye Point): head bone at 1.46 m, eye
-                // bone / eyeball centres 0.038 m up and ~0.075 m forward (face front 0.124 m) -> camera at the eyeballs.
-                eyeOffsetFromHeadBone = new Vector3(0f, 0.038f, 0.075f)
+                id = "male", label = "male (Rocketbox)", labelJa = "男性",
+                resourcePath = "Avatars/Rocketbox/Male_Adult_01/Male_Adult_01",
+                // Measured in the rest pose (Debug / Measure Human Avatar Eye Point): head bone at 1.59 m, eye bone
+                // (Bip01 LEye, eyeball centre) 0.099 m up and 0.086 m forward.
+                eyeOffsetFromHeadBone = new Vector3(0f, 0.099f, 0.086f)
+            },
+            new()
+            {
+                id = "female", label = "female (Rocketbox)", labelJa = "女性",
+                resourcePath = "Avatars/Rocketbox/Female_Adult_01/Female_Adult_01",
+                // Measured in the rest pose: head bone at 1.52 m, eye bone (Bip01 LEye) 0.090 m up and 0.086 m forward.
+                eyeOffsetFromHeadBone = new Vector3(0f, 0.090f, 0.086f)
+            },
+            new()
+            {
+                id = "mannequin", label = "mannequin (Armature)", labelJa = "マネキン",
+                resourcePath = "Avatars/UnityArmature/Armature",
+                // Measured on the Armature (menu: Debug / Measure Human Avatar Eye Point): head bone at 1.59 m, head
+                // top 0.15 m above it, face front 0.11 m ahead -> eye line ~0.035 m up, ~0.09 m forward.
+                eyeOffsetFromHeadBone = new Vector3(0f, 0.035f, 0.09f),
+                selectable = false
             }
         };
 
@@ -125,6 +143,10 @@ namespace AvianVoice.Embodiment.Avatars
 
             [Tooltip("Eye point relative to the Humanoid head bone in the avatar root frame (meters, T-pose): where the headset camera sits.")]
             public Vector3 eyeOffsetFromHeadBone = new(0f, 0.07f, 0.09f);
+
+            [Tooltip("Offered in the experimenter panel and the Next Human Avatar menu. Off: kept in the project and still " +
+                     "usable as the start avatar, but not offered.")]
+            public bool selectable = true;
         }
 
         sealed class HumanInstance
@@ -166,6 +188,11 @@ namespace AvianVoice.Embodiment.Avatars
 
         /// <summary>"Bird" or "Human:&lt;id&gt;", for logs and the study recorder.</summary>
         public string CurrentLabel => Current == AvatarKind.Bird ? "Bird" : "Human:" + HumanAvatarId;
+
+        /// <summary>Model of the avatar shown now: the human body's Resources path, or the bird's object name.</summary>
+        public string CurrentModel => Current == AvatarKind.Bird
+            ? (BirdRoot != null ? BirdRoot.name : "bird")
+            : CurrentHumanOption != null ? CurrentHumanOption.resourcePath : "";
 
         public event Action<AvatarKind> AvatarChanged;
 

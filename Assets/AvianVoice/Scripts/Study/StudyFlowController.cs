@@ -133,7 +133,10 @@ namespace AvianVoice.Study
                 // The avatar may have changed in this same call (SetCondition): label the events that follow
                 // with the new avatar at once instead of waiting for the next Update.
                 if (avatar != null)
+                {
                     Recorder.CurrentAvatar = avatar.CurrentLabel;
+                    Recorder.CurrentAvatarModel = avatar.CurrentModel;
+                }
             }
 
             if (lastFeedback == effective)
@@ -262,6 +265,8 @@ namespace AvianVoice.Study
             {
                 lastAvatarLabel = avatar.CurrentLabel;
                 Recorder.CurrentAvatar = lastAvatarLabel;
+                Recorder.CurrentAvatarModel = avatar.CurrentModel;
+                LogHumanAvatarCatalog();
             }
 
             lastFeedback = (VoiceFeedback)(-1); // log the condition into this session
@@ -319,8 +324,35 @@ namespace AvianVoice.Study
             {
                 lastAvatarLabel = label;
                 Recorder.CurrentAvatar = label;
-                Recorder.LogEvent("avatar_changed", j => j.Add("kind", avatar.Current.ToString()).Add("human_id", avatar.HumanAvatarId).Add("condition", ConditionLabel));
+                Recorder.CurrentAvatarModel = avatar.CurrentModel;
+                var option = avatar.CurrentHumanOption;
+                Recorder.LogEvent("avatar_changed", j => j.Add("kind", avatar.Current.ToString()).Add("human_id", avatar.HumanAvatarId)
+                    .Add("human_label", option != null ? option.label : "").Add("human_model", option != null ? option.resourcePath : "")
+                    .Add("condition", ConditionLabel));
             }
+        }
+
+        /// <summary>Which human bodies this session could use (id, panel label, model, offered in the panel).</summary>
+        void LogHumanAvatarCatalog()
+        {
+            var options = avatar != null ? avatar.HumanAvatars : null;
+            if (Recorder == null || options == null)
+                return;
+
+            var ids = new string[options.Length];
+            var labels = new string[options.Length];
+            var models = new string[options.Length];
+            var selectable = new string[options.Length];
+            for (var i = 0; i < options.Length; i++)
+            {
+                ids[i] = options[i].id;
+                labels[i] = options[i].label;
+                models[i] = options[i].resourcePath;
+                selectable[i] = options[i].selectable ? "yes" : "no";
+            }
+
+            Recorder.LogEvent("human_avatars", j => j.AddArray("ids", ids).AddArray("labels", labels).AddArray("models", models)
+                .AddArray("selectable", selectable).Add("start_id", avatar.HumanAvatarId));
         }
     }
 }

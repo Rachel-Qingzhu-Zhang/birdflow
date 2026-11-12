@@ -745,12 +745,22 @@ namespace AvianVoice.Editor
                 DrawConditionRow(controller, flow, AvatarKind.Bird, "Bird + bird voice", "Bird + own voice only", true);
                 DrawConditionRow(controller, flow, AvatarKind.Human, "Human + human voice", "Human + own voice only", humanAvailable);
 
-                var options = controller != null ? controller.HumanAvatars : null;
-                if (options != null && options.Length > 1)
+                // Selectable bodies only (plus the one in use, e.g. a kept-but-hidden body set as the start avatar).
+                var options = new List<AvatarEmbodimentController.HumanAvatarOption>();
+                if (controller != null && controller.HumanAvatars != null)
                 {
-                    var names = new string[options.Length];
+                    foreach (var option in controller.HumanAvatars)
+                    {
+                        if (option.selectable || option.id == controller.HumanAvatarId)
+                            options.Add(option);
+                    }
+                }
+
+                if (options.Count > 1)
+                {
+                    var names = new string[options.Count];
                     var index = 0;
-                    for (var i = 0; i < options.Length; i++)
+                    for (var i = 0; i < options.Count; i++)
                     {
                         names[i] = options[i].label + (controller.HasHumanAvatar(options[i].id) ? "" : " (missing)");
                         if (options[i].id == controller.HumanAvatarId)

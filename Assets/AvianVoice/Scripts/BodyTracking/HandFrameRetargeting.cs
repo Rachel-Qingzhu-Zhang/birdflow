@@ -391,6 +391,52 @@ namespace AvianVoice.BodyTracking
             return true;
         }
 
+        // ------------------------------------------------------------------ forearm twist
+
+        /// <summary>Angle (degrees, -180..180) of the part of <paramref name="q"/> that turns about the unit <paramref name="axis"/> (swing-twist split).</summary>
+        public static float TwistAngle(Quaternion q, Vector3 axis)
+        {
+            var projection = q.x * axis.x + q.y * axis.y + q.z * axis.z;
+            return Mathf.DeltaAngle(0f, 2f * Mathf.Atan2(projection, q.w) * Mathf.Rad2Deg);
+        }
+
+        /// <summary>
+        /// Shares the axial twist between elbow and hand (turning the wrist, pronation / supination) out along the
+        /// forearm. In a real arm the radius turns about the ulna, so the skin twists gradually from the elbow to the
+        /// wrist; a rig with one forearm bone and no twist bones (MakeHuman, Rocketbox Adult_01, the Armature) puts all
+        /// of it into whichever joint the tracker does: Meta's body skeleton carries it in its wrist-twist joint, so
+        /// the avatar's wrist skin wrings like a sweet wrapper. Here the forearm bone is turned about its own axis to
+        /// carry <paramref name="share"/> of the total twist and the hand is put back to its world rotation, so the
+        /// hand still matches the tracking exactly.
+        /// <paramref name="elbowRest"/> = forearm rotation relative to the upper arm, <paramref name="wristRest"/> =
+        /// hand relative to the forearm, both in a pose without twist (the tracker's bind pose). Returns the total
+        /// twist in degrees.
+        /// </summary>
+        public static float DistributeForearmTwist(Transform upperArm, Transform forearm, Transform hand,
+            Quaternion elbowRest, Quaternion wristRest, float share)
+        {
+            if (upperArm == null || forearm == null || hand == null)
+                return 0f;
+
+            var handWorld = hand.rotation;
+            var toHand = hand.position - forearm.position;
+            if (toHand.sqrMagnitude < 1e-10f)
+                return 0f;
+
+            // The forearm axis in the forearm's own frame, and in the hand's frame of the untwisted pose.
+            var axisInForearm = (Quaternion.Inverse(forearm.rotation) * toHand).normalized;
+            var axisInHand = Quaternion.Inverse(wristRest) * axisInForearm;
+
+            var elbow = Quaternion.Inverse(elbowRest) * (Quaternion.Inverse(upperArm.rotation) * forearm.rotation);
+            var wrist = Quaternion.Inverse(wristRest) * (Quaternion.Inverse(forearm.rotation) * handWorld);
+            var atElbow = TwistAngle(elbow, axisInForearm);
+            var total = Mathf.DeltaAngle(0f, atElbow + TwistAngle(wrist, axisInHand));
+
+            forearm.rotation *= Quaternion.AngleAxis(Mathf.Clamp01(share) * total - atElbow, axisInForearm);
+            hand.rotation = handWorld;
+            return total;
+        }
+
         /// <summary>
         /// Palm normal n = (wrist -> middle base) x (little base -> index base), and the across-the-palm unit axis
         /// (little -> index). The same formula on both skeletons gives the same side of the palm for the same hand.

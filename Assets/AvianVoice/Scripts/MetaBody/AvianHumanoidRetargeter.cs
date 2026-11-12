@@ -50,6 +50,13 @@ namespace AvianVoice.MetaBody
                  "and hands keep the direction match either way, so they still point where the real ones do.")]
         public bool keepAvatarTorsoShape = true;
 
+        [Tooltip("Share of the wrist's axial twist (turning the palm up / down) that the forearm carries, so the skin twists " +
+                 "gradually along the forearm as in a real arm instead of wringing at the wrist. 0 = as tracked (Meta's skeleton " +
+                 "puts it all into its wrist-twist joint, i.e. at the avatar's wrist). Unity's own Humanoid default is 0.5. " +
+                 "The hand itself always matches the tracking.")]
+        [Range(0f, 1f)]
+        public float forearmTwistShare = 0.5f;
+
         public bool RestPoseCaptured { get; private set; }
 
         /// <summary>Hand frames calibrated against the current bind pose (data arrived at least once).</summary>
@@ -76,6 +83,25 @@ namespace AvianVoice.MetaBody
         int torsoCorrectedForCount = -1;
         Vector3 torsoCorrectedScale;
         string torsoSummary = "not calibrated";
+
+        /// <summary>One arm for the forearm twist: bones, and elbow / wrist rotations in the untwisted (bind) pose.</summary>
+        sealed class ArmTwist
+        {
+            public HumanBodyBones upper, lower, hand;
+            public Transform upperBone, lowerBone, handBone;
+            /// <summary>Upper arm in the rig's T-pose: rotation and direction to the elbow, root frame.</summary>
+            public Quaternion upperRest;
+            public Vector3 upperRestDirection;
+            public Quaternion elbowRest, wristRest;
+            public bool valid;
+            public float lastTwist;
+        }
+
+        readonly ArmTwist[] arms =
+        {
+            new() { upper = HumanBodyBones.LeftUpperArm, lower = HumanBodyBones.LeftLowerArm, hand = HumanBodyBones.LeftHand },
+            new() { upper = HumanBodyBones.RightUpperArm, lower = HumanBodyBones.RightLowerArm, hand = HumanBodyBones.RightHand },
+        };
 
         /// <summary>Tracked fingertip joints, keyed by the Humanoid distal bone they end.</summary>
         static readonly Dictionary<BoneId, HumanBodyBones> TipToDistal = new()
@@ -156,7 +182,7 @@ namespace AvianVoice.MetaBody
         {
             return "torso=" + (keepAvatarTorsoShape ? torsoSummary : "SDK direction match")
                    + " hands=" + (frameAlignedHands ? "frame-aligned" : "SDK") + " fingers=" + (driveFingers ? "driven" : "kept")
-                   + " " + (HandsCalibrated ? handSummary : "not calibrated (no tracking data yet)");
+                   + " " + (HandsCalibrated ? handSummary + " | " + DescribeForearmTwist() : "not calibrated (no tracking data yet)");
         }
 
         /// <summary>
@@ -285,6 +311,18 @@ namespace AvianVoice.MetaBody
 
             torsoRest.Clear();
             var rootInverse = Quaternion.Inverse(transform.rotation);
+            foreach (var arm in arms)
+            {
+                arm.upperBone = targetAnimator.GetBoneTransform(arm.upper);
+                arm.lowerBone = targetAnimator.GetBoneTransform(arm.lower);
+                arm.handBone = targetAnimator.GetBoneTransform(arm.hand);
+                arm.valid = false;
+                if (arm.upperBone == null || arm.lowerBone == null)
+                    continue;
+                arm.upperRest = rootInverse * arm.upperBone.rotation;
+                arm.upperRestDirection = rootInverse * (arm.lowerBone.position - arm.upperBone.position).normalized;
+            }
+
             foreach (var bone in TorsoBones)
             {
                 var t = targetAnimator.GetBoneTransform(bone);
@@ -383,6 +421,7 @@ namespace AvianVoice.MetaBody
             }
 
             sb.Append(" fingersMax=").Append(maxFinger.ToString("0"));
+            sb.Append("; forearm twist share ").Append(forearmTwistShare.ToString("0.00")).Append(CalibrateForearmTwist() ? "" : " (not calibrated)");
             handSummary = sb.ToString();
             Debug.Log("[AvianVoice] Hand retargeting calibrated on '" + name + "': " + handSummary);
         }
@@ -411,6 +450,73 @@ namespace AvianVoice.MetaBody
 
                 target.rotation = source.Transform.rotation * correction;
             }
+
+            if (forearmTwistShare > 0f)
+            {
+                foreach (var arm in arms)
+                {
+                    if (arm.valid)
+                        arm.lastTwist = HandFrameRetargeting.DistributeForearmTwist(arm.upperBone, arm.lowerBone, arm.handBone,
+                            arm.elbowRest, arm.wristRest, forearmTwistShare);
+                }
+            }
+        }
+
+        /// <summary>Total elbow-to-hand twist (degrees) of the last frame, left and right, for the diagnostics menus.</summary>
+        public string DescribeForearmTwist()
+        {
+            return "forearm twist L=" + (arms[0].valid ? arms[0].lastTwist.ToString("0") : "n/a") +
+                   " R=" + (arms[1].valid ? arms[1].lastTwist.ToString("0") : "n/a") + " deg (share " + forearmTwistShare.ToString("0.00") + ")";
+        }
+
+        /// <summary>
+        /// The untwisted elbow and wrist: the avatar's upper arm, forearm and hand as they are posed when the tracked
+        /// body is in its bind pose (a T-pose without twist). Upper arm = the SDK's direction match of the T-pose
+        /// (shortest turn of the T-pose direction onto the bind one), forearm and hand = the frame-aligned corrections.
+        /// </summary>
+        bool CalibrateForearmTwist()
+        {
+            var any = false;
+            var mapping = BodyBoneMappingsInterface.GetFullBodyBoneIdToHumanBodyBone;
+            foreach (var arm in arms)
+            {
+                arm.valid = false;
+                if (arm.upperBone == null || arm.lowerBone == null || arm.handBone == null ||
+                    !hands.TryGetCorrection(arm.lower, out var lowerCorrection) || !hands.TryGetCorrection(arm.hand, out var handCorrection))
+                    continue;
+
+                Transform bindUpper = null, bindLower = null, bindHand = null;
+                for (var i = 0; i < BindPoses.Count; i++)
+                {
+                    var bind = BindPoses[i];
+                    if (bind?.Transform == null || !mapping.TryGetValue(bind.Id, out var human))
+                        continue;
+                    if (human == arm.upper)
+                        bindUpper = bind.Transform;
+                    else if (human == arm.lower)
+                        bindLower = bind.Transform;
+                    else if (human == arm.hand)
+                        bindHand = bind.Transform;
+                }
+
+                if (bindUpper == null || bindLower == null || bindHand == null)
+                    continue;
+
+                var bindDirection = bindLower.position - bindUpper.position;
+                if (bindDirection.sqrMagnitude < 1e-10f)
+                    continue;
+
+                var upperAtBind = Quaternion.FromToRotation(transform.rotation * arm.upperRestDirection, bindDirection.normalized) *
+                                  (transform.rotation * arm.upperRest);
+                var lowerAtBind = bindLower.rotation * lowerCorrection;
+                var handAtBind = bindHand.rotation * handCorrection;
+                arm.elbowRest = Quaternion.Inverse(upperAtBind) * lowerAtBind;
+                arm.wristRest = Quaternion.Inverse(lowerAtBind) * handAtBind;
+                arm.valid = true;
+                any = true;
+            }
+
+            return any;
         }
     }
 }

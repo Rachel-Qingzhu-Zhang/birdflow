@@ -4,8 +4,9 @@
 
 1. **Quest の体トラッキング（IOBT / Full Body）** で、ユーザーの体の向き・腕・（対応機種では）脚がアバターに反映される。
 2. **視点がアバターの目に一致する**（アバターの目が XR カメラの位置に来るように毎フレーム合わせる）。
-3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間。人間は **中性のマネキン 1 体**（Unity Starter Assets の
-   ロボット型アバター。Meta が体トラッキングのサンプルで使っている体で、顔・髪・服・性差がない）。
+3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間。人間は **中性 / 男性 / 女性 の 3 体から選択**（2026-11-12〜。
+   中性 = MakeHuman の性別 0.5・胸が平らな体、男性 / 女性 = Microsoft Rocketbox）。それまでのロボット型マネキン
+   （Unity Starter Assets の Armature）はプロジェクトに残してあり、設定 1 つで選択肢に戻せます（下記）。
    **実験条件は アバター（鳥 / 人間）× 声のフィードバック（自分の声がアバターの声に変換されて聞こえる / 自分の声しか聞こえない）の 4 条件**。
 4. **4 場面の実験フロー**: 鳥に会う → 呼吸 → 歌う → 休む（元の 6 場面のうち「飛ぶ」「仲間を呼ぶ」は使わない）。
    流れの外に **練習場面**（2026-11-07 追加）があり、Play はそこから始まります。記録は場面 1 に進んだ時点から（下記）。
@@ -61,8 +62,8 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 |--------|----------|----------------------|------------------------------------------|
 | Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、声が出ている間ずっと音程に追従して鳴る） | `bird` / `Bird+bird` |
 | Bird + own voice only | 鳥 | なし（アプリは何も出さない。地声だけ） | `none` / `Bird+own` |
-| Human + human voice | 人間（マネキン） | 人間の声（`HumanVoiceSynth`、同じ音程で歌う母音「あ」） | `human` / `Human:neutral+human` |
-| Human + own voice only | 人間（マネキン） | なし | `none` / `Human:neutral+own` |
+| Human + human voice | 人間（中性 / 男性 / 女性、パネルの Human body で選ぶ） | 人間の声（`HumanVoiceSynth`、同じ音程で歌う母音「あ」） | `human` / `Human:neutral+human`（`neutral` の所は選んだ体の id） |
+| Human + own voice only | 人間（同上） | なし | `none` / `Human:neutral+own` |
 
 - 声のフィードバックは `BirdVoiceMapper.SetFeedback` で切り替わり、歌う場面の応答中だけでなく、どの場面でも同じ設定です。
   V キーで鳥 ⇄ 人間を切り替えても「変換あり / なし」は保たれます（鳥なら鳥の声、人間なら人間の声になります）。
@@ -131,6 +132,7 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 | `session.json` | 被験者 ID、開始時刻、Unity / 機器 / マイク一覧、サンプリング周波数、時刻基準の説明 |
 | `events.jsonl` | 1 行 1 イベント: 場面切替、アバター切替、`trial_start` / `guide_start` / `guide_end` / `response_start` / `voice_onset` / `voice_offset` / `trial_end`、`protocol_complete` など |
 | `trials.csv` | 試行ごとに 1 行: 目標周波数・音名、各フェーズのタイムスタンプ、発声開始までの遅延、発声時間、平均 / 中央値ピッチ、一致度、最大音量、終了理由、切り出し音声ファイル名 |
+| `samples.csv` | 連続信号（1 行 1 サンプル、ほぼ毎フレーム）: アナライザの声の高さ・信頼度・音量、呼吸の深さ・位相。各行に `t_utc` / `t_unity` / `t_dsp` / `mic_sample` / `out_frame` が付くので `mic.wav` やイベントと揃えられます。`score_task` が空の行が定期サンプル、タスク名が入った行はそのタスクがスコアを出した時点の行です |
 | `mic.wav` | 被験者マイク（セッション全体、モノラル 16 bit） |
 | `output.wav` | 被験者が聞いた音（AudioListener のミックス、モノラル 16 bit）。教師の音がここに入ります |
 | `segments/trial_NNN_aN_<音名>.wav` | 試行開始〜終了のマイク音声の切り出し |
@@ -163,15 +165,32 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
   するか、Meta Quest Link アプリの設定でリンク時にオーディオを切り替えるようにしてください（PC モニター出力が Auto で
   PC スピーカーにも出ます）。
 
-### 人間アバター（中性マネキン。既定は Armature）
+### 人間アバター（中性 / 男性 / 女性。既定は中性）
 
-| Id | モデル | 出典・ライセンス | 置き場所 |
-|----|--------|------------------|----------|
-| `neutral`（既定） | Unity **Starter Assets の Armature**（白いロボット型マネキン。顔・髪・服・性差なし） | Unity Companion License（`LICENSE.md` 同梱）。Meta が Movement SDK の体トラッキングサンプルの「Stylized」キャラクターとして配布しているモデル（oculus-samples/Unity-Movement `Shared/ThirdParty/Unity/`） | `Resources/Avatars/UnityArmature/Armature.fbx`（`UnityArmatureAvatarImport.cs`） |
-| `makehuman` | **MakeHuman の中性マネキン**（性別 0.5・胸は平ら・顔テクスチャ / 髪 / 服なし・単色マット、眼球は同色） | MakeHuman / MPFB2 の CC0 アセット。`Tools/MakeHuman/generate_neutral_avatar.py` で生成（下記） | `Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx`（`MakeHumanAvatarImport.cs` が Humanoid・Read/Write 有効で取り込み） |
+| Id | パネルの表示 | モデル | 出典・ライセンス | 置き場所 |
+|----|--------------|--------|------------------|----------|
+| `neutral`（既定） | neutral (MakeHuman) | **MakeHuman の中性の体**（性別 0.5・胸は平ら・顔テクスチャ / 髪 / 服なし・単色マット、眼球は同色） | MakeHuman / MPFB2 の CC0 アセット。`Tools/MakeHuman/generate_neutral_avatar.py` で生成（下記） | `Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx`（`MakeHumanAvatarImport.cs` が Humanoid・Read/Write 有効で取り込み） |
+| `male` | male (Rocketbox) | **Microsoft Rocketbox Male_Adult_01**（顔・髪・服のテクスチャあり） | MIT（`Resources/Avatars/Rocketbox/LICENSE.md`、README 参照） | `Resources/Avatars/Rocketbox/Male_Adult_01/`（`RocketboxAvatarImport.cs`） |
+| `female` | female (Rocketbox) | **Microsoft Rocketbox Female_Adult_01**（同上） | MIT | `Resources/Avatars/Rocketbox/Female_Adult_01/` |
+| `mannequin`（選択肢に出さない） | mannequin (Armature) | Unity **Starter Assets の Armature**（白いロボット型マネキン。顔・髪・服・性差なし） | Unity Companion License（`LICENSE.md` 同梱）。Meta が Movement SDK の体トラッキングサンプルの「Stylized」キャラクターとして配布しているモデル | `Resources/Avatars/UnityArmature/Armature.fbx`（`UnityArmatureAvatarImport.cs`） |
 
-既定は Armature（id `neutral`、これまでの記録と同じ）。2026-11-07 に一度 MakeHuman を既定にしましたが、同日 Armature に戻しました
-（MakeHuman はパネルから比較用に選べます）。MakeHuman を 2026-11-05 に一度外したときの
+**2026-11-12 から 中性 / 男性 / 女性 の 3 体**です（男性・女性は 2026-11-04 に使っていた Rocketbox を git 履歴から戻したもの）。
+マネキンは `Avian Embodiment` → `Human Avatars` の `mannequin` の項目に残してあり、**`Selectable` にチェックを入れるとパネルと
+「Next Human Avatar」に戻ります**（`Start Human Avatar Id` を `mannequin` にすれば最初からマネキン）。
+**記録の id の変遷に注意**: `neutral` は 2026-11-04 は MakeHuman、2026-11-05〜11-12 は Armature のマネキン、2026-11-12 以降は
+MakeHuman です（MakeHuman は 11-07〜11-12 は `makehuman`）。2026-11-12 以降の記録には id のほかにモデルのパスも残ります（下記）。
+
+**記録されるアバター**（2026-11-12〜）: `events.jsonl` のすべての行に `avatar`（`Bird` / `Human:<id>`）と `avatar_model`
+（人間なら Resources のパス、例 `Avatars/Rocketbox/Female_Adult_01/Female_Adult_01`、鳥なら `PlayerParrot`）、`trials.csv` の
+各試行に `avatar` と `avatar_model` の列。セッション開始時の `human_avatars` イベントに、そのセッションで使える人間アバターの
+一覧（id・パネルの表示・モデル・選択肢に出るか）、切り替えるたびの `avatar_changed` イベントに `human_id` / `human_label` /
+`human_model` が残ります。
+
+男性・女性（Rocketbox）の基準姿勢: モデルに保存された T ポーズでは頭が後ろに反り（あごが上がる）、口も開いているので、胴体・首・頭と
+顔の骨（あご・目・まぶた）は **メッシュを作った姿勢（スキンのバインドポーズ）** から取ります（`HumanoidTPose`、確認は
+`Debug/Render Human Rest Poses`）。MakeHuman と Armature はどちらでも同じ姿勢です。
+
+MakeHuman を 2026-11-05 に一度外したときの
 「胸があるように見える」「手のトラッキングがおかしい」は、どちらも **FBX の書き出しの不具合**が原因でした。体型の設定（性別 0.5・
 胸の大きさ最小・人種の混合）が Blender のシェイプキーのまま FBX にブレンドシェイプとして入り、Unity はそれを取り込まないので、
 **体型を当てる前の MakeHuman 基本メッシュ**が表示されていました。リグは体型を当てた体に合わせてあるため、手では関節が指の
@@ -182,8 +201,8 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 別の Humanoid モデルを試すには Resources 配下に置いて `Avian Embodiment` → `Human Avatars` に id / Resources パス /
 目の位置（`Eye Offset From Head Bone`、頭ボーン基準の T ポーズでの目の位置。`Avian Voice/Embodiment/Debug/Measure Human Avatar Eye Point`
 で全アバターの頭ボーン・目のボーン・頭頂・顔前面の位置を Console に出せます。MakeHuman は頭ボーンから +0.038 m 上 / +0.075 m 前、
-Armature は +0.035 m 上 / +0.09 m 前）を足します。モデルが無い id はパネルに「missing」と出ます。記録の `events.jsonl` /
-`trials.csv` には `Human:neutral`（Armature）/ `Human:makehuman` のように id 付きで残ります。
+Rocketbox 男性 +0.099 / +0.086、女性 +0.090 / +0.086（目のボーン Bip01 LEye）、Armature は +0.035 m 上 / +0.09 m 前）を足します。
+モデルが無い id はパネルに「missing」と出ます。
 
 **MakeHuman の生成**（Blender 5.1 + MPFB2 拡張、CC0 のシステムアセットが MPFB のデータフォルダにあること）:
 
@@ -220,6 +239,13 @@ Armature は +0.035 m 上 / +0.09 m 前）を足します。モデルが無い i
 被験者の骨とアバターの骨で一致させるので、リグごとの骨の軸の違いに左右されません。アバター側の基準は Humanoid の T ポーズ
 ではなく **スキンのバインドポーズ**（メッシュを作った姿勢）を使い、指先はメッシュの頂点から求めます（MakeHuman の指に先端の
 骨が無いため）。指は既定で被験者の指に追従します（`driveFingers`）。
+
+**手首のひねり**（`forearmTwistShare`、2026-11-12）: 手首を回す（手のひらを上 / 下に向ける）とき、本物の腕は前腕の骨（橈骨）が
+回るので皮膚は肘から手首へ徐々にねじれます。Meta の体の骨格ではこのねじれは手首のひねり関節にあり、前腕の関節は回らないので、
+前腕にねじれ用の骨が無いリグ（MakeHuman・Rocketbox Adult_01・Armature のどれも無い）では手首だけがねじれ、皮膚が細くくびれて
+いました。肘から手までのねじれの合計を毎フレーム測り、その **半分を前腕の骨に軸まわりで回して** 受け持たせます（Unity の Humanoid
+の既定値「Lower Arm Twist 0.5」と同じ割合。手そのものの向きはトラッキングどおり）。確認は `Debug/Render Wrist Twist`（手首を
+±80° 回したときの前腕、修正前 / 後）。Play 中の Log Avatar State に左右のねじれ角が出ます。
 
 人間アバターのスキンは **1 頂点あたり 4 ボーン** で計算します（`AvatarEmbodimentController` が `SkinnedMeshRenderer.quality`
 を Bone4 に固定）。プロジェクトの品質設定が「Low」（2 ボーン）なので、そのままだと MakeHuman のように関節で複数の骨を
@@ -301,9 +327,10 @@ Armature は +0.035 m 上 / +0.09 m 前）を足します。モデルが無い i
 | `Scripts/Study/StudyRecorder.cs` | `events.jsonl` / `trials.csv` / `mic.wav` / `output.wav` / 試行切り出しの書き出し |
 | `Scripts/Study/PcAudioMonitor.cs` | Unity 出力の PC スピーカーへのミラー（winmm）、Windows 既定出力のミュート検出 |
 | `Scripts/Study/ListenerOutputTap.cs`, `WavWriter.cs` | AudioListener のミックス取得、16 bit WAV ストリーム書き込み |
-| `Resources/Avatars/MakeHuman/Neutral_Adult_01/` | 比較用の中性マネキン（MakeHuman、CC0）。`Tools/MakeHuman/generate_neutral_avatar.py` で生成 |
+| `Resources/Avatars/MakeHuman/Neutral_Adult_01/` | 中性の体（id `neutral`、MakeHuman、CC0）。`Tools/MakeHuman/generate_neutral_avatar.py` で生成 |
+| `Resources/Avatars/Rocketbox/` | 男性・女性の体（id `male` / `female`、Microsoft Rocketbox、MIT）。取り込み設定は `Editor/RocketboxAvatarImport.cs` |
 | `Editor/MakeHumanAvatarImport.cs` | MakeHuman FBX の Humanoid 取り込み（Read/Write 有効）とマテリアル設定 |
-| `Resources/Avatars/UnityArmature/` | 既定の中性マネキン（Unity Starter Assets Armature、Unity Companion License、`LICENSE.md` 参照） |
+| `Resources/Avatars/UnityArmature/` | ロボット型マネキン（id `mannequin`、選択肢に出さない。Unity Starter Assets Armature、Unity Companion License、`LICENSE.md` 参照） |
 | `Editor/UnityArmatureAvatarImport.cs` | Armature FBX の Humanoid 取り込み（Read/Write 有効）とマテリアル設定 |
 
 鳥の「目」の位置は `BirdFirstPersonDriver.eyeOffsetFromHeadBone`（頭ボーン基準、ルート座標系）で調整できます。
@@ -351,11 +378,15 @@ Play 開始時や Quest のリセンターのたびに二つの空間がずれ�
 # English summary
 
 `Avian_Lab_Embodiment.unity` is a copy of `Avian_Lab.unity` plus: Meta Quest body tracking (IOBT) driving the
-avatar, the avatar eyes locked to the XR camera, and an avatar switch (bird `PlayerParrot` ⇄ human). The human body
-is the Unity Starter Assets "Armature" mannequin (id `neutral`, as in all recordings). A gender-neutral MakeHuman
-mannequin (CC0; gender 0.5, minimal cup size, no face texture / hair / clothes, one plain matte colour, generated by
-`Tools/MakeHuman/generate_neutral_avatar.py`) stays selectable for comparison (it was the default for part of
-2026-11-07). The generator bakes the body-shape targets into the mesh before the FBX export: left as shape keys
+avatar, the avatar eyes locked to the XR camera, and an avatar switch (bird `PlayerParrot` ⇄ human). Since 2026-11-12
+the experimenter chooses the human body among three: `neutral` = MakeHuman (CC0; gender 0.5, flat chest, no face
+texture / hair / clothes, one plain matte colour, generated by `Tools/MakeHuman/generate_neutral_avatar.py`), `male` /
+`female` = Microsoft Rocketbox Male_Adult_01 / Female_Adult_01 (MIT). The Unity Starter Assets "Armature" mannequin
+stays in the project as `mannequin` with `selectable` off (tick it to offer it again). Ids changed over time (`neutral`
+was the Armature from 2026-11-05 to 11-12), so every event line and trial row now also records `avatar_model` (the
+Resources path), and each session logs the `human_avatars` catalog. The Rocketbox bodies' stored T-pose has the head
+tipped back and the mouth open, so the rest pose takes the torso, head and face bones from the skin bind pose
+(`HumanoidTPose`; check with Debug / Render Human Rest Poses). The generator bakes the body-shape targets into the mesh before the FBX export: left as shape keys
 they reached Unity as dropped blend shapes, so the unshaped base mesh showed (chest visible) with the rig fitted to the
 shaped body (hand joints up to 6 cm off the fingers, which collapsed when bent). Retargeting is rotation-only (hips
 position only, no pelvis tweak, T-pose re-applied right before the SDK snapshot) so the avatar keeps its proportions.

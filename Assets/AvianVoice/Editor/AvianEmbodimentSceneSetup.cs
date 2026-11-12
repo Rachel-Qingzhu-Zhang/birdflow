@@ -16,18 +16,35 @@ namespace AvianVoice.Editor
     public static class AvianEmbodimentSceneSetup
     {
         public const string ScenePath = "Assets/AvianVoice/Scenes/Avian_Lab_Embodiment.unity";
-        /// <summary>The default human body (AvatarEmbodimentController.startHumanAvatarId = "neutral").</summary>
-        public const string HumanAvatarAssetPath =
-            "Assets/AvianVoice/Resources/Avatars/UnityArmature/Armature.fbx";
-
+        /// <summary>Gender-neutral body (id "neutral").</summary>
         public const string MakeHumanAvatarAssetPath =
             "Assets/AvianVoice/Resources/Avatars/MakeHuman/Neutral_Adult_01/Neutral_Adult_01.fbx";
 
-        /// <summary>All selectable human bodies (see AvatarEmbodimentController.humanAvatars).</summary>
+        /// <summary>Male body (id "male").</summary>
+        public const string RocketboxMaleAvatarAssetPath =
+            "Assets/AvianVoice/Resources/Avatars/Rocketbox/Male_Adult_01/Male_Adult_01.fbx";
+
+        /// <summary>Female body (id "female").</summary>
+        public const string RocketboxFemaleAvatarAssetPath =
+            "Assets/AvianVoice/Resources/Avatars/Rocketbox/Female_Adult_01/Female_Adult_01.fbx";
+
+        /// <summary>
+        /// The faceless robot mannequin (id "mannequin"): kept, not offered (AvatarEmbodimentController.humanAvatars
+        /// selectable = false). The self-tests use it as the tracked body / hand.
+        /// </summary>
+        public const string ArmatureAvatarAssetPath =
+            "Assets/AvianVoice/Resources/Avatars/UnityArmature/Armature.fbx";
+
+        /// <summary>The default human body (AvatarEmbodimentController.startHumanAvatarId = "neutral").</summary>
+        public const string HumanAvatarAssetPath = MakeHumanAvatarAssetPath;
+
+        /// <summary>All human bodies in the project (see AvatarEmbodimentController.humanAvatars).</summary>
         public static readonly string[] HumanAvatarAssetPaths =
         {
-            HumanAvatarAssetPath,
             MakeHumanAvatarAssetPath,
+            RocketboxMaleAvatarAssetPath,
+            RocketboxFemaleAvatarAssetPath,
+            ArmatureAvatarAssetPath,
         };
 
         /// <summary>Resources path (no extension) of an asset under a Resources folder.</summary>
@@ -184,6 +201,8 @@ namespace AvianVoice.Editor
             for (var step = 1; step <= options.Length; step++)
             {
                 var candidate = options[(index + step) % options.Length];
+                if (!candidate.selectable)
+                    continue;
                 if (controller.SetHumanAvatar(candidate.id))
                 {
                     controller.SetAvatar(AvatarKind.Human);
@@ -239,9 +258,26 @@ namespace AvianVoice.Editor
 
                 var head = animator.GetBoneTransform(HumanBodyBones.Head);
                 var eye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
-                var sb = new System.Text.StringBuilder("[AvianVoice] Human avatar eye point " + resourcesPath + " (root frame, muscle T-pose): ");
+                if (eye == null && head != null)
+                {
+                    // Eye bones the Humanoid mapping leaves out (Rocketbox "Bip01 LEye").
+                    foreach (var t in head.GetComponentsInChildren<Transform>(true))
+                    {
+                        var n = t.name.Replace(" ", "").ToLowerInvariant();
+                        if (n.EndsWith("leye") || n.EndsWith("lefteye") || n.EndsWith("eye.l") || n.EndsWith("eye_l"))
+                        {
+                            eye = t;
+                            break;
+                        }
+                    }
+                }
+
+                var sb = new System.Text.StringBuilder("[AvianVoice] Human avatar eye point " + resourcesPath + " (root frame, T-pose): ");
                 sb.Append("headBone=").Append(head != null ? head.position.ToString("F3") : "none");
-                sb.Append(" leftEyeBone=").Append(eye != null ? eye.position.ToString("F3") : "none");
+                sb.Append(" leftEyeBone=").Append(eye != null ? eye.name + " " + eye.position.ToString("F3") : "none");
+                if (head != null && eye != null)
+                    sb.Append(" eye-head (up, forward)=(").Append((eye.position.y - head.position.y).ToString("F3")).Append(", ")
+                      .Append((eye.position.z - head.position.z).ToString("F3")).Append(')');
                 foreach (var skinned in go.GetComponentsInChildren<SkinnedMeshRenderer>())
                 {
                     var baked = new Mesh();

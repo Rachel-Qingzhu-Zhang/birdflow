@@ -48,6 +48,7 @@ namespace AvianVoice.Study
         public string order = "";
         public string source = "";
         public string avatar = "";
+        public string avatarModel = "";
         public string voiceFeedback = "";
         public StudyTime start;
         public StudyTime guideStart;
@@ -69,7 +70,7 @@ namespace AvianVoice.Study
         public bool HadVoice => voiceOnset.IsSet;
 
         public const string CsvHeader =
-            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,voice_feedback,"
+            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,avatar_model,voice_feedback,"
             + "t_start_utc,t_start_local,t_start_unity,t_start_dsp,mic_sample_start,out_frame_start,"
             + "t_guide_start_unity,mic_sample_guide_start,t_guide_end_unity,mic_sample_guide_end,"
             + "t_response_start_unity,mic_sample_response_start,"
@@ -84,7 +85,7 @@ namespace AvianVoice.Study
             var sb = new StringBuilder();
             sb.Append(trial).Append(',').Append(attempt).Append(',').Append(block).Append(',').Append(pitchIndex).Append(',')
               .Append(targetHz.ToString("0.###", c)).Append(',').Append(Csv(note)).Append(',').Append(Csv(order)).Append(',')
-              .Append(Csv(source)).Append(',').Append(Csv(avatar)).Append(',').Append(Csv(voiceFeedback)).Append(',')
+              .Append(Csv(source)).Append(',').Append(Csv(avatar)).Append(',').Append(Csv(avatarModel)).Append(',').Append(Csv(voiceFeedback)).Append(',')
               .Append(Csv(start.utc)).Append(',').Append(Csv(start.local)).Append(',').Append(Num(start.unity)).Append(',').Append(Num(start.dsp)).Append(',')
               .Append(start.micSample).Append(',').Append(start.outFrame).Append(',')
               .Append(Num(guideStart.unity)).Append(',').Append(guideStart.micSample).Append(',')
@@ -105,7 +106,7 @@ namespace AvianVoice.Study
         {
             return new JsonLine()
                 .Add("trial", trial).Add("attempt", attempt).Add("block", block).Add("pitch_index", pitchIndex)
-                .Add("target_hz", targetHz).Add("note", note).Add("order", order).Add("source", source).Add("avatar", avatar).Add("voice_feedback", voiceFeedback)
+                .Add("target_hz", targetHz).Add("note", note).Add("order", order).Add("source", source).Add("avatar", avatar).Add("avatar_model", avatarModel).Add("voice_feedback", voiceFeedback)
                 .Add("start", start).Add("guide_start", guideStart).Add("guide_end", guideEnd)
                 .Add("response_start", responseStart).Add("voice_onset", voiceOnset).Add("voice_offset", voiceOffset).Add("end", end)
                 .Add("end_reason", endReason).Add("voice_segments", voiceSegments)
@@ -446,6 +447,7 @@ namespace AvianVoice.Study
                 order = order.ToString(),
                 source = source ?? "",
                 avatar = recorder != null ? recorder.CurrentAvatar : "",
+                avatarModel = recorder != null ? recorder.CurrentAvatarModel : "",
                 voiceFeedback = recorder != null ? recorder.CurrentVoiceFeedback : ""
             };
 

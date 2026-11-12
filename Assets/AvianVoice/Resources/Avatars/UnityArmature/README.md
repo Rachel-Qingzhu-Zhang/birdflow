@@ -16,7 +16,7 @@ redistributes with its body-tracking samples:
 
 | Id in `AvatarEmbodimentController` | Resources path | Notes |
 |------------------------------------|----------------|-------|
-| `neutral` | `Avatars/UnityArmature/Armature` | the default human body of the study (bird vs. neutral human); the MakeHuman mannequin (`makehuman`) stays selectable for comparison |
+| `mannequin` | `Avatars/UnityArmature/Armature` | kept but not offered since 2026-11-12 (`selectable` off; the study offers neutral MakeHuman / male / female Rocketbox). It was the default human body as `neutral` from 2026-11-05 to 2026-11-12. |
 
 Why this model: the study needs a human body that reads as neither male nor female. No validated androgynous
 human avatar is freely redistributable (Mixamo bots, SMPL-X, Ready Player Me forbid redistribution; the VALID

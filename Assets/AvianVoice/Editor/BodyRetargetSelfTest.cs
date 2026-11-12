@@ -14,7 +14,7 @@ namespace AvianVoice.Editor
     /// Whole-body check of the human avatar retargeting without a headset.
     ///
     /// The Armature plays the tracked body (its muscle T-pose is the "bind pose"). For a set of everyday poses the
-    /// MakeHuman body is posed twice:
+    /// neutral (MakeHuman), male and female (Rocketbox) bodies are each posed twice:
     /// <list type="bullet">
     /// <item>reference: the same Humanoid muscle values (Unity's own retargeting, which keeps every bone's twist);</item>
     /// <item>runtime: the way it is driven in the headset: torso, neck, head, shoulders and upper arms by the Meta SDK
@@ -24,7 +24,7 @@ namespace AvianVoice.Editor
     /// </list>
     /// The log lists, per pose, how far each runtime bone is turned away from the reference (degrees) and how far
     /// the shoulder joints / wrists end up (cm). Images (Temp/BodyRetargetTest): one row per pose, columns =
-    /// tracked body / MakeHuman reference / MakeHuman as driven at runtime; front view (as in the mirror) and the
+    /// tracked body / reference / as driven at runtime before and after the torso fix; front view (as in the mirror) and the
     /// first-person view from the eyes.
     /// </summary>
     public static class BodyRetargetSelfTest
@@ -135,10 +135,22 @@ namespace AvianVoice.Editor
             Run(Path.GetFullPath("Temp/BodyRetargetTest"));
         }
 
+        /// <summary>Every human body the experimenter can choose (neutral, male, female), driven from the Armature.</summary>
         public static void Run(string imageDir)
         {
-            var sourcePath = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.HumanAvatarAssetPath);
-            var targetPath = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.MakeHumanAvatarAssetPath);
+            foreach (var asset in new[]
+                     {
+                         AvianEmbodimentSceneSetup.MakeHumanAvatarAssetPath,
+                         AvianEmbodimentSceneSetup.RocketboxMaleAvatarAssetPath,
+                         AvianEmbodimentSceneSetup.RocketboxFemaleAvatarAssetPath,
+                     })
+                RunTarget(AvianEmbodimentSceneSetup.ToResourcesPath(asset), imageDir);
+        }
+
+        static void RunTarget(string targetPath, string imageDir)
+        {
+            var sourcePath = AvianEmbodimentSceneSetup.ToResourcesPath(AvianEmbodimentSceneSetup.ArmatureAvatarAssetPath);
+            var targetName = Path.GetFileName(targetPath);
             var origin = HandRetargetSelfTest.TestOrigin;
             var source = HandRetargetSelfTest.Load(sourcePath, origin);
             var reference = HandRetargetSelfTest.Load(targetPath, origin + new Vector3(2.5f, 0f, 0f));
@@ -154,7 +166,7 @@ namespace AvianVoice.Editor
 
             try
             {
-                var sb = new StringBuilder("[AvianVoice] BODY TEST Armature (tracked body, bind = its T-pose) -> MakeHuman.");
+                var sb = new StringBuilder("[AvianVoice] BODY TEST Armature (tracked body, bind = its T-pose) -> " + targetName + ".");
 
                 // Rest poses. Load left every rig at muscle zero, which is what HumanFirstPersonDriver used to hand
                 // the SDK as the "T-pose"; the tracker's bind pose is a real T-pose.
@@ -224,9 +236,9 @@ namespace AvianVoice.Editor
                 Debug.Log(sb.ToString());
                 if (imageDir != null)
                 {
-                    const string columns = " (rows = poses, columns = tracked body / MakeHuman reference / runtime before / runtime after (T-pose rest, torso keeps the avatar shape))";
-                    var frontPath = Path.Combine(imageDir, "body_front.png");
-                    var eyesPath = Path.Combine(imageDir, "body_first_person.png");
+                    const string columns = " (rows = poses, columns = tracked body / reference / runtime before / runtime after (T-pose rest, torso keeps the avatar shape))";
+                    var frontPath = Path.Combine(imageDir, "body_front_" + targetName + ".png");
+                    var eyesPath = Path.Combine(imageDir, "body_first_person_" + targetName + ".png");
                     HandRetargetSelfTest.SaveGrid(front, rigs.Length, frontPath, "[AvianVoice] BODY TEST image: " + frontPath + columns);
                     HandRetargetSelfTest.SaveGrid(eyes, rigs.Length, eyesPath, "[AvianVoice] BODY TEST image: " + eyesPath + columns);
                     foreach (var t in front)
@@ -270,7 +282,7 @@ namespace AvianVoice.Editor
             }
 
             sb.Append("; clavicle elevation / forward: tracked ").Append(Describe(source, HumanBodyBones.LeftShoulder))
-              .Append(", MakeHuman ").Append(Describe(target, HumanBodyBones.LeftShoulder));
+              .Append(", avatar ").Append(Describe(target, HumanBodyBones.LeftShoulder));
             return corrections;
         }
 
@@ -392,6 +404,57 @@ namespace AvianVoice.Editor
             }
 
             m[i] = value;
+        }
+
+        // ------------------------------------------------------------------ rest poses
+
+        /// <summary>
+        /// Each human body in the rest pose the retargeter records (HumanoidTPose), with the torso from each
+        /// <see cref="HumanoidTPose.TorsoSource"/>: rows = bodies, columns = front / side per torso source.
+        /// Writes Temp/BodyRetargetTest/rest_poses.png.
+        /// </summary>
+        [MenuItem("Avian Voice/Embodiment/Debug/Render Human Rest Poses")]
+        public static void RenderRestPoses()
+        {
+            var sources = (HumanoidTPose.TorsoSource[])Enum.GetValues(typeof(HumanoidTPose.TorsoSource));
+            var tiles = new List<Texture2D>();
+            var sb = new StringBuilder("[AvianVoice] REST POSES (columns: front / side for each of " + string.Join(", ", sources) + "):");
+            foreach (var asset in AvianEmbodimentSceneSetup.HumanAvatarAssetPaths)
+            {
+                var rig = HandRetargetSelfTest.Load(AvianEmbodimentSceneSetup.ToResourcesPath(asset), HandRetargetSelfTest.TestOrigin);
+                if (rig == null)
+                    continue;
+                try
+                {
+                    sb.Append("\n  ").Append(rig.go.name);
+                    foreach (var source in sources)
+                    {
+                        HumanoidTPose.Apply(rig.animator, source);
+                        var head = rig.animator.GetBoneTransform(HumanBodyBones.Head);
+                        var neck = rig.animator.GetBoneTransform(HumanBodyBones.Neck);
+                        var tilt = neck != null && head != null
+                            ? Vector3.SignedAngle(Vector3.up, head.position - neck.position, Vector3.right)
+                            : float.NaN;
+                        sb.Append("  ").Append(source).Append(": neck->head ").Append(tilt.ToString("0")).Append(" deg from vertical (+ = forward)");
+                        var hips = rig.animator.GetBoneTransform(HumanBodyBones.Hips).position;
+                        var target = hips + new Vector3(0f, 0.45f, 0f);
+                        var front = hips + new Vector3(0f, 0.5f, 2.6f);
+                        var side = hips + new Vector3(2.6f, 0.5f, 0f);
+                        tiles.Add(HandRetargetSelfTest.RenderView(rig, new[] { rig }, front, Quaternion.LookRotation(target - front), 38f, TileSize, 0.05f));
+                        tiles.Add(HandRetargetSelfTest.RenderView(rig, new[] { rig }, side, Quaternion.LookRotation(target - side), 38f, TileSize, 0.05f));
+                    }
+                }
+                finally
+                {
+                    HandRetargetSelfTest.Destroy(rig);
+                }
+            }
+
+            Debug.Log(sb.ToString());
+            var path = Path.Combine(Path.GetFullPath("Temp/BodyRetargetTest"), "rest_poses.png");
+            HandRetargetSelfTest.SaveGrid(tiles, sources.Length * 2, path, "[AvianVoice] REST POSES image: " + path);
+            foreach (var t in tiles)
+                UnityEngine.Object.DestroyImmediate(t);
         }
 
         // ------------------------------------------------------------------ images
