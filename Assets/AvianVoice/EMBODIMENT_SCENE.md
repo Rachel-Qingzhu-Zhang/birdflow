@@ -61,12 +61,16 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 
 パネルの **Condition** に 4 つのボタンがあります（`StudyFlowController.SetCondition`）。
 
-| ボタン | アバター | 被験者が聞く自分の声 | 記録（`voice_feedback` / `condition`） |
+| ボタン | アバター | 被験者が聞く自分の声 | 記録（`voice_feedback` / `condition` = 条件フォルダ名） |
 |--------|----------|----------------------|------------------------------------------|
-| Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、声が出ている間ずっと音程に追従して鳴る） | `bird` / `Bird+bird` |
-| Bird + own voice only | 鳥 | なし（アプリは何も出さない。地声だけ） | `none` / `Bird+own` |
-| Human + human voice | 人間（中性 / 男性 / 女性、パネルの Human body で選ぶ） | 人間の声（`HumanVoiceSynth`、同じ音程で歌う母音「あ」） | `human` / `Human:neutral+human`（`neutral` の所は選んだ体の id） |
-| Human + own voice only | 人間（同上） | なし | `none` / `Human:neutral+own` |
+| Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、声が出ている間ずっと音程に追従して鳴る） | `bird` / `bird_bird-voice` |
+| Bird + own voice only | 鳥 | なし（アプリは何も出さない。地声だけ） | `none` / `bird_own-voice` |
+| Human + human voice | 人間（中性 / 男性 / 女性、パネルの Human body で選ぶ） | 人間の声（`HumanVoiceSynth`、同じ音程で歌う母音「あ」） | `human` / `human_human-voice` |
+| Human + own voice only | 人間（同上） | なし | `none` / `human_own-voice` |
+
+人間アバターの体（中性 / 男性 / 女性）は条件には含めず、**データごとのフラグ**で残します: すべてのイベント・`trials.csv`・
+`samples.csv` の `human_avatar` 列（`neutral` / `male` / `female`、鳥のときは空）と `avatar_model`、試行 WAV のファイル名の末尾
+（`..._male.wav`）。
 
 - 声のフィードバックは `BirdVoiceMapper.SetFeedback` で切り替わり、歌う場面の応答中だけでなく、どの場面でも同じ設定です。
   V キーで鳥 ⇄ 人間を切り替えても「変換あり / なし」は保たれます（鳥なら鳥の声、人間なら人間の声になります）。
@@ -89,17 +93,30 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
   「Input device」で機器を選ぶとその場で切り替わり、次回以降も記憶されます（Auto = XR 中はヘッドセットのマイク）。
 - 人間の声（`HumanVoiceSynth`）の音量は鳥の手本と同じ約 -11 dBFS に合わせてあります（2026-11-05 に `output.wav` で実測。
   変えるときは `HumanVoiceSynth.volume`）。鳥 / 人間の声の条件で聞こえる大きさが揃うようにしています。
-- `events.jsonl` の全イベントに `voice_feedback`、`trials.csv` に `voice_feedback` 列、条件を変えたときに
-  `voice_feedback` イベント（`condition` 付き）が入ります。
+- `events.jsonl` の全イベントに `voice_feedback` / `condition` / `human_avatar`、`trials.csv` と `samples.csv` に同じ列、
+  条件を変えたときに `condition_end` / `condition_start` と `voice_feedback` イベント（`condition_label` = パネルの表記、
+  例 `Human:neutral+human`）が入ります。2026-11-12 より前の記録では `condition` はこのパネル表記でした。
 
-### 呼吸の場面（人間アバター、2026-11-07）
+### 呼吸の場面（人間アバター、2026-11-07、2026-11-12 に拡大）
 
-鳥と同じ呼吸の信号（教師の鳥の吸う / 吐くパターン）で、人間アバターの胸も少し膨らみます（`HumanBreathEmbodiment`、
-人間アバターに自動で付きます）。首と肩がつながる胸の骨を、最大吸気で前後 6 %・左右 3 %・縦 1 % 拡大し、首と肩には逆の
-拡大を掛けるので、頭・腕の大きさは変わらず位置もほぼ動きません（Armature で胸の厚み 25.6 → 26.9 cm、幅 32.0 → 32.7 cm、
-頭の移動 2 mm）。動くのは呼吸の場面（`breath_sync`）だけで、場面の切り替えで 0.6 s かけて出入りします。量はコンポーネントの
-`Depth Inhale` / `Width Inhale` で変えられます。確認用: **Debug/Load Task 2 Breathing**、**Debug/Measure Human Breathing**、
-**Debug/Log Human Breathing Now**。
+鳥と同じ呼吸の信号（教師の鳥の吸う / 吐くパターン）で、人間アバターの胸も膨らみます（`HumanBreathEmbodiment`、
+人間アバターに自動で付きます）。首と肩がつながる胸の骨を、最大吸気で前後 22 %・左右 10 %・縦 3 % 拡大し、肩の骨を 22 mm
+上げます。首と肩には逆の拡大を掛けるので、頭・腕の大きさは変わりません（中性の体で胸の厚み 21.2 → 25.2 cm、幅 32.2 → 34.5 cm、
+肩 31 mm、頭の移動 16 mm、手 34 mm）。2026-11-12 までは前後 6 %・左右 3 % で、鏡は正面から見るため、ほとんど見えませんでした。
+動くのは呼吸の場面（`breath_sync`）だけで、場面の切り替えで 0.6 s かけて出入りします。量はコンポーネントの
+`Depth Inhale` / `Width Inhale` / `Shoulder Rise` で変えられます。確認用: **Debug/Load Task 2 Breathing**、
+**Debug/Measure Human Breathing**、**Debug/Log Human Breathing Now**、**Debug/Hold Human Breathing: Full Inhale / Exhale / Off**
+（吸った状態・吐いた状態で止めて見比べる）。
+
+### 人間アバター条件の表示（2026-11-12）
+
+- 人間アバターの間、自分の鳥はすべてのレンダラーを毎フレーム確認して隠します。以前は、人間アバターのまま体（中性 / 男性 /
+  女性）を切り替えると、次に歌う場面へ入ったときに自分の鳥が人間の体に重なって表示されていました。教師の鳥は全条件で表示します。
+- 場面の説明文は人間アバターのとき鳥の表現を使いません（`AvianUiCopy.HumanAvatar`）: 出会う場面「鏡の中にいるのが、あなたです。」、
+  呼吸の場面「鏡の中の自分の胸を見て、一緒に呼吸してください。」、休む場面「この体でいるのは、どんな感じでしたか。」。
+  歌う場面は教師の鳥が歌うので同じ文です。
+- 音程が合ったときに教師の鳥が光る機能は、歌う場面と練習ではオフです（`SingingTrialTask` の **Pitch Match Glow**。
+  `singing_task_enabled` イベントに `pitch_match_glow` が入ります）。被験者は音程の合い具合を目では分かりません。
 
 ### 歌う場面の試行（3 ピッチ × 10 回）
 
@@ -138,7 +155,18 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 | `samples.csv` | 連続信号（1 行 1 サンプル、ほぼ毎フレーム）: アナライザの声の高さ・信頼度・音量、呼吸の深さ・位相。各行に `t_utc` / `t_unity` / `t_dsp` / `mic_sample` / `out_frame` が付くので `mic.wav` やイベントと揃えられます。`score_task` が空の行が定期サンプル、タスク名が入った行はそのタスクがスコアを出した時点の行です |
 | `mic.wav` | 被験者マイク（セッション全体、モノラル 16 bit） |
 | `output.wav` | 被験者が聞いた音（AudioListener のミックス、モノラル 16 bit）。教師の音がここに入ります |
-| `segments/trial_NNN_aN_<音名>.wav` | 試行開始〜終了のマイク音声の切り出し |
+| `conditions.csv` | 条件の区間ごとに 1 行（時系列順）: 条件、人間アバター、開始 / 終了時刻、`mic.wav` / `output.wav` 上の範囲（`mic_sample_start`〜`mic_sample_end`）、その区間の試行数・サンプル数。同じ条件に戻ると新しい行になります |
+| `conditions/<条件>/` | **条件ごとのフォルダ**（`bird_bird-voice` / `bird_own-voice` / `human_human-voice` / `human_own-voice`、使った条件だけ作られます）。中身はその条件の間に書かれた行だけの `events.jsonl` / `trials.csv` / `samples.csv`（セッション直下の同名ファイルの行のコピー）と、下の試行 WAV |
+| `conditions/<条件>/segments/trial_NNN_aN_<音名>[_<人間アバター>].wav` | 試行開始〜終了のマイク音声の切り出し。試行番号は条件ごとに 1 から始まり、同じ条件をやり直した場合も上書きせず `_2`、`_3` が付きます。`trials.csv` の `segment_file` はセッションフォルダからの相対パスです |
+
+セッション直下のファイルが**時系列の全体**、`conditions/` がそれを**4 条件に分けたもの**です（2026-11-12 から。それ以前は
+`segments/` がセッション直下にあり、2 つ目の条件の試行 1〜n が 1 つ目の条件の同じ番号の WAV を上書きしていました。
+音声は `mic.wav` に残っています）。連続音声（`mic.wav` / `output.wav`）は複製せず、条件ごとの範囲は `conditions.csv` で
+分かります。
+
+**Study Monitor**（`Tools/StudyMonitor`、Play で自動的に別ウィンドウが開きます。メニュー Avian Voice / Study Monitor）の
+上段に 4 条件のカードがあり、試行 WAV が 1 本保存されるたびにその条件のカードにタイル（そのファイルの波形）が増えます。
+無音・ほぼ無音・ファイルなし・声の検出なしのタイルには警告が付きます。
 
 すべてのタイムスタンプは、壁時計（UTC / ローカル、ISO 8601）、`Time.realtimeSinceStartup`、`AudioSettings.dspTime`、
 `mic.wav` のサンプル番号（`mic_sample`）、`output.wav` のフレーム番号（`out_frame`）を同時に持つので、音声ファイルを
@@ -329,7 +357,8 @@ Rocketbox 男性 +0.099 / +0.086、女性 +0.090 / +0.086（目のボーン Bip0
 | `Scripts/Embodiment/Avatar/FirstPersonHeadHider.cs` | 一人称カメラだけ頭部（頭ボーン以下の三角形 / 頭・髪のマテリアル）を非表示（鏡・池の反射には映る）。鳥と人間の両方 |
 | `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、**条件（アバター × 声のフィードバック）** の設定と記録 |
 | `Scripts/Study/SingingTrialTask.cs` | 試行形式の歌う場面（教師の 1 音 → 応答、発声検出、30 回で休む場面へ） |
-| `Scripts/Audio/HumanVoiceSynth.cs` | 人間の声のフィードバック: 被験者の音程・音量に追従して歌う母音「あ」（フォルマント合成）。`BirdVoiceMapper.SetFeedback` で鳥の声 / 人間の声 / なしを切替 |
+| `Scripts/Audio/HumanVoiceSynth.cs` | 人間の声のフィードバック: 被験者の音程・音量に追従して歌う母音「あ」（フォルマント合成）。`BirdVoiceMapper.SetFeedback` で鳥の声 / 人間の声 / なしを切替。2026-11-12: 息の成分を聞こえる量に（倍音対雑音比 約 26 dB）、F1・F2 を直列の共振器にして基音を自然な強さに、歌う音量で声質（声門の開き・明るさ・息の量）が変わるようにしました（`Effort Amount` = 0 で声質の連動なし）。音量は以前と各音高で ±1 dB 以内、5 kHz 以上は以前と同じです |
+| `Editor/HumanVoiceRenderTest.cs` | 人間の声を Play なしで WAV に書き出す（メニュー **Debug/Render Human Voice Test Files (WAV)** → `StudyData/diagnostics/human_voice_<時刻>/`）。聴き比べ用（弱・中・強、クレッシェンド、音高違い）と、揺らぎを切った測定用（`measure/`） |
 | `Scripts/Study/StudyRecorder.cs` | `events.jsonl` / `trials.csv` / `mic.wav` / `output.wav` / 試行切り出しの書き出し |
 | `Scripts/Study/PcAudioMonitor.cs` | Unity 出力の PC スピーカーへのミラー（winmm）、Windows 既定出力のミュート検出 |
 | `Scripts/Study/ListenerOutputTap.cs`, `WavWriter.cs` | AudioListener のミックス取得、16 bit WAV ストリーム書き込み |
