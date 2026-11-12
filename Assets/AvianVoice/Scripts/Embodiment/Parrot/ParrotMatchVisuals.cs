@@ -4,6 +4,11 @@ namespace AvianVoice.Embodiment
 {
     /// <summary>
     /// Pitch-match feedback on parrot or placeholder body (emission, base tint, brief light pulse).
+    ///
+    /// The pulse is a cyan point light at the bird. It never lights the human avatar (its layer is left out): the
+    /// teacher bird stands next to the participant, so while the participant sang on pitch the light washed over the
+    /// human body as if the pond reflected onto it. It is also off while the bird's own body is hidden (the
+    /// participant's bird while the human avatar is shown), where it would only light the surroundings.
     /// </summary>
     public class ParrotMatchVisuals : MonoBehaviour
     {
@@ -15,6 +20,7 @@ namespace AvianVoice.Embodiment
         Color[] baseColors;
         Light pulseLight;
         float pulseTimer;
+        float pulseIntensity;
 
         public void BindFromScene()
         {
@@ -56,28 +62,48 @@ namespace AvianVoice.Embodiment
                 r.SetPropertyBlock(block);
             }
 
-            if (pulseLight != null)
-                pulseLight.intensity = Mathf.Lerp(0f, 2.8f, match);
+            pulseIntensity = Mathf.Lerp(0f, 2.8f, match);
+            ApplyPulseLight();
         }
 
         public void PulsePerfect()
         {
             pulseTimer = 0.55f;
             ApplyMatch(1f);
-            if (pulseLight != null)
-                pulseLight.intensity = 5f;
+            pulseIntensity = 5f;
+            ApplyPulseLight();
         }
 
         void Update()
         {
-            if (pulseTimer <= 0f)
+            if (pulseTimer > 0f)
+            {
+                pulseTimer -= Time.deltaTime;
+                pulseIntensity = pulseTimer > 0f ? Mathf.Lerp(0f, 4f, pulseTimer / 0.55f) : 0f;
+            }
+
+            // The body can be hidden or shown at any time (avatar switch), so check every frame.
+            ApplyPulseLight();
+        }
+
+        void ApplyPulseLight()
+        {
+            if (pulseLight == null)
                 return;
 
-            pulseTimer -= Time.deltaTime;
-            if (pulseLight != null && pulseTimer > 0f)
-                pulseLight.intensity = Mathf.Lerp(0f, 4f, pulseTimer / 0.55f);
-            else if (pulseLight != null)
-                pulseLight.intensity = 0f;
+            pulseLight.intensity = BodyVisible() ? pulseIntensity : 0f;
+            pulseLight.enabled = pulseLight.intensity > 0f;
+        }
+
+        bool BodyVisible()
+        {
+            foreach (var r in renderers)
+            {
+                if (r != null && r.enabled && r.gameObject.activeInHierarchy)
+                    return true;
+            }
+
+            return false;
         }
 
         void EnsurePulseLight()
@@ -93,7 +119,9 @@ namespace AvianVoice.Embodiment
             pulseLight.color = new Color(0.4f, 0.95f, 1f);
             pulseLight.range = 2.5f;
             pulseLight.intensity = 0f;
+            pulseLight.enabled = false;
             pulseLight.shadows = LightShadows.None;
+            pulseLight.cullingMask = ~(1 << BirdSceneRoles.HumanAvatarLayer);
         }
 
         Renderer[] ResolveRenderers()

@@ -6,15 +6,26 @@ using UnityEngine;
 namespace AvianVoice.Embodiment.Avatars
 {
     /// <summary>
-    /// Hides the XR rig's own hand drawings (XR Hands HandVisualizer meshes and joints, interactor line
-    /// visuals, anything rendered under "Left Hand" / "Right Hand") while
-    /// <see cref="ParticipantInputPolicy.HandsVisible"/> is false. Hand tracking keeps running: the avatar
+    /// Hides everything the XR rig itself draws for the participant's hands and controllers while
+    /// <see cref="ParticipantInputPolicy.HandsVisible"/> is false: XR Hands HandVisualizer meshes and joints, the
+    /// controller models, the poke / pinch pointers and the interactor rays (Near-Far and Teleport interactor lines),
+    /// i.e. every renderer under a "... Hand" or "... Controller" object of the rig. Tracking keeps running: the avatar
     /// body (wings or human arms) is what the participant sees instead.
+    ///
+    /// The ray drawers (XRI CurveVisualController / XRInteractorLineVisual) switch their LineRenderer back on whenever
+    /// the ray finds something, so they are disabled too, not only their renderers (otherwise a ray flashes until the
+    /// next scan).
     /// </summary>
     [DefaultExecutionOrder(500)]
     public class ParticipantHandVisuals : MonoBehaviour
     {
         static readonly string[] HandObjectNames = { "Left Hand", "Right Hand", "Hand Visualizer" };
+
+        /// <summary>XR Interaction Toolkit behaviours that draw rays, reticles and pointers.</summary>
+        static readonly string[] VisualBehaviourTypes =
+        {
+            "HandVisualizer", "CurveVisualController", "XRInteractorLineVisual", "XRInteractorReticleVisual",
+        };
 
         readonly List<Renderer> hiddenRenderers = new();
         readonly List<Behaviour> hiddenVisualizers = new();
@@ -73,7 +84,9 @@ namespace AvianVoice.Embodiment.Avatars
 
             foreach (var behaviour in rigRoot.GetComponentsInChildren<Behaviour>(true))
             {
-                if (behaviour == null || !behaviour.enabled || behaviour.GetType().Name != "HandVisualizer")
+                if (behaviour == null || !behaviour.enabled || !IsVisualBehaviour(behaviour))
+                    continue;
+                if (behaviour.GetType().Name != "HandVisualizer" && !IsUnderHandOrController(behaviour.transform))
                     continue;
 
                 SetVisualizerFlags(behaviour, false);
@@ -82,10 +95,10 @@ namespace AvianVoice.Embodiment.Avatars
             }
 
             // Hand meshes may be spawned anywhere under the rig, so hide every renderer whose object or
-            // ancestor (below the rig root) is a hand object.
+            // ancestor (below the rig root) is a hand or controller object.
             foreach (var renderer in rigRoot.GetComponentsInChildren<Renderer>(true))
             {
-                if (renderer == null || !renderer.enabled || !IsUnderHandObject(renderer.transform))
+                if (renderer == null || !renderer.enabled || !IsUnderHandOrController(renderer.transform))
                     continue;
 
                 renderer.enabled = false;
@@ -95,11 +108,23 @@ namespace AvianVoice.Embodiment.Avatars
             applied = true;
         }
 
-        bool IsUnderHandObject(Transform t)
+        static bool IsVisualBehaviour(Behaviour behaviour)
+        {
+            var name = behaviour.GetType().Name;
+            foreach (var type in VisualBehaviourTypes)
+            {
+                if (name == type)
+                    return true;
+            }
+
+            return false;
+        }
+
+        bool IsUnderHandOrController(Transform t)
         {
             while (t != null && t != rigRoot)
             {
-                if (IsHandObject(t))
+                if (IsHandOrControllerObject(t))
                     return true;
                 t = t.parent;
             }
@@ -128,7 +153,7 @@ namespace AvianVoice.Embodiment.Avatars
             applied = false;
         }
 
-        static bool IsHandObject(Transform t)
+        static bool IsHandOrControllerObject(Transform t)
         {
             foreach (var name in HandObjectNames)
             {
@@ -136,7 +161,8 @@ namespace AvianVoice.Embodiment.Avatars
                     return true;
             }
 
-            return t.name.IndexOf("hand", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            return t.name.IndexOf("hand", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   t.name.IndexOf("controller", System.StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         static void SetVisualizerFlags(Behaviour visualizer, bool value)

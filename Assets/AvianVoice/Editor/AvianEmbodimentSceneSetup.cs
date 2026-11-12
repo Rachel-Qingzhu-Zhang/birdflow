@@ -214,6 +214,44 @@ namespace AvianVoice.Editor
             Debug.LogWarning("[AvianVoice] No other human avatar model is available.");
         }
 
+        /// <summary>
+        /// Every renderer (and line / ray visual) under the XR Origin with its path, enabled state and layer: what the
+        /// participant could see of the rig's own hands, controllers and rays.
+        /// </summary>
+        [MenuItem("Avian Voice/Embodiment/Debug/Log XR Rig Renderers")]
+        public static void LogXrRigRenderers()
+        {
+            var sb = new System.Text.StringBuilder("[AvianVoice] XR rig renderers:");
+            foreach (var t in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (t.parent != null || !t.name.Contains("XR Origin"))
+                    continue;
+                foreach (var r in t.GetComponentsInChildren<Renderer>(true))
+                    sb.Append("\n  ").Append(r.GetType().Name).Append(r.enabled && r.gameObject.activeInHierarchy ? " ON  " : " off ")
+                      .Append(LayerMask.LayerToName(r.gameObject.layer)).Append("  ").Append(PathOf(r.transform, t));
+                foreach (var b in t.GetComponentsInChildren<Behaviour>(true))
+                {
+                    var n = b.GetType().Name;
+                    if (n.Contains("Visual") || n.Contains("Line") || n.Contains("Reticle") || n.Contains("Caster"))
+                        sb.Append("\n  [").Append(n).Append(b.enabled && b.gameObject.activeInHierarchy ? " ON" : " off").Append("] ").Append(PathOf(b.transform, t));
+                }
+            }
+
+            Debug.Log(sb.ToString());
+        }
+
+        static string PathOf(Transform t, Transform root)
+        {
+            var path = t.name;
+            while (t.parent != null && t != root)
+            {
+                t = t.parent;
+                path = t.name + "/" + path;
+            }
+
+            return path;
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Measure Human Avatar Eye Point")]
         public static void MeasureHumanAvatarEyePoint()
         {

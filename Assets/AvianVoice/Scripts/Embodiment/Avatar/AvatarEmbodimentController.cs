@@ -119,7 +119,8 @@ namespace AvianVoice.Embodiment.Avatars
         [SerializeField]
         bool participantControllersEnabled;
 
-        [Tooltip("Off (default): the rig's hand meshes, joints and interactor rays are hidden (tracking stays on).")]
+        [Tooltip("Off (default): everything the XR rig draws for the hands and controllers is hidden: hand meshes and " +
+                 "joints, controller models, pinch / poke pointers and interactor rays (tracking stays on).")]
         [SerializeField]
         bool participantHandsVisible;
 

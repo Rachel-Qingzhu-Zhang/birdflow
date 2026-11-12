@@ -817,7 +817,7 @@ namespace AvianVoice.Editor
                     ParticipantInputPolicy.ControllersEnabled = controllers;
 
                 var hands = EditorGUILayout.ToggleLeft(
-                    "Show hand meshes and rays (tracking is always on)",
+                    "Show the rig's hand meshes, controller models and rays (tracking is always on)",
                     ParticipantInputPolicy.HandsVisible);
                 if (hands != ParticipantInputPolicy.HandsVisible)
                     ParticipantInputPolicy.HandsVisible = hands;
