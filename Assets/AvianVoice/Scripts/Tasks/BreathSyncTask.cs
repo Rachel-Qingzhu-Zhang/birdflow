@@ -8,7 +8,8 @@ using UnityEngine;
 namespace AvianVoice.Tasks
 {
     /// <summary>
-    /// Breath Sync: follow the slower breath only. After patternBCycles the next scene starts.
+    /// Breath Sync: follow the slower breath only. After patternBCycles the next scene starts
+    /// (5 cycles of 6 s in + 6 s out = 60 s).
     /// </summary>
     public class BreathSyncTask : MonoBehaviour
     {
@@ -51,7 +52,7 @@ namespace AvianVoice.Tasks
             BirdVoiceMapper.Find()?.SetFollowVoice(false);
             demonstrator?.SetPattern(BirdFriendDemonstrator.BreathPattern.PatternB6x6);
             demonstrator?.RestartPattern();
-            SetHud(AvianUiCopy.HumanAvatar ? "Breathe with your chest in the mirror" : "Breathe with the bird");
+            SetHud("Breathe with the mirror");
         }
 
         void OnDisable()
@@ -116,7 +117,7 @@ namespace AvianVoice.Tasks
 
         int RequiredCycles()
         {
-            var cycles = settings != null ? settings.patternBCycles : 4;
+            var cycles = settings != null ? settings.patternBCycles : 5;
             return Mathf.Max(1, cycles);
         }
 

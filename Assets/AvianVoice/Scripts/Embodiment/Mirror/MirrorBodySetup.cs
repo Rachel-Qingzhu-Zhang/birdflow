@@ -90,6 +90,61 @@ namespace AvianVoice.Embodiment
             birdBodyRoot = root;
         }
 
+        /// <summary>
+        /// Where the mirror stands while it is shown: world bounds of the whole mirror with its frame, of the glass
+        /// alone, and the horizontal direction from the glass toward the side it reflects (unit length; the caller
+        /// flips it if the viewer stands on the other side). False while the mirror is hidden or not built, and for
+        /// the head-attached mirror. Used to fix the guide card above the mirror (SceneGuide).
+        /// </summary>
+        public bool TryGetVisibleMirrorFrame(out Bounds frame, out Bounds glass, out Vector3 facing)
+        {
+            frame = default;
+            glass = default;
+            facing = Vector3.forward;
+            if (!built || !mirrorVisible || !useWorldPlacement)
+                return false;
+
+            var glassRenderer = usingBaroqueGlass
+                ? baroqueGlassRenderer
+                : mirrorQuad != null ? mirrorQuad.GetComponent<MeshRenderer>() : null;
+            if (glassRenderer == null || !glassRenderer.enabled || !glassRenderer.gameObject.activeInHierarchy)
+                return false;
+
+            glass = glassRenderer.bounds;
+            frame = glass;
+
+            // The frame: every renderer of the mirror model (the baroque model is its own root object, the flat
+            // mirror has its frame under AvianWorldMirror).
+            var model = glassRenderer.transform;
+            while (model.parent != null && model.parent.name != WorldMirrorObjectName)
+                model = model.parent;
+            var frameRoot = usingBaroqueGlass ? model : worldMirrorRoot != null ? worldMirrorRoot : model;
+            foreach (var renderer in frameRoot.GetComponentsInChildren<MeshRenderer>(false))
+            {
+                if (renderer == null || !renderer.enabled)
+                    continue;
+                frame.Encapsulate(renderer.bounds);
+            }
+
+            // A model that is far larger than its glass is not a frame (the glass sits in a bigger object): keep to the glass.
+            if (frame.size.y > glass.size.y * 3f + 1f || frame.size.x + frame.size.z > (glass.size.x + glass.size.z) * 3f + 2f)
+            {
+                frame = glass;
+                frame.Expand(0.1f);
+            }
+
+            var surface = glassRenderer.GetComponent<MirrorSurface>();
+            var forward = surface != null && surface.MyForwardTransform != null
+                ? surface.MyForwardTransform.forward
+                : glassRenderer.transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+                return false;
+
+            facing = forward.normalized;
+            return true;
+        }
+
         public void SetMirrorActive(bool active)
         {
             mirrorVisible = active;

@@ -14,16 +14,23 @@ namespace AvianVoice.Embodiment.Avatars
     ///
     /// The bone the neck and shoulders hang from (upper chest) is scaled: front-back by Depth Inhale and sideways by
     /// Width Inhale at full inhale. Its direct children get the inverse scale, so the neck, head and arms keep their
-    /// size and the head stays where it was. The shoulder bones are lifted by Shoulder Rise. The axes are found from
-    /// joint positions (towards the neck = up, shoulder to shoulder = sideways), so it works whatever the rig's bone
-    /// axes are.
-    /// Runs after the body-tracking retargeter (Update) and before HumanFirstPersonDriver places the eyes (31000).
+    /// size and the head stays where it was. The axes are found from joint positions (towards the neck = up, shoulder
+    /// to shoulder = sideways), so it works whatever the rig's bone axes are.
+    ///
+    /// The shoulders rise by Shoulder Rise: each collarbone turns upwards about its inner end until the shoulder joint
+    /// (the top of the arm) is that much higher, as real shoulders do in a deep breath, and the upper arm keeps its
+    /// direction, so the arm goes up with the shoulder instead of swinging out. This is the part of the breath that
+    /// reads best in the mirror.
+    ///
+    /// Runs after the body-tracking retargeter (Update) and after HumanFirstPersonDriver's LateUpdate (31000), which
+    /// writes every bone rotation while there is no tracking (fallback pose) and would wipe the shoulders; the driver
+    /// puts the eyes back on the camera in onBeforeRender, after this.
     /// </summary>
-    [DefaultExecutionOrder(30500)]
+    [DefaultExecutionOrder(31500)]
     public sealed class HumanBreathEmbodiment : MonoBehaviour
     {
         [Tooltip("Front-back expansion of the chest at full inhale (0.22 = 22 %, a few centimetres: a deep breath that shows " +
-                 "in the mirror; it was 6 % until 2026-11-12, too little to see). The bird uses 40 %.")]
+                 "in the mirror; it was 6 % until 2026-11-12, too little to see). The bird's chest bone uses 40 % x Breath Motion Scale (settings).")]
         [SerializeField, Range(0f, 0.3f)]
         float depthInhale = 0.22f;
 
@@ -35,9 +42,11 @@ namespace AvianVoice.Embodiment.Avatars
         [SerializeField, Range(0f, 0.1f)]
         float lengthInhale = 0.03f;
 
-        [Tooltip("How far the shoulders rise at full inhale (m).")]
-        [SerializeField, Range(0f, 0.03f)]
-        float shoulderRise = 0.022f;
+        [Tooltip("How far the shoulder joints (the tops of the arms) rise at full inhale (m). The collarbones turn upwards " +
+                 "about their inner ends and the arms go up with the shoulders. Until 2026-11-13 the whole collarbone was " +
+                 "shifted up by 22 mm, which was hard to see.")]
+        [SerializeField, Range(0f, 0.08f)]
+        float shoulderRise = 0.035f;
 
         [Tooltip("Task ids (scenes) in which the human avatar breathes. Empty = always.")]
         [SerializeField]
@@ -56,7 +65,14 @@ namespace AvianVoice.Embodiment.Avatars
         Transform[] children = new Transform[0];
         Vector3[] childRestScales = new Vector3[0];
         readonly Transform[] shoulders = new Transform[2];
-        readonly Vector3[] shoulderRestPositions = new Vector3[2];
+        readonly Transform[] upperArms = new Transform[2];
+        // Shoulder pose of the last Apply: the rotations found (base) and the ones written, to take the rise back out
+        // when nothing else has posed the bones since (no tracking data), and to leave a fresh tracked pose alone.
+        readonly Quaternion[] shoulderBase = new Quaternion[2];
+        readonly Quaternion[] shoulderWritten = new Quaternion[2];
+        readonly Quaternion[] armBase = new Quaternion[2];
+        readonly Quaternion[] armWritten = new Quaternion[2];
+        readonly bool[] shoulderPosed = new bool[2];
         float upSign = 1f;
         int upAxis = 1;
         int rightAxis;
@@ -150,11 +166,18 @@ namespace AvianVoice.Embodiment.Avatars
                 childRestScales[i] = children[i].localScale;
             }
 
-            // Shoulder (clavicle) bones, wherever the rig hangs them (under the chest or under the neck).
+            // Shoulder (clavicle) bones, wherever the rig hangs them (under the chest or under the neck), and the arms
+            // that hang from them.
             shoulders[0] = animator.GetBoneTransform(HumanBodyBones.LeftShoulder);
             shoulders[1] = animator.GetBoneTransform(HumanBodyBones.RightShoulder);
+            upperArms[0] = leftArm;
+            upperArms[1] = rightArm;
             for (var i = 0; i < shoulders.Length; i++)
-                shoulderRestPositions[i] = shoulders[i] != null ? shoulders[i].localPosition : Vector3.zero;
+            {
+                if (shoulders[i] != null && !upperArms[i].IsChildOf(shoulders[i]))
+                    shoulders[i] = null;
+                shoulderPosed[i] = false;
+            }
 
             resolved = true;
             Debug.Log("[AvianVoice] Human breathing on '" + name + "': chest bone " + bone.name + " (axes up=" + "XYZ"[upAxis]
@@ -168,6 +191,17 @@ namespace AvianVoice.Embodiment.Avatars
 
         void Apply(float emphasis)
         {
+            // Shoulders first, on the unscaled chest (world-space rotations under a non-uniform scale would skew).
+            UndoShoulders();
+            bone.localScale = boneRestScale;
+            for (var i = 0; i < children.Length; i++)
+            {
+                if (children[i] != null)
+                    children[i].localScale = childRestScales[i];
+            }
+
+            RaiseShoulders(shoulderRise * emphasis);
+
             var s = Vector3.one;
             s[forwardAxis] = 1f + depthInhale * emphasis;
             s[rightAxis] = 1f + widthInhale * emphasis;
@@ -193,25 +227,76 @@ namespace AvianVoice.Embodiment.Avatars
                 child.localScale = new Vector3(childRestScales[i].x / d.x, childRestScales[i].y / d.y, childRestScales[i].z / d.z);
             }
 
-            // Shoulders rise along the chest's up direction (world metres, whatever the scale of their parent).
-            var up = Vector3.zero;
-            up[upAxis] = upSign;
-            var rise = bone.TransformDirection(up) * (shoulderRise * emphasis);
+            applied = true;
+        }
+
+        /// <summary>
+        /// Turn each collarbone about its inner end so that the shoulder joint ends <paramref name="rise"/> metres higher
+        /// along the chest's up direction; the upper arm keeps its world rotation.
+        /// </summary>
+        void RaiseShoulders(float rise)
+        {
+            if (rise <= 0f)
+                return;
+
+            var upLocal = Vector3.zero;
+            upLocal[upAxis] = upSign;
+            var up = bone.TransformDirection(upLocal).normalized;
             for (var i = 0; i < shoulders.Length; i++)
             {
                 var shoulder = shoulders[i];
-                if (shoulder == null || shoulder.parent == null)
+                var arm = upperArms[i];
+                if (shoulder == null || arm == null)
                     continue;
-                shoulder.localPosition = shoulderRestPositions[i] + shoulder.parent.InverseTransformVector(rise);
-            }
 
-            applied = true;
+                var reach = arm.position - shoulder.position;
+                var length = reach.magnitude;
+                var height = Vector3.Dot(reach, up);
+                var flat = reach - up * height;
+                var flatLength = flat.magnitude;
+                if (length < 1e-4f || flatLength < 1e-4f)
+                    continue; // collarbone along the spine: no direction to turn it in
+
+                var newHeight = Mathf.Min(height + rise, length * 0.98f);
+                var target = flat / flatLength * Mathf.Sqrt(length * length - newHeight * newHeight) + up * newHeight;
+                var armRotation = arm.rotation;
+                shoulderBase[i] = shoulder.localRotation;
+                armBase[i] = arm.localRotation;
+                shoulder.rotation = Quaternion.FromToRotation(reach, target) * shoulder.rotation;
+                arm.rotation = armRotation;
+                shoulderWritten[i] = shoulder.localRotation;
+                armWritten[i] = arm.localRotation;
+                shoulderPosed[i] = true;
+            }
         }
+
+        /// <summary>
+        /// Take the last shoulder rise back out. A bone that something else has posed since (the retargeter, the
+        /// fallback pose) already holds a pose without the rise and is left as it is.
+        /// </summary>
+        void UndoShoulders()
+        {
+            for (var i = 0; i < shoulders.Length; i++)
+            {
+                if (!shoulderPosed[i])
+                    continue;
+                shoulderPosed[i] = false;
+                if (shoulders[i] != null && SameRotation(shoulders[i].localRotation, shoulderWritten[i]))
+                    shoulders[i].localRotation = shoulderBase[i];
+                if (upperArms[i] != null && SameRotation(upperArms[i].localRotation, armWritten[i]))
+                    upperArms[i].localRotation = armBase[i];
+            }
+        }
+
+        // Bit-exact on purpose: Quaternion == is approximate (about 0.1 degrees) and would mistake a fresh tracked
+        // pose that lies close to the written one for our own.
+        static bool SameRotation(Quaternion a, Quaternion b) => a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 
         void Restore()
         {
             if (!applied)
                 return;
+            UndoShoulders();
             if (bone != null)
                 bone.localScale = boneRestScale;
             for (var i = 0; i < children.Length; i++)
@@ -220,13 +305,46 @@ namespace AvianVoice.Embodiment.Avatars
                     children[i].localScale = childRestScales[i];
             }
 
-            for (var i = 0; i < shoulders.Length; i++)
+            applied = false;
+        }
+
+        /// <summary>
+        /// Diagnostics: the pose as it stands this frame (after every script that poses the body): emphasis, chest
+        /// scale and how high the shoulder joints sit above the chest bone.
+        /// </summary>
+        public string DescribeNow()
+        {
+            if (!resolved || bone == null)
+                return "not active";
+
+            var upLocal = Vector3.zero;
+            upLocal[upAxis] = upSign;
+            var up = bone.TransformDirection(upLocal).normalized;
+            var c = CultureInfo.InvariantCulture;
+            var text = "emphasis " + Emphasis.ToString("0.00", c) + ", chest scale " + bone.localScale.ToString("F3")
+                       + ", shoulder joints above the chest bone L/R ";
+            for (var i = 0; i < upperArms.Length; i++)
             {
-                if (shoulders[i] != null)
-                    shoulders[i].localPosition = shoulderRestPositions[i];
+                text += (i > 0 ? " / " : "")
+                        + (upperArms[i] != null ? (Vector3.Dot(upperArms[i].position - bone.position, up) * 1000f).ToString("0.0", c) : "-");
             }
 
-            applied = false;
+            return text + " mm (Shoulder Rise " + (shoulderRise * 1000f).ToString("0", c) + " mm at full inhale)";
+        }
+
+        /// <summary>
+        /// Editor tests: pose the body at a fixed emphasis (0 = exhale, 1 = full inhale) right now, outside Play.
+        /// Returns false when the rig has no Humanoid neck / arms.
+        /// </summary>
+        public bool PoseNow(float emphasis)
+        {
+            if (!resolved && !Resolve())
+                return false;
+            if (emphasis <= 0f)
+                Restore();
+            else
+                Apply(emphasis);
+            return true;
         }
 
         static int DominantAxis(Vector3 v, int exclude = -1)
@@ -268,11 +386,17 @@ namespace AvianVoice.Embodiment.Avatars
             Apply(0f);
             var rest = ChestExtent(skinned);
             var head0 = head.position; var l0 = lhand.position; var r0 = rhand.position; var headScale0 = head.lossyScale;
-            var shoulder0 = shoulders[0] != null ? shoulders[0].position : Vector3.zero;
+            var shoulder0 = upperArms[0].position;
+            var up = Vector3.zero;
+            up[upAxis] = upSign;
+            var chestUp = bone.TransformDirection(up).normalized;
             Apply(1f);
             var full = ChestExtent(skinned);
             var head1 = head.position; var l1 = lhand.position; var r1 = rhand.position; var headScale1 = head.lossyScale;
-            var shoulder1 = shoulders[0] != null ? shoulders[0].position : Vector3.zero;
+            var shoulder1 = upperArms[0].position;
+            // What the mirror shows with the eyes held on the headset: the shoulder joint against the head.
+            var shoulderUp = Vector3.Dot(shoulder1 - shoulder0, chestUp);
+            var headUp = Vector3.Dot(head1 - head0, chestUp);
 
             if (wasApplied && previous > 0f)
                 Apply(previous);
@@ -283,8 +407,10 @@ namespace AvianVoice.Embodiment.Avatars
             return "chest depth " + (rest.x * 100f).ToString("0.0", c) + " -> " + (full.x * 100f).ToString("0.0", c) + " cm ("
                    + ((full.x / Mathf.Max(1e-4f, rest.x) - 1f) * 100f).ToString("+0.0;-0.0", c) + "%), width "
                    + (rest.y * 100f).ToString("0.0", c) + " -> " + (full.y * 100f).ToString("0.0", c) + " cm ("
-                   + ((full.y / Mathf.Max(1e-4f, rest.y) - 1f) * 100f).ToString("+0.0;-0.0", c) + "%); shoulder moved "
-                   + (Vector3.Distance(shoulder0, shoulder1) * 1000f).ToString("0.0", c) + " mm, head moved "
+                   + ((full.y / Mathf.Max(1e-4f, rest.y) - 1f) * 100f).ToString("+0.0;-0.0", c) + "%); shoulder joint moved "
+                   + (Vector3.Distance(shoulder0, shoulder1) * 1000f).ToString("0.0", c) + " mm (up "
+                   + (shoulderUp * 1000f).ToString("0.0", c) + " mm, against the head "
+                   + ((shoulderUp - headUp) * 1000f).ToString("+0.0;-0.0", c) + " mm), head moved "
                    + (Vector3.Distance(head0, head1) * 1000f).ToString("0.0", c) + " mm, hands "
                    + (Vector3.Distance(l0, l1) * 1000f).ToString("0.0", c) + "/" + (Vector3.Distance(r0, r1) * 1000f).ToString("0.0", c)
                    + " mm, head size change " + ((headScale1.magnitude / Mathf.Max(1e-4f, headScale0.magnitude) - 1f) * 100f).ToString("+0.00;-0.00", c)
@@ -323,7 +449,10 @@ namespace AvianVoice.Embodiment.Avatars
                 rMin = Mathf.Min(rMin, r); rMax = Mathf.Max(rMax, r);
             }
 
-            Destroy(baked);
+            if (Application.isPlaying)
+                Destroy(baked);
+            else
+                DestroyImmediate(baked);
             return fMax < fMin ? Vector2.zero : new Vector2(fMax - fMin, rMax - rMin);
         }
 

@@ -19,6 +19,7 @@ namespace AvianVoice.Audio
         BirdCallLibrary library;
         BirdSongSynth synth;
         HumanVoiceSynth humanSynth;
+        MicPassthrough passthrough;
         float lastSynthPitchHz;
         VoiceFeedback feedback = VoiceFeedback.Bird;
 
@@ -30,14 +31,38 @@ namespace AvianVoice.Audio
         bool synthSawDip;
         bool loggedAssistiveMixerWarning;
         bool followVoice;
+        bool feedbackGateOpen;
+        float feedbackGateLastAbove = -1f;
 
         public VoiceMapMode Mode => mode;
 
-        /// <summary>What the participant's own voice is turned into: bird chirps, a human vowel, or nothing.</summary>
+        /// <summary>
+        /// What the participant hears of their own voice: bird voice, their own microphone as it is (human), or nothing.
+        /// </summary>
         public VoiceFeedback Feedback => feedback;
+
+        /// <summary>
+        /// How the human feedback is made: "microphone" (the microphone heard as it is, default since 2026-11-12)
+        /// or "synth" (the synthesized vowel, AvianVoiceSettings.humanVoiceFromMicrophone off).
+        /// </summary>
+        public string HumanFeedbackModeName => settings != null && !settings.humanVoiceFromMicrophone ? "synth" : "microphone";
+
+        /// <summary>The microphone passthrough of the human-voice condition (null until that condition was used).</summary>
+        public MicPassthrough Passthrough => passthrough;
+
+        bool UseMicPassthrough => settings != null && settings.humanVoiceFromMicrophone;
 
         /// <summary>"continuous" (bird voice open while voiced) or "chirps" (one chirp per onset, the previous behaviour).</summary>
         public string BirdFeedbackModeName => settings != null && !settings.synthContinuous ? "chirps" : "continuous";
+
+        /// <summary>Volume of the participant's own bird voice relative to the teacher's guide note (AvianVoiceSettings.synthOwnVoiceVolume).</summary>
+        public float BirdOwnVoiceVolume => settings != null ? Mathf.Clamp01(settings.synthOwnVoiceVolume) : 1f;
+
+        /// <summary>Closing level of the voice feedback gate as a fraction of the voiced threshold (AvianVoiceSettings.feedbackGateCloseRatio).</summary>
+        public float FeedbackGateCloseRatio => settings != null ? Mathf.Clamp(settings.feedbackGateCloseRatio, 0.1f, 1f) : 1f;
+
+        /// <summary>Hold time of the voice feedback gate in seconds (AvianVoiceSettings.feedbackGateHoldSeconds).</summary>
+        public float FeedbackGateHoldSeconds => settings != null ? Mathf.Max(0f, settings.feedbackGateHoldSeconds) : 0f;
 
         /// <summary>True while a guide note or the voice feedback is still sounding.</summary>
         public bool IsSounding => (synth != null && synth.IsSounding) || (humanSynth != null && humanSynth.IsSounding);
@@ -54,7 +79,33 @@ namespace AvianVoice.Audio
             feedback = newFeedback;
             synth?.Silence();
             humanSynth?.Silence();
-            Debug.Log("[AvianVoice] Voice feedback: " + feedback);
+            SyncPassthrough();
+            Debug.Log("[AvianVoice] Voice feedback: " + feedback + (feedback == VoiceFeedback.Human ? " (" + HumanFeedbackModeName + ")" : ""));
+        }
+
+        /// <summary>
+        /// Human feedback from the microphone: the passthrough plays (silently) for as long as the human condition
+        /// is set and is audible while the voice is followed, i.e. in the same windows as the bird voice.
+        /// </summary>
+        void SyncPassthrough()
+        {
+            if (feedback != VoiceFeedback.Human || !UseMicPassthrough)
+            {
+                if (passthrough != null)
+                    passthrough.Stop();
+                return;
+            }
+
+            if (passthrough == null)
+            {
+                var parent = transformSource != null ? transformSource.transform : transform;
+                var capture = analyzer != null ? analyzer.GetComponent<MicrophoneCapture>() : null;
+                passthrough = MicPassthrough.Ensure(parent, transformSource, settings, capture);
+                if (passthrough == null)
+                    return;
+            }
+
+            passthrough.Run(followVoice);
         }
 
         /// <summary>
@@ -71,6 +122,8 @@ namespace AvianVoice.Audio
                 synth?.Silence();
                 humanSynth?.Release();
             }
+
+            SyncPassthrough();
         }
 
         /// <summary>
@@ -88,6 +141,7 @@ namespace AvianVoice.Audio
         public void PlayGuideNote(float humanHz, float seconds, VoiceFeedback voice)
         {
             followVoice = false;
+            SyncPassthrough();
             if (voice == VoiceFeedback.Human)
             {
                 EnsureHumanSynth();
@@ -257,13 +311,18 @@ namespace AvianVoice.Audio
 
         void Update()
         {
+            SyncPassthrough();
             if (!followVoice || analyzer == null || settings == null)
+            {
+                feedbackGateOpen = false;
                 return;
+            }
 
             var v = analyzer.Current;
 
             if (feedback == VoiceFeedback.None)
             {
+                feedbackGateOpen = false;
                 // Own voice only: nothing is synthesized from the microphone.
                 synth?.Silence();
                 humanSynth?.Release();
@@ -273,9 +332,18 @@ namespace AvianVoice.Audio
 
             if (feedback == VoiceFeedback.Human)
             {
-                EnsureHumanSynth();
                 synth?.Silence();
-                UpdateHumanSynth(v);
+                if (UseMicPassthrough)
+                {
+                    // The microphone itself is heard (SyncPassthrough): nothing is synthesized from the analysis.
+                    humanSynth?.Release();
+                }
+                else
+                {
+                    EnsureHumanSynth();
+                    UpdateHumanSynth(v);
+                }
+
                 lastFrameLoudness = v.loudness;
                 return;
             }
@@ -342,6 +410,41 @@ namespace AvianVoice.Audio
             humanSynth = HumanVoiceSynth.Ensure(parent, transformSource);
         }
 
+        /// <summary>
+        /// Gate of the continuous voice feedback. It opens on the analyzer's voiced flag (same onset as before) and
+        /// closes when the loudness envelope has been below voicedThreshold x feedbackGateCloseRatio for
+        /// feedbackGateHoldSeconds. With the voiced flag alone (ratio 1, hold 0) a soft voice whose level hovers at
+        /// the threshold closed and reopened the gate inside one sung note (session 20261113_165018: 20 breaks in
+        /// 28 notes). The voiced flag itself, and everything scored or recorded from it, is unchanged.
+        /// </summary>
+        bool FeedbackGate(VoiceFrame v)
+        {
+            var now = Time.unscaledTime;
+            if (v.voiced > 0.5f)
+            {
+                feedbackGateOpen = true;
+                feedbackGateLastAbove = now;
+                return true;
+            }
+
+            if (!feedbackGateOpen)
+                return false;
+
+            // v.loudness is the envelope x loudnessGain, clamped at 1 (far above the threshold).
+            var envelope = v.loudness / Mathf.Max(0.0001f, settings.loudnessGain);
+            if (envelope >= settings.voicedThreshold * FeedbackGateCloseRatio)
+            {
+                feedbackGateLastAbove = now;
+                return true;
+            }
+
+            if (now - feedbackGateLastAbove < FeedbackGateHoldSeconds)
+                return true;
+
+            feedbackGateOpen = false;
+            return false;
+        }
+
         /// <summary>Continuous vowel at the singer's own pitch: open while voiced, released when the voice stops.</summary>
         void UpdateHumanSynth(VoiceFrame v)
         {
@@ -350,7 +453,7 @@ namespace AvianVoice.Audio
 
             var loud = v.loudness;
             // The gate is the analyzer's loudness envelope alone (fast attack / release); a held pitch must not keep it open.
-            var voiced = v.voiced > 0.5f;
+            var voiced = FeedbackGate(v);
             if (v.pitchHz > 0f)
                 lastSynthPitchHz = v.pitchHz;
             else if (lastSynthPitchHz <= 0f)
@@ -379,11 +482,12 @@ namespace AvianVoice.Audio
             {
                 // Continuous bird voice: open while voiced, released when the voice stops (same gating as the
                 // human voice, so the two feedback conditions differ only in timbre and register).
-                if (voiced)
+                var open = FeedbackGate(v);
+                if (open)
                     synth.Follow(lastSynthPitchHz, loud);
                 else
                     synth.Release();
-                requireOnsetAfterSilence = !voiced;
+                requireOnsetAfterSilence = !open;
                 synthSawDip = false;
                 lastFrameLoudness = loud;
                 return;
@@ -408,7 +512,7 @@ namespace AvianVoice.Audio
             var onset = ready && (requireOnsetAfterSilence || (synthSawDip && attack));
             if (onset)
             {
-                synth.PlayChirp(lastSynthPitchHz, loud);
+                synth.PlayChirp(lastSynthPitchHz, loud, -1f, true);
                 lastTriggerAttemptTime = Time.time;
                 requireOnsetAfterSilence = false;
                 synthSawDip = false;

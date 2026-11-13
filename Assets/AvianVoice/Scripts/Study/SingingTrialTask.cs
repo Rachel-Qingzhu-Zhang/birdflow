@@ -54,6 +54,11 @@ namespace AvianVoice.Study
         public string condition = "";
         /// <summary>Human body shown ("neutral" / "male" / "female" ...), "" with the bird avatar.</summary>
         public string humanAvatar = "";
+        /// <summary>
+        /// Pass through the trials of this condition: 1, then 2, 3 ... when the trials were started over
+        /// (StudyRecorder.BeginTrialRun). The highest run of a condition is the one to analyse.
+        /// </summary>
+        public int run = 1;
         public StudyTime start;
         public StudyTime guideStart;
         public StudyTime guideEnd;
@@ -74,7 +79,7 @@ namespace AvianVoice.Study
         public bool HadVoice => voiceOnset.IsSet;
 
         public const string CsvHeader =
-            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,avatar_model,voice_feedback,condition,human_avatar,"
+            "trial,attempt,block,pitch_index,target_hz,note,order,source,avatar,avatar_model,voice_feedback,condition,human_avatar,run,"
             + "t_start_utc,t_start_local,t_start_unity,t_start_dsp,mic_sample_start,out_frame_start,"
             + "t_guide_start_unity,mic_sample_guide_start,t_guide_end_unity,mic_sample_guide_end,"
             + "t_response_start_unity,mic_sample_response_start,"
@@ -90,7 +95,7 @@ namespace AvianVoice.Study
             sb.Append(trial).Append(',').Append(attempt).Append(',').Append(block).Append(',').Append(pitchIndex).Append(',')
               .Append(targetHz.ToString("0.###", c)).Append(',').Append(Csv(note)).Append(',').Append(Csv(order)).Append(',')
               .Append(Csv(source)).Append(',').Append(Csv(avatar)).Append(',').Append(Csv(avatarModel)).Append(',').Append(Csv(voiceFeedback)).Append(',')
-              .Append(Csv(condition)).Append(',').Append(Csv(humanAvatar)).Append(',')
+              .Append(Csv(condition)).Append(',').Append(Csv(humanAvatar)).Append(',').Append(run).Append(',')
               .Append(Csv(start.utc)).Append(',').Append(Csv(start.local)).Append(',').Append(Num(start.unity)).Append(',').Append(Num(start.dsp)).Append(',')
               .Append(start.micSample).Append(',').Append(start.outFrame).Append(',')
               .Append(Num(guideStart.unity)).Append(',').Append(guideStart.micSample).Append(',')
@@ -112,7 +117,7 @@ namespace AvianVoice.Study
             return new JsonLine()
                 .Add("trial", trial).Add("attempt", attempt).Add("block", block).Add("pitch_index", pitchIndex)
                 .Add("target_hz", targetHz).Add("note", note).Add("order", order).Add("source", source).Add("avatar", avatar).Add("avatar_model", avatarModel).Add("voice_feedback", voiceFeedback)
-                .Add("condition", condition).Add("human_avatar", humanAvatar)
+                .Add("condition", condition).Add("human_avatar", humanAvatar).Add("run", run)
                 .Add("start", start).Add("guide_start", guideStart).Add("guide_end", guideEnd)
                 .Add("response_start", responseStart).Add("voice_onset", voiceOnset).Add("voice_offset", voiceOffset).Add("end", end)
                 .Add("end_reason", endReason).Add("voice_segments", voiceSegments)
@@ -229,8 +234,8 @@ namespace AvianVoice.Study
         float toleranceHz = 30f;
 
         [Header("Behaviour")]
-        [Tooltip("During the response the participant hears their own voice through the condition's feedback: bird chirps with the " +
-                 "bird avatar, a human voice with the human avatar, or nothing (StudyFlowController / Experimenter Panel).")]
+        [Tooltip("During the response the participant hears their own voice through the condition's feedback: a bird voice with the " +
+                 "bird avatar, their own microphone as it is with the human avatar, or nothing (StudyFlowController / Experimenter Panel).")]
         [SerializeField]
         bool participantVoiceFeedback = true;
 
@@ -461,7 +466,8 @@ namespace AvianVoice.Study
                 avatarModel = recorder != null ? recorder.CurrentAvatarModel : "",
                 voiceFeedback = recorder != null ? recorder.CurrentVoiceFeedback : "",
                 condition = recorder != null ? recorder.CurrentCondition : "",
-                humanAvatar = recorder != null ? recorder.CurrentHumanAvatar : ""
+                humanAvatar = recorder != null ? recorder.CurrentHumanAvatar : "",
+                run = recorder != null && !practiceMode ? recorder.BeginTrialRun(slot + 1, attemptOfSlot + 1) : 1
             };
 
             ResetResponseState();
@@ -538,8 +544,13 @@ namespace AvianVoice.Study
             BirdVoiceMapper.Find()?.SetFollowVoice(false);
             phase = !practiceMode && nextSlot >= schedule.Length ? TrialPhase.Finished : TrialPhase.Idle;
             ShowCue(phase == TrialPhase.Finished ? "finished" : "wait", 0f);
+            // Where the teacher stands (world metres "x,y,z"; the same spot as in practice), so it can be checked afterwards.
+            var teacherSpot = BirdSceneRoles.TryGetFriendSpot(out var teacherPosition, out _)
+                ? teacherPosition.x.ToString("F3", CultureInfo.InvariantCulture) + "," + teacherPosition.y.ToString("F3", CultureInfo.InvariantCulture)
+                  + "," + teacherPosition.z.ToString("F3", CultureInfo.InvariantCulture)
+                : "";
             recorder?.LogEvent("singing_task_enabled", j => j.Add("next_trial", NextTrialNumber).Add("total", TotalTrials).Add("done", CompletedTrials).Add("practice", practiceMode)
-                .Add("pitch_match_glow", pitchMatchGlow));
+                .Add("pitch_match_glow", pitchMatchGlow).Add("teacher_position", teacherSpot));
             UpdateProgressUi();
         }
 
@@ -727,11 +738,12 @@ namespace AvianVoice.Study
                 // Practice trials stay out of trials.csv and segments/ (events.jsonl keeps them, task "practice").
                 if (!practiceMode)
                 {
-                    // conditions/<condition>/segments/trial_NNN_aN_<note>[_<human body>].wav
+                    // conditions/<condition>/segments/trial_NNN_aN_<note>[_<human body>][_run<N>].wav
                     var safeNote = record.note.Replace('#', 's');
                     record.segmentFile = recorder.WriteSegment(record.start.micSample, record.end.micSample,
                         "trial_" + record.trial.ToString("000", CultureInfo.InvariantCulture) + "_a" + record.attempt + "_" + safeNote
-                        + (string.IsNullOrEmpty(record.humanAvatar) ? "" : "_" + record.humanAvatar) + ".wav", record.condition) ?? "";
+                        + (string.IsNullOrEmpty(record.humanAvatar) ? "" : "_" + record.humanAvatar)
+                        + (record.run > 1 ? "_run" + record.run.ToString(CultureInfo.InvariantCulture) : "") + ".wav", record.condition) ?? "";
                     recorder.WriteTrial(record);
                 }
 
@@ -890,8 +902,9 @@ namespace AvianVoice.Study
 
         void ShowCue(string kind, float hz)
         {
-            var name = hz > 0f ? BirdSongPhrase.NoteName(hz) : "";
-            AvianUiCopy.ShowSingingCue(kind, name);
+            // The participant is not shown the note name or the frequency (2026-11-12): the cue says "this note".
+            // The note stays in the record (TrialRecord.note, the trial_start event) and on the experimenter's tools.
+            AvianUiCopy.ShowSingingCue(kind, "");
         }
 
         void UpdateProgressUi()
@@ -901,10 +914,12 @@ namespace AvianVoice.Study
             if (taskUi == null)
                 return;
 
+            // The debug HUD (TaskModeHUD, off in the study) is in the headset too: the trial number, not the note name.
             var text = phase switch
             {
                 TrialPhase.Finished => "Done.",
-                TrialPhase.Guide or TrialPhase.Response when current != null => current.note,
+                TrialPhase.Guide or TrialPhase.Response when current != null =>
+                    practiceMode ? "Practice trial " + current.trial : "Trial " + current.trial + " / " + TotalTrials,
                 _ => ""
             };
             taskUi.SetProgressInstruction(text);

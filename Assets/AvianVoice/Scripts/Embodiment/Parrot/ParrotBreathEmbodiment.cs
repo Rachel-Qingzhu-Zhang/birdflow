@@ -159,7 +159,9 @@ namespace AvianVoice.Embodiment
 
         void ApplyBreathPose(float depth, float vocal)
         {
-            var emphasis = BreathEmphasis(depth) + vocal * 0.22f;
+            // Breath Motion Scale (settings) softens the breath: the chest / belly growth and the breath wings.
+            var motionScale = ParrotChestBreathTuning.BreathMotionScale;
+            var emphasis = BreathEmphasis(depth) * motionScale + vocal * 0.22f;
 
             if (emphasis < 0.001f)
             {
@@ -181,7 +183,7 @@ namespace AvianVoice.Embodiment
                 var wingDepth = Mathf.Clamp01(depth + vocal * 0.4f);
                 ParrotBreathWingPose.Apply(
                     leftWing, rightWing, leftWingRest, rightWingRest,
-                    wingDepth, breath != null && breath.Current.isInhaling, Time.time);
+                    wingDepth, breath != null && breath.Current.isInhaling, Time.time, motionScale);
             }
         }
 

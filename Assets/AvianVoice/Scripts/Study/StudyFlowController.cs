@@ -55,12 +55,14 @@ namespace AvianVoice.Study
         string defaultParticipantId = "P000";
 
         [Header("Audio")]
-        [Tooltip("Mirror the listener output to the PC speakers when Unity's own output goes to the headset (PcAudioMonitor on the AudioListener).")]
+        [Tooltip("Play the sound on a PC device (PcAudioMonitor on the AudioListener). By default that is the only output: Unity's own " +
+                 "output (the headset over Link) is silenced. Mode and device are chosen in the Experimenter Panel.")]
         [SerializeField]
         bool pcAudioMonitor = true;
 
         [Header("Condition")]
-        [Tooltip("On: the participant hears their own voice converted (bird chirps with the bird avatar, a human voice with the human avatar). " +
+        [Tooltip("On: the participant hears their own voice through the headphones (as a bird voice with the bird avatar, their own " +
+                 "microphone as it is with the human avatar). " +
                  "Off: only their natural voice. The avatar is the other factor (AvatarEmbodimentController / Experimenter Panel).")]
         [SerializeField]
         bool voiceFeedback = true;
@@ -147,7 +149,11 @@ namespace AvianVoice.Study
                 .Add("feedback", FeedbackName(effective))
                 .Add("converted", voiceFeedback)
                 .Add("condition_label", ConditionLabel)
-                .Add("bird_feedback", mapper != null ? mapper.BirdFeedbackModeName : ""));
+                .Add("bird_feedback", mapper != null ? mapper.BirdFeedbackModeName : "")
+                .Add("bird_own_voice_volume", mapper != null ? mapper.BirdOwnVoiceVolume : -1f)
+                .Add("feedback_gate_close_ratio", mapper != null ? mapper.FeedbackGateCloseRatio : -1f)
+                .Add("feedback_gate_hold_s", mapper != null ? mapper.FeedbackGateHoldSeconds : -1f)
+                .Add("human_feedback", mapper != null ? mapper.HumanFeedbackModeName : ""));
             Debug.Log("[AvianVoice] Condition: " + ConditionLabel);
         }
 

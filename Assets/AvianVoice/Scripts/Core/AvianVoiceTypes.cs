@@ -7,8 +7,9 @@ namespace AvianVoice.Core
     }
 
     /// <summary>
-    /// What the participant hears of their own voice: bird chirps (bird avatar), a sung human vowel
-    /// (human avatar), or nothing (only their natural voice).
+    /// What the participant hears of their own voice through the headphones: a bird voice (bird avatar), their
+    /// own microphone as it is (human avatar; a synthesized vowel until 2026-11-12, see
+    /// AvianVoiceSettings.humanVoiceFromMicrophone), or nothing (only their natural voice).
     /// </summary>
     public enum VoiceFeedback
     {

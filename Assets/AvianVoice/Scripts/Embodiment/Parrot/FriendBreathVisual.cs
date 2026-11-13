@@ -127,7 +127,9 @@ namespace AvianVoice.Embodiment
 
         void ApplyBreathPose(float depth)
         {
-            var emphasis = ParrotChestBreathTuning.DepthToEmphasis(depth);
+            // Same softening as the player's bird (ParrotBreathEmbodiment), so both birds breathe alike.
+            var motionScale = ParrotChestBreathTuning.BreathMotionScale;
+            var emphasis = ParrotChestBreathTuning.DepthToEmphasis(depth) * motionScale;
             if (emphasis < 0.001f)
             {
                 RestoreChestScales();
@@ -142,7 +144,7 @@ namespace AvianVoice.Embodiment
             var inhaling = demonstrator == null || demonstrator.IsInhaling;
             ParrotBreathWingPose.Apply(
                 leftWing, rightWing, leftWingRest, rightWingRest,
-                depth, inhaling, Time.time);
+                depth, inhaling, Time.time, motionScale);
         }
 
         void ApplyWorldFloat(float energy)

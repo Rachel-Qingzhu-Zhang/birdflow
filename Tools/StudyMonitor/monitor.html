@@ -116,6 +116,8 @@
   .wav.warning { border-color: var(--warning); border-width: 2px; } .wav.critical { border-color: var(--critical); border-width: 2px; }
   .wav.todo { border-style: dashed; border-color: var(--grid); background: none; cursor: default; }
   .wav.fresh { animation: fresh 2s ease-out; }
+  .cond .runhead { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--grid); }
+  .wavs.old { margin-top: 4px; } .wavs.old .wav { opacity: 0.5; }
   @keyframes fresh { from { box-shadow: 0 0 0 3px var(--good); } to { box-shadow: 0 0 0 0 transparent; } }
 </style>
 </head>
@@ -188,7 +190,7 @@ const CONDITIONS = [
   { id: 'human_human-voice', name: 'Human + human voice' },
   { id: 'human_own-voice', name: 'Human + own voice only' },
 ];
-const MARKERS = new Set(['condition_start', 'session_start', 'session_end', 'task_changed', 'avatar_changed', 'voice_feedback', 'mic_restart', 'protocol_start', 'protocol_complete', 'protocol_reset', 'trial_repeat', 'auto_advance']);
+const MARKERS = new Set(['condition_start', 'trial_run_start', 'session_start', 'session_end', 'task_changed', 'avatar_changed', 'voice_feedback', 'mic_restart', 'protocol_start', 'protocol_complete', 'protocol_reset', 'trial_repeat', 'auto_advance']);
 
 // ---- PCM track: a ring of the newest samples, with min/max blocks and a pitch track ------------------------------
 class Track {
@@ -425,7 +427,7 @@ function rebuild() {
     const t = evSec(e);
     switch (e.type) {
       case 'trial_start':
-        cur = { trial: e.trial, attempt: e.attempt, note: e.note || '', hz: e.target_hz, practice: !!e.practice, t0: t, t1: null, g0: null, g1: null, r0: null, voiced: [], end: null, avatar: e.avatar, fb: e.voice_feedback };
+        cur = { trial: e.trial, attempt: e.attempt, note: e.note || '', hz: e.target_hz, practice: !!e.practice, t0: t, t1: null, g0: null, g1: null, r0: null, voiced: [], end: null, avatar: e.avatar, fb: e.voice_feedback, run: e.run };
         S.trials.push(cur); break;
       case 'guide_start': if (cur) cur.g0 = t; break;
       case 'guide_end': if (cur) cur.g1 = t; break;
@@ -445,9 +447,10 @@ function rebuild() {
     if (MARKERS.has(e.type)) {
       let label = e.type.replace(/_/g, ' ');
       if (e.type === 'task_changed') label = '→ ' + (e.task_id || '');
+      else if (e.type === 'trial_run_start') label = 'started over: run ' + e.run;
       else if (e.type === 'condition_start') label = '▸ ' + conditionName(e.condition) + (e.human_avatar ? ' (' + e.human_avatar + ')' : '');
       else if (e.type === 'avatar_changed') label = 'avatar ' + (e.kind || '');
-      else if (e.type === 'voice_feedback') label = 'hears ' + (e.feedback || '');
+      else if (e.type === 'voice_feedback') label = 'hears ' + (e.feedback || '') + (e.feedback === 'human' && e.human_feedback ? ' (' + e.human_feedback + ')' : '');
       else if (e.type === 'session_start') label = 'start'; else if (e.type === 'session_end') label = 'end';
       S.markers.push({ t, label, type: e.type });
     }
@@ -590,7 +593,7 @@ function savedTrials() {
     else if (isFinite(expect) && Math.abs(dur - expect) > SEGMENT_TOLERANCE_S) segState = 'short';
     return { saved: true, trial: g('trial'), attempt: +g('attempt'), note: g('note'), hz: +g('target_hz'), med: g('median_pitch_hz'), match: g('pitch_match'), onset: g('onset_latency_s'),
              voiced: g('voiced_s'), voice: +g('voice_segments') > 0, reason: g('end_reason'), seg, segState, dur, expect, t0: mr ? s0 / mr : NaN, t1: mr ? s1 / mr : NaN,
-             row, cid: g('condition') || conditionId(g('avatar'), g('voice_feedback')), human: g('human_avatar') || humanOf(g('avatar')),
+             row, run: +g('run') || 0, cid: g('condition') || conditionId(g('avatar'), g('voice_feedback')), human: g('human_avatar') || humanOf(g('avatar')),
              peak: info ? info.peak : undefined, rms: info ? info.rms : undefined, written: info && info.mtime ? info.mtime * 1000 : NaN };
   });
   // Recordings made before the condition folders: trial numbers start again at 1 in each condition, so a later
@@ -598,7 +601,16 @@ function savedTrials() {
   const lastRef = {};
   rows.forEach((x, i) => { if (x.seg) lastRef[x.seg] = i; });
   rows.forEach((x, i) => { if (x.seg && lastRef[x.seg] !== i && x.segState !== 'missing') x.segState = 'overwritten'; });
-  for (const x of rows) { x.cond = conditionName(x.cid) + (x.human ? ' · ' + x.human : ''); x.check = wavCheck(x); }
+  // Run = which pass through the trials of a condition (StudyRecorder.BeginTrialRun). Recordings made before the
+  // run column get it by the same rule: the trial number did not go up and it is not a repeat -> the trials were started over.
+  const pass = {};
+  for (const x of rows) {
+    const q = pass[x.cid] || (pass[x.cid] = { run: 1, last: 0 }), n = +x.trial;
+    if (x.attempt <= 1 && n <= q.last) q.run++;
+    q.last = n;
+    if (!x.run) x.run = q.run;
+  }
+  for (const x of rows) { x.cond = conditionName(x.cid) + (x.human ? ' · ' + x.human : '') + (x.run > 1 ? ' · run ' + x.run : ''); x.check = wavCheck(x); }
   return rows;
 }
 
@@ -634,8 +646,11 @@ function renderBoard(add, live, saved) {
   const tr = S.mic, s1 = headSec() * (tr.rate || 1), lv = live && S.hasMic ? tr.level(s1 - tr.rate, s1) : null;
   const clock = performance.now(), total = S.totalTrials || 0;
   let h = '';
-  for (const [id, rows] of by) {
+  for (const [id, all] of by) {
     const now = id === nowId, name = conditionName(id);
+    // The run to look at is the newest one. Trials of a run that was started over stay on disk and are listed under it.
+    const run = Math.max(1, ...all.map(x => x.run), now && running && !running.practice && running.run ? running.run : 1);
+    const rows = all.filter(x => x.run === run), earlier = all.filter(x => x.run !== run);
     const bad = rows.filter(x => x.check.level !== 'good'), withWav = rows.filter(x => x.dur > 0 && x.segState !== 'overwritten');
     const secs = withWav.reduce((n, x) => n + x.dur, 0), distinct = new Set(rows.map(x => x.trial)).size;
     const folder = S.conditions ? S.conditions[id] : null;
@@ -644,24 +659,30 @@ function renderBoard(add, live, saved) {
       level = bad.some(x => x.check.level === 'critical') ? 'critical' : 'warning';
       const same = bad.every(x => x.check.text === bad[0].check.text);
       status = bad.length + ' of ' + rows.length + ' WAV' + (rows.length === 1 ? '' : 's') + (same ? ': ' + bad[0].check.text.replace(/ \(.*$/, '') : ' with a problem');
-    } else if (folder && folder.trial_rows !== rows.length) {
-      level = 'warning'; status = `trials.csv of this folder has ${folder.trial_rows} rows, the session has ${rows.length}`;
-    } else if (S.conditions && rows.length && !folder) {
+    } else if (folder && folder.trial_rows !== all.length) {
+      level = 'warning'; status = `trials.csv of this folder has ${folder.trial_rows} rows, the session has ${all.length}`;
+    } else if (S.conditions && all.length && !folder) {
       level = 'warning'; status = 'No folder for this condition';
     } else if (rows.length) { level = 'good'; status = 'Every WAV has sound'; }
     add(level, name + ': ' + status);
 
-    const tiles = rows.slice().sort((p, q) => (isFinite(p.t0) ? p.t0 : 0) - (isFinite(q.t0) ? q.t0 : 0)).map(x => {
+    const tileOf = x => {
       const key = x.row + '|' + x.seg;
       if (!S.segSeen.has(key)) S.segSeen.set(key, S.segPrimed ? clock : -1e9);
       const fresh = clock - S.segSeen.get(key) < 2000, c = x.check;
-      const title = `trial ${x.trial}${x.attempt > 1 ? ' (try ' + x.attempt + ')' : ''} · ${x.note}` + (x.dur > 0 ? ' · ' + x.dur.toFixed(1) + ' s' : '') +
+      const title = `trial ${x.trial}${x.attempt > 1 ? ' (try ' + x.attempt + ')' : ''} · ${x.note}` + (run > 1 ? ' · run ' + x.run : '') + (x.dur > 0 ? ' · ' + x.dur.toFixed(1) + ' s' : '') +
         (x.peak >= 0 ? ' · peak ' + fmtDb(dB(x.peak)) : '') + (x.human ? ' · human avatar: ' + x.human : '') + ' · ' + c.text + (x.seg ? ' · ' + x.seg : '');
       return `<button class="wav${c.level === 'good' ? '' : ' ' + c.level}${fresh ? ' fresh' : ''}" data-seg="${x.dur > 0 && x.segState !== 'overwritten' ? esc(x.seg) : ''}" data-a="${isFinite(x.t0) ? x.t0.toFixed(3) : ''}" data-b="${isFinite(x.t1) ? x.t1.toFixed(3) : ''}" ` +
         `data-t0="${isFinite(x.t1) && x.dur > 0 ? (x.t1 - x.dur).toFixed(3) : ''}" title="${esc(title)}" aria-label="${esc(title)}">${x.segState === 'overwritten' ? '' : miniWave(S.env[x.seg])}` +
         `<span class="no">${esc(x.trial)}${x.attempt > 1 ? '·' + esc(x.attempt) : ''}</span>${c.level === 'good' ? '' : `<span class="ic">${ICON[c.level]}</span>`}</button>`;
-    });
-    if (total && (rows.length || now)) for (let i = distinct; i < total; i++) tiles.push('<span class="wav todo" title="not recorded yet"></span>');
+    };
+    const byTime = list => list.slice().sort((p, q) => (isFinite(p.t0) ? p.t0 : 0) - (isFinite(q.t0) ? q.t0 : 0));
+    const tiles = byTime(rows).map(tileOf);
+    const before = [...new Set(earlier.map(x => x.run))].sort((a, b) => a - b).map(r => {
+      const list = earlier.filter(x => x.run === r);
+      return `<div class="d runhead">run ${r} · ${list.length} WAV${list.length === 1 ? '' : 's'} · started over: kept on disk, analyse run ${run}</div><div class="wavs old">${byTime(list).map(tileOf).join('')}</div>`;
+    }).join('');
+    if (total && (all.length || now)) for (let i = distinct; i < total; i++) tiles.push('<span class="wav todo" title="not recorded yet"></span>');
 
     const d = [];
     if (now && running && !running.practice) d.push(`now: trial ${esc(running.trial)} · ${esc(running.note)} · ${running.r0 != null ? 'response' : running.g1 != null ? 'gap' : 'guide'}`);
@@ -676,9 +697,9 @@ function renderBoard(add, live, saved) {
     else if (!S.conditions && rows.length) d.push('older recording: its WAVs are in segments/, not in a condition folder');
 
     h += `<div class="card cond${now ? ' now' : ''}"><div class="top"><span class="name">${esc(name)}</span>${now ? '<span class="rec">● recording now</span>' : ''}</div>` +
-      `<div class="count">${withWav.length} <small>WAV${withWav.length === 1 ? '' : 's'}${total && (rows.length || now) ? ' · trial ' + distinct + ' of ' + total : ''}${secs > 0 ? ' · ' + fmtMS(secs) + ' of sound' : ''}</small></div>` +
+      `<div class="count">${withWav.length} <small>WAV${withWav.length === 1 ? '' : 's'}${run > 1 ? ' · run ' + run : ''}${total && (all.length || now) ? ' · trial ' + distinct + ' of ' + total : ''}${secs > 0 ? ' · ' + fmtMS(secs) + ' of sound' : ''}</small></div>` +
       `<div class="st ${level}"><span class="ic">${ICON[level]}</span><span>${esc(status)}</span></div>${now ? meter(lv, 'var(--mic)') : ''}` +
-      `<div class="d">${d.join('<br>')}</div><div class="wavs">${tiles.join('')}</div></div>`;
+      `<div class="d">${d.join('<br>')}</div><div class="wavs">${tiles.join('')}</div>${before}</div>`;
   }
   S.segPrimed = S.segPrimed || !!S.csv;
   setHtml('board', h);
@@ -786,7 +807,8 @@ function renderDom() {
   // Trials
   {
     const done = S.trials.filter(x => x.end && !x.practice), running = S.trials.length && !S.trials[S.trials.length - 1].end ? S.trials[S.trials.length - 1] : null;
-    const distinct = new Set(saved.map(x => x.trial)).size, noVoice = saved.filter(x => !x.voice).length;
+    const lastRow = saved[saved.length - 1], noVoice = saved.filter(x => !x.voice).length;
+    const distinct = lastRow ? new Set(saved.filter(x => x.cid === lastRow.cid && x.run === lastRow.run).map(x => x.trial)).size : 0;
     const missing = saved.filter(x => x.segState === 'missing' || x.segState === 'none' || x.segState === 'empty').length, short = saved.filter(x => x.segState === 'short').length;
     const over = saved.filter(x => x.segState === 'overwritten').length;
     let level = 'good', status = saved.length + ' row' + (saved.length === 1 ? '' : 's') + ' saved in trials.csv';
@@ -985,7 +1007,7 @@ function playWindow(tr, offset, name) {
   playSaved(`file=${name}&from=${Math.floor((a - offset) * tr.rate)}&count=${Math.ceil((b - a) * tr.rate)}`, a, `${name}.wav ${fmtT(a)} – ${fmtT(b)}`);
 }
 
-const COMMON = new Set(['type', 't_utc', 't_local', 't_unity', 't_dsp', 'mic_sample', 'out_frame', 'task', 'avatar', 'avatar_model', 'voice_feedback', 'condition', 'human_avatar']);
+const COMMON = new Set(['type', 't_utc', 't_local', 't_unity', 't_dsp', 'mic_sample', 'out_frame', 'task', 'avatar', 'avatar_model', 'voice_feedback', 'condition', 'human_avatar', 'run']);
 function renderEvents() {
   const ev = S.events, n = ev.length;
   $('eventsNote').textContent = n ? n + ' in events.jsonl · newest first' : '';

@@ -48,9 +48,9 @@ MonoBehaviour:
   synthPitchRatio: 8
   synthChirpSeconds: 0.08
   synthChirpGapSeconds: 0.05
-  synthHumanMinHz: 90
+  synthHumanMinHz: 80
   synthHumanMaxHz: 900
-  synthBirdMinHz: 1600
+  synthBirdMinHz: 640
   synthBirdMaxHz: 5500
   synthTrillRateMin: 18
   synthTrillRateMax: 28
@@ -86,9 +86,10 @@ MonoBehaviour:
   chestInhaleScale: 0.4
   bellyInhaleScale: 0.28
   breathCurvePower: 1
+  breathMotionScale: 0.65
   meetCycles: 3
   patternACycles: 3
-  patternBCycles: 4
+  patternBCycles: 5
   mirrorEnabled: 1
   wingMappingEnabled: 1
   showHudPanels: 0

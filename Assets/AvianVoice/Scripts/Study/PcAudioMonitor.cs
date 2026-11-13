@@ -13,19 +13,29 @@ namespace AvianVoice.Study
     /// Audio Device under Quest Link). Lives on the AudioListener object. Also reports the Windows default
     /// output device and whether it is muted, which is the usual reason for "no sound from the PC".
     ///
-    /// Modes: Auto = mirror only when the Windows default output is a headset device (no double audio when
-    /// Unity already plays through the PC speakers); Always; Off.
+    /// Modes:
+    /// PcOnly (default since 2026-11-12) = the PC device is the only output: the copy always plays and Unity's
+    /// own output is silenced (<see cref="ListenerOutputSilencer"/>), so the sound comes from the headphones
+    /// connected to the PC wherever Unity's own output goes (the headset over Link, the Windows default). If the
+    /// PC device cannot be opened, Unity's own output stays audible instead of leaving no sound at all.
+    /// Always = the copy plus Unity's own output; Auto = Unity's own output, plus the copy only while that goes
+    /// to a headset device (the default before 2026-11-12); Off = Unity's own output only.
     /// </summary>
     [DefaultExecutionOrder(30990)]
     public class PcAudioMonitor : MonoBehaviour
     {
-        public enum MonitorMode { Auto, Always, Off }
+        public enum MonitorMode { Auto, Always, Off, PcOnly }
 
-        public const string ModePrefKey = "AvianVoice.Study.PcMonitorMode";
+        /// <summary>
+        /// A new key since 2026-11-12 ("AvianVoice.Study.PcMonitorMode" before), so that the new default applies
+        /// instead of a mode stored for the earlier meaning of the setting.
+        /// </summary>
+        public const string ModePrefKey = "AvianVoice.Study.OutputMode";
         public const string DevicePrefKey = "AvianVoice.Study.PcMonitorDevice";
+        public const MonitorMode DefaultMode = MonitorMode.PcOnly;
 
         [SerializeField]
-        MonitorMode mode = MonitorMode.Auto;
+        MonitorMode mode = DefaultMode;
 
         [Tooltip("Substring of the waveOut device name to mirror to. Empty = first device that is not a headset / virtual device.")]
         [SerializeField]
@@ -39,9 +49,39 @@ namespace AvianVoice.Study
         [SerializeField]
         string[] headsetKeywords = { "Oculus", "Virtual", "Quest", "Rift", "Steam", "VR" };
 
+        [Header("Low-latency output (WASAPI)")]
+        [Tooltip("On (default since 2026-11-12): play the copy through WASAPI with a small reserve (WasapiOutput). " +
+                 "Off, or when the device refuses: the earlier waveOut output, about 0.1 s late.")]
+        [SerializeField]
+        bool lowLatency = true;
+
+        [Tooltip("Size of the device buffer in ms. It covers moments in which the render thread is held up.")]
+        [Range(10, 100)]
+        [SerializeField]
+        int deviceBufferMs = 30;
+
+        [Tooltip("Audio kept in reserve (device buffer + queue) in ms: the delay this output adds after Unity's mix. " +
+                 "It has to cover the moments in which Unity's audio thread stops (about 20 ms every ~13 s in the editor); " +
+                 "too small is heard as short gaps and counted as underruns in the Experimenter Panel.")]
+        [Range(15f, 200f)]
+        [SerializeField]
+        float reserveMs = 40f;
+
         const int BufferFrames = 1024;   // 21 ms at 48 kHz
         const int BufferCount = 16;      // ~340 ms of device queue
         const int MaxPendingChunks = 96; // ~500 ms of listener chunks (dsp 256) before dropping
+
+        volatile WasapiOutput wasapi;
+        float nextRestartAllowedAt;
+
+        /// <summary>The low-latency output while it is in use (null with the waveOut output or when not playing).</summary>
+        public WasapiOutput LowLatencyOutput => wasapi;
+
+        /// <summary>"wasapi" (low latency), "waveOut" (about 0.1 s late) or "" when the PC device is not playing.</summary>
+        public string Backend => wasapi != null ? "wasapi" : mirroring ? "waveOut" : "";
+
+        /// <summary>Why the low-latency output was not used ("" when it is in use or was not tried).</summary>
+        public string LowLatencyError { get; private set; } = "";
 
         IntPtr handle = IntPtr.Zero;
         int sampleRate;
@@ -69,7 +109,23 @@ namespace AvianVoice.Study
                 mode = value;
                 PlayerPrefs.SetString(ModePrefKey, value.ToString());
                 Refresh();
+                StudyRecorder.Instance?.LogEvent("pc_audio_monitor", j => j.Add("state", Describe()));
             }
+        }
+
+        /// <summary>True while Unity's own output is silenced and the PC device is the only output.</summary>
+        public bool SilencingUnityOutput => ListenerOutputSilencer.Silence;
+
+        /// <summary>RMS of the last block of the mix (before Unity's own output is silenced), for level meters.</summary>
+        public float MixRms => mixRms;
+
+        volatile float mixRms;
+
+        /// <summary>Silence Unity's own output only while the PC copy really plays (PcOnly), and keep the silencer last.</summary>
+        void ApplySilence()
+        {
+            ListenerOutputSilencer.Silence = mode == MonitorMode.PcOnly && mirroring && isActiveAndEnabled;
+            ListenerOutputSilencer.KeepLast(gameObject, true);
         }
 
         public string DeviceNameContains
@@ -134,6 +190,20 @@ namespace AvianVoice.Study
 #endif
         }
 
+        /// <summary>
+        /// Active Windows playback devices as (endpoint id, full name). Unlike <see cref="OutputDeviceNames"/>
+        /// (waveOut, names cut at 31 characters) these are the devices as Windows lists them, with the id that
+        /// <see cref="AudioOutputRouting"/> needs. Throws when the devices cannot be listed.
+        /// </summary>
+        public static KeyValuePair<string, string>[] OutputEndpoints()
+        {
+#if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            return WindowsDefaultOutput.Endpoints();
+#else
+            return Array.Empty<KeyValuePair<string, string>>();
+#endif
+        }
+
         public bool IsHeadsetDevice(string name)
         {
             if (string.IsNullOrEmpty(name))
@@ -151,27 +221,114 @@ namespace AvianVoice.Study
         {
             RefreshDefaultOutput();
             var unityOut = EffectiveOutputName;
-            var want = mode == MonitorMode.Always || (mode == MonitorMode.Auto && IsHeadsetDevice(unityOut));
+            var want = mode == MonitorMode.Always || mode == MonitorMode.PcOnly || (mode == MonitorMode.Auto && IsHeadsetDevice(unityOut));
             if (!want)
             {
                 Status = mode == MonitorMode.Off ? "off" : "not needed (Unity already plays on '" + unityOut + "')";
                 StopMirror();
+                ApplySilence();
                 return;
             }
 
-            var index = PickDevice(out var name);
-            if (index < 0)
+            // The device as Windows lists it (needed for the low-latency output); the waveOut list is the fallback.
+            var waveIndex = -1;
+            var found = PickEndpoint(out var endpointId, out var name);
+            if (!found)
             {
-                Status = "no PC output device found";
+                waveIndex = PickDevice(out name);
+                found = waveIndex >= 0;
+            }
+
+            if (!found)
+            {
+                Status = "no PC output device found" + (mode == MonitorMode.PcOnly ? "; Unity's own output is left on" : "");
                 StopMirror();
+                ApplySilence();
                 return;
             }
 
-            if (mirroring && MirrorDeviceName == name)
-                return;
+            if (!mirroring || MirrorDeviceName != name)
+            {
+                StopMirror();
+                StartMirror(endpointId, waveIndex, name);
+            }
 
-            StopMirror();
-            StartMirror(index, name);
+            ApplySilence();
+            if (mirroring)
+                Status = "playing on " + MirrorDeviceName + (wasapi != null ? " (low latency)" : " (waveOut, about 0.1 s late" + (LowLatencyError.Length > 0 ? ": " + LowLatencyError : "") + ")")
+                         + (SilencingUnityOutput ? "; Unity's own output is silent" : "; Unity's own output also plays");
+            else if (mode == MonitorMode.PcOnly)
+                Status += "; Unity's own output is left on";
+        }
+
+        /// <summary>
+        /// The playback device to use, as Windows lists it: the one whose name contains the chosen text, or
+        /// automatically the Windows default when that is not a headset device, else the first that is not.
+        /// </summary>
+        bool PickEndpoint(out string id, out string name)
+        {
+            id = "";
+            name = "";
+            KeyValuePair<string, string>[] endpoints;
+            try
+            {
+                endpoints = OutputEndpoints();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            var filter = deviceNameContains ?? "";
+            KeyValuePair<string, string>? pick = null;
+            foreach (var endpoint in endpoints)
+            {
+                if (filter.Length > 0)
+                {
+                    if (endpoint.Value.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
+                    pick = endpoint;
+                    break;
+                }
+
+                if (IsHeadsetDevice(endpoint.Value))
+                    continue;
+                if (endpoint.Value == DefaultOutputName)
+                {
+                    pick = endpoint;
+                    break;
+                }
+
+                pick ??= endpoint;
+            }
+
+            if (pick == null)
+                return false;
+            id = pick.Value.Key;
+            name = pick.Value.Value;
+            return true;
+        }
+
+        /// <summary>Playback device names as Windows lists them (full names); the waveOut names when they cannot be listed.</summary>
+        public static string[] OutputDeviceFullNames()
+        {
+            try
+            {
+                var endpoints = OutputEndpoints();
+                if (endpoints.Length > 0)
+                {
+                    var names = new string[endpoints.Length];
+                    for (var i = 0; i < endpoints.Length; i++)
+                        names[i] = endpoints[i].Value;
+                    return names;
+                }
+            }
+            catch (Exception)
+            {
+                // Fall back to the waveOut list below.
+            }
+
+            return OutputDeviceNames();
         }
 
         public static void RefreshDefaultOutput()
@@ -268,10 +425,20 @@ namespace AvianVoice.Study
 
         public string Describe()
         {
-            return "pcMonitor mode=" + mode + " mirroring=" + mirroring + " device='" + MirrorDeviceName + "' status='" + Status
+            return "pcMonitor mode=" + mode + " mirroring=" + mirroring + " unityOutputSilenced=" + SilencingUnityOutput + " silencerLast=" + ListenerOutputSilencer.IsLast(gameObject) + " device='" + MirrorDeviceName + "' status='" + Status
                    + "' defaultOutput='" + DefaultOutputName + "' muted=" + DefaultOutputMuted + " vol=" + DefaultOutputVolume.ToString("0.00")
                    + " unityOutput='" + UnityOutputName + "' unityMuted=" + UnityOutputMuted + " unityVol=" + UnityOutputVolume.ToString("0.00")
-                   + (string.IsNullOrEmpty(DefaultOutputError) ? "" : " err=" + DefaultOutputError) + " dropped=" + dropped;
+                   + (string.IsNullOrEmpty(DefaultOutputError) ? "" : " err=" + DefaultOutputError) + " dropped=" + dropped
+                   + " backend=" + Backend + DescribeLowLatency();
+        }
+
+        string DescribeLowLatency()
+        {
+            var direct = wasapi;
+            if (direct == null)
+                return LowLatencyError.Length > 0 ? " lowLatencyError='" + LowLatencyError + "'" : "";
+            return " reserveMs=" + direct.BufferedMs.ToString("0.0") + " reserveTargetMs=" + direct.TargetMs.ToString("0") + " deviceBufferMs=" + direct.DeviceBufferMs.ToString("0")
+                   + " streamLatencyMs=" + direct.StreamLatencyMs.ToString("0.0") + " deviceRate=" + direct.DeviceRate + " underruns=" + direct.Underruns + " drops=" + direct.Drops;
         }
 
         void Awake()
@@ -292,6 +459,7 @@ namespace AvianVoice.Study
         void OnDisable()
         {
             StopMirror();
+            ListenerOutputSilencer.Silence = false;
         }
 
         void OnDestroy()
@@ -302,6 +470,17 @@ namespace AvianVoice.Study
 
         void Update()
         {
+            // The device went away under the low-latency output (unplugged, format changed): open it again.
+            var direct = wasapi;
+            if (direct != null && direct.Failed && Time.unscaledTime >= nextRestartAllowedAt)
+            {
+                nextRestartAllowedAt = Time.unscaledTime + 2f;
+                Debug.LogWarning("[AvianVoice] PC audio output stopped (" + direct.FailureText + "); starting it again.");
+                StopMirror();
+                Refresh();
+                StudyRecorder.Instance?.LogEvent("pc_audio_monitor", j => j.Add("state", Describe()));
+            }
+
             if (Time.unscaledTime < nextStatusCheck)
                 return;
             nextStatusCheck = Time.unscaledTime + 5f;
@@ -309,6 +488,7 @@ namespace AvianVoice.Study
             RefreshDefaultOutput();
             if (before != EffectiveOutputName && mode == MonitorMode.Auto)
                 Refresh();
+            ApplySilence();
         }
 
         int PickDevice(out string name)
@@ -335,9 +515,48 @@ namespace AvianVoice.Study
             return -1;
         }
 
-        void StartMirror(int deviceIndex, string name)
+        void StartMirror(string endpointId, int deviceIndex, string name)
         {
 #if UNITY_STANDALONE_WIN || UNITY_EDITOR_WIN
+            LowLatencyError = "";
+            if (lowLatency && !string.IsNullOrEmpty(endpointId))
+            {
+                try
+                {
+                    var client = WindowsDefaultOutput.ActivateAudioClient(endpointId);
+                    wasapi = WasapiOutput.TryStart(client, sampleRate, volume, deviceBufferMs, reserveMs, out var error);
+                    if (wasapi == null)
+                        LowLatencyError = error;
+                }
+                catch (Exception e)
+                {
+                    LowLatencyError = e.GetType().Name + ": " + e.Message;
+                }
+
+                var direct = wasapi;
+                if (direct != null)
+                {
+                    mirroring = true;
+                    MirrorDeviceName = name;
+                    Status = "playing on " + name + " (low latency)";
+                    Debug.Log("[AvianVoice] PC audio output: '" + name + "' through WASAPI (" + sampleRate + " Hz from Unity, device " + direct.DeviceRate
+                              + " Hz, device buffer " + direct.DeviceBufferMs.ToString("0") + " ms, reserve target " + direct.TargetMs.ToString("0")
+                              + " ms, stream latency " + direct.StreamLatencyMs.ToString("0.0") + " ms).");
+                    return;
+                }
+
+                Debug.LogWarning("[AvianVoice] PC audio output: the low-latency output could not start on '" + name + "' (" + LowLatencyError
+                                 + "); using waveOut, about 0.1 s late.");
+            }
+
+            if (deviceIndex < 0)
+                deviceIndex = WaveOutIndexOf(name);
+            if (deviceIndex < 0)
+            {
+                Status = "cannot open '" + name + "'" + (LowLatencyError.Length > 0 ? " (" + LowLatencyError + ")" : "");
+                return;
+            }
+
             channels = Mathf.Clamp(ChannelsOf(AudioSettings.speakerMode), 1, 2);
             var format = new WAVEFORMATEX
             {
@@ -372,8 +591,24 @@ namespace AvianVoice.Study
 #endif
         }
 
+        /// <summary>waveOut names are the Windows names cut at 31 characters: the index of the one this name starts with.</summary>
+        static int WaveOutIndexOf(string fullName)
+        {
+            var names = OutputDeviceNames();
+            for (var i = 0; i < names.Length; i++)
+            {
+                if (names[i].Length > 0 && fullName.StartsWith(names[i], StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+
+            return -1;
+        }
+
         void StopMirror()
         {
+            var direct = wasapi;
+            wasapi = null;
+            direct?.Dispose();
             running = false;
             signal.Set();
             if (worker != null)
@@ -402,6 +637,18 @@ namespace AvianVoice.Study
 
         void OnAudioFilterRead(float[] data, int dataChannels)
         {
+            var sum = 0f;
+            for (var i = 0; i < data.Length; i++)
+                sum += data[i] * data[i];
+            mixRms = data.Length > 0 ? Mathf.Sqrt(sum / data.Length) : 0f;
+
+            var direct = wasapi;
+            if (direct != null)
+            {
+                direct.Write(data, dataChannels);
+                return;
+            }
+
             if (!mirroring || !running)
                 return;
             if (pending.Count > MaxPendingChunks)
@@ -638,6 +885,8 @@ namespace AvianVoice.Study
             {
                 int Activate(ref Guid iid, int clsCtx, IntPtr activationParams, [MarshalAs(UnmanagedType.IUnknown)] out object result);
                 int OpenPropertyStore(int access, out IPropertyStore store);
+                /// <summary>Endpoint id string, allocated by the device: free with Marshal.FreeCoTaskMem.</summary>
+                [PreserveSig] int GetId(out IntPtr id);
             }
 
             [ComImport, Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -715,6 +964,68 @@ namespace AvianVoice.Study
             {
                 var context = Guid.Empty;
                 Marshal.ThrowExceptionForHR(Volume(DefaultDevice()).SetMute(mute, ref context));
+            }
+
+            static readonly Guid AudioClientId = new("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
+
+            /// <summary>
+            /// An IAudioClient of the playback device with this endpoint id, as a plain interface pointer that the
+            /// caller owns (Marshal.Release). Throws when the device is not there or cannot be activated.
+            /// </summary>
+            public static IntPtr ActivateAudioClient(string endpointId)
+            {
+                const int DeviceStateActive = 1;
+                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(ERender, DeviceStateActive, out var devices));
+                Marshal.ThrowExceptionForHR(devices.GetCount(out var count));
+                for (var i = 0; i < count; i++)
+                {
+                    if (devices.Item(i, out var device) != 0 || device == null)
+                        continue;
+                    if (device.GetId(out var idPointer) != 0 || idPointer == IntPtr.Zero)
+                        continue;
+                    var id = Marshal.PtrToStringUni(idPointer);
+                    Marshal.FreeCoTaskMem(idPointer);
+                    if (id != endpointId)
+                        continue;
+
+                    var iid = AudioClientId;
+                    Marshal.ThrowExceptionForHR(device.Activate(ref iid, ClsctxAll, IntPtr.Zero, out var activated));
+                    var unknown = Marshal.GetIUnknownForObject(activated);
+                    try
+                    {
+                        Marshal.ThrowExceptionForHR(Marshal.QueryInterface(unknown, ref iid, out var client));
+                        return client;
+                    }
+                    finally
+                    {
+                        Marshal.Release(unknown);
+                    }
+                }
+
+                throw new InvalidOperationException("playback device not found");
+            }
+
+            /// <summary>Active playback devices as (endpoint id, friendly name).</summary>
+            public static KeyValuePair<string, string>[] Endpoints()
+            {
+                const int DeviceStateActive = 1;
+                var list = new List<KeyValuePair<string, string>>();
+                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+                Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(ERender, DeviceStateActive, out var devices));
+                Marshal.ThrowExceptionForHR(devices.GetCount(out var count));
+                for (var i = 0; i < count; i++)
+                {
+                    if (devices.Item(i, out var device) != 0 || device == null)
+                        continue;
+                    if (device.GetId(out var idPointer) != 0 || idPointer == IntPtr.Zero)
+                        continue;
+                    var id = Marshal.PtrToStringUni(idPointer);
+                    Marshal.FreeCoTaskMem(idPointer);
+                    list.Add(new KeyValuePair<string, string>(id, FriendlyName(device)));
+                }
+
+                return list.ToArray();
             }
 
             static string FriendlyName(IMMDevice device)

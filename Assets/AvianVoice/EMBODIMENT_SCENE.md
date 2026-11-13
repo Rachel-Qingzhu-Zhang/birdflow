@@ -65,7 +65,7 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 |--------|----------|----------------------|------------------------------------------|
 | Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、声が出ている間ずっと音程に追従して鳴る） | `bird` / `bird_bird-voice` |
 | Bird + own voice only | 鳥 | なし（アプリは何も出さない。地声だけ） | `none` / `bird_own-voice` |
-| Human + human voice | 人間（中性 / 男性 / 女性、パネルの Human body で選ぶ） | 人間の声（`HumanVoiceSynth`、同じ音程で歌う母音「あ」） | `human` / `human_human-voice` |
+| Human + human voice | 人間（中性 / 男性 / 女性、パネルの Human body で選ぶ） | 自分の声そのもの（`MicPassthrough`、マイク入力を変換せずにヘッドホンへ出す。2026-11-12 より前は `HumanVoiceSynth` の合成母音「あ」） | `human` / `human_human-voice` |
 | Human + own voice only | 人間（同上） | なし | `none` / `human_own-voice` |
 
 人間アバターの体（中性 / 男性 / 女性）は条件には含めず、**データごとのフラグ**で残します: すべてのイベント・`trials.csv`・
@@ -81,50 +81,203 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
   以前の「声の立ち上がりごとに約 80 ms のさえずりを 1 回鳴らす」離散型はコードに残してあり、
   `Assets/AvianVoice/Settings/AvianVoiceSettings.asset` の `Synth Continuous` をオフにすると戻ります。
   どちらで記録したかは `events.jsonl` の `voice_feedback` イベントの `bird_feedback`（`continuous` / `chirps`）に残ります。
+- 自分の鳥の声の音量（2026-11-13）: `AvianVoiceSettings` の `Synth Own Voice Volume`（既定 0.5 = 先生の鳥のガイド音より 6 dB 下。
+  1 で以前と同じ）。ガイド音は変わりません。以前は同じレベルでしたが（output.wav の実測でガイド音 -9.7 dB、大きく歌った自分の声 -9.4 dB）、
+  自分の声は目標の 1 オクターブ上で歌われて 4〜5.5 kHz になり（先生は 2〜3 kHz）、ずっと大きく聞こえていました。
+  記録時の値は `voice_feedback` イベントの `bird_own_voice_volume` に残ります。
 - 時間応答（2026-11-07）: 声のフィードバックは解析器の音量エンベロープだけでゲートします（立ち上がり 2 ms、
   減衰の時定数 12 ms、`AvianVoiceSettings.loudnessAttackSeconds / loudnessReleaseSeconds`）。合成器の減衰の時定数は 15 ms
   （-30 dB まで約 50 ms）、音程の平滑化は 20 ms です。実測（`Debug/Test Voice Response`: 0.5 秒の合成音を解析器に
   流し込み、`output.wav` と `debug_voice_inject` イベントで測定）では、入力停止から -30 dB まで鳥 100 ms / 人 90 ms、
   入力開始から発音まで約 60 ms（変更前は減衰 220〜245 ms）。
-- PC 音声モニター（実験者用に PC 側へ同じ音を流す機能）は、ヘッドセットより遅れて鳴ります（Bluetooth ヘッドホンでは
-  0.2〜0.3 s）。ヘッドセットを着けた人に PC 側の音も聞こえると、すべての音が二重に聞こえます。一人で試すときは
-  パネルの「PC monitor output」を Off にしてください。
+- 途切れ対策（2026-11-13）: 声のフィードバックのゲートは有声判定（`voicedThreshold`）で開き、エンベロープが
+  `voicedThreshold × feedbackGateCloseRatio`（既定 0.5）を `feedbackGateHoldSeconds`（既定 30 ms）下回り続けたときだけ閉じます。
+  以前は開閉が同じレベルで、小さい声がしきい値付近で揺れると 1 つの音の中で鳥の声が切れて鳴り直していました
+  （セッション 20261113_165018: 28 音中 20 回）。同じ `mic.wav` での再計算では 72 fps で 32 回 → 0 回、18 fps で 21 回 → 2 回、
+  声が止まってから消えるまでは中央値で約 55 ms 長くなります。記録される有声フラグ・発声区間は変わりません。
+  値は `voice_feedback` イベントの `feedback_gate_close_ratio` / `feedback_gate_hold_s` に残ります。
+- **音の出口（2026-11-12 から）**: 既定では **PC につないだデバイスだけ**から音が出ます。パネルの Status 欄
+  「Sound output」= `PC device only`、出すデバイスは「Output device (PC)」で選びます（次回以降も記憶）。
+  Unity 自体の出力（Link 中はヘッドセット、それ以外は Windows の既定）は無音にします。
+  - 仕組み: `PcAudioMonitor` が AudioListener の最終ミックスを PC のデバイスへ流し（ミラー）、そのあとの最後のフィルター
+    `ListenerOutputSilencer` がミックスを消します。`output.wav` の取り出し口（`ListenerOutputTap`）は消す前にあるので、
+    録音は被験者が聞いた音のままです。PC のデバイスを開けなかったときは、無音にせず Unity 自体の出力を残します。
+  - PC 側の出力は低遅延の方式（WASAPI 共有モード、`Scripts/Study/WasapiOutput.cs`）です。Unity がミックスしてから
+    **約 40 ms**（予備バッファ `Reserve Ms`、既定 40）＋ デバイス自体の遅れで鳴ります。2026-11-12 より前の方式（waveOut、
+    約 0.1 秒遅れ）は、デバイスが WASAPI を受け付けないときの予備として残してあり、そのときはパネルに waveOut と出ます。
+    Bluetooth ヘッドホンはデバイス側で 0.2〜0.3 秒遅れるので、有線のヘッドホンを使ってください。
+    - 予備バッファが要る理由: Unity の音声スレッドはエディタで約 13 秒ごとに 16〜20 ms 止まります。予備がそれより小さいと
+      短い途切れになります（パネルの「Output delay (PC)」の gaps、`pc_audio_monitor` イベントの `underruns`）。途切れたら
+      予備を目標まで溜め直してから再開します。Unity の出力と PC のデバイスはクロックが違うので、予備の量を保つために
+      再生速度を最大 0.3 %（5 セント）動かします。
+    - 調整: AudioListener の `PcAudioMonitor` コンポーネントの `Reserve Ms`（小さいほど遅れが減り、途切れやすくなる）、
+      `Device Buffer Ms`、`Low Latency`（オフで以前の waveOut）。
+    - 確認（2026-11-12、エディタ、ヘッドフォン (Realtek)、約 50 秒）: 予備 35.6〜40.0 ms、途切れは起動直後の 1 回のみ、
+      破棄 0 回。耳までの遅れそのもの（音響的な実測）は未測定です。
+  - 自分の声を聞かせる条件（鳥の声 / 人間の声）では、この遅れがそのまま加わります。人間の声（マイクの素通し）は
+    アプリ内で 30 ms（`micPassthroughLatencyMs`）＋ 40 ms（この予備）＝ 約 70 ms に、マイクとヘッドホンの機器の遅れが加わります。
+  - 「Sound output」の他の選択肢: `PC device + Unity's own output`（両方。両方聞こえる人には二重に聞こえます）、
+    `Unity's own output, + PC device while that is the headset`（2026-11-12 より前の既定 Auto）、`Unity's own output only`。
+    2026-11-12 より前に保存した設定（旧 `PC monitor output`）は引き継がず、新しい既定から始まります。
+  - 記録: セッション開始時とモードを変えたときの `pc_audio_monitor` イベントに `mode` / `unityOutputSilenced` /
+    `silencerLast` / デバイス名 / `backend`（`wasapi` / `waveOut`）/ `reserveMs` / `underruns` / `drops`。確認（2026-11-12、`StudyData/20261112_173853_P000`）: 鳥の声を鳴らしている間、ミックスの
+    RMS 0.33〜0.36 に対して Unity 自体の出力は 0.0000、`output.wav` には -10 dBFS で記録。
+  - Windows 側でそのデバイスがミュートだと PC からも聞こえません（パネルに MUTED と出ます）。
 - 使用中のマイクはパネルの Status 欄「Microphone in use」に出ます（機器名・サンプリングレート・入力レベル）。
   「Input device」で機器を選ぶとその場で切り替わり、次回以降も記憶されます（Auto = XR 中はヘッドセットのマイク）。
-- 人間の声（`HumanVoiceSynth`）の音量は鳥の手本と同じ約 -11 dBFS に合わせてあります（2026-11-05 に `output.wav` で実測。
-  変えるときは `HumanVoiceSynth.volume`）。鳥 / 人間の声の条件で聞こえる大きさが揃うようにしています。
+- Unity 自体の出力先は「Unity's own output device」で選べます（2026-11-12、`Scripts/Study/AudioOutputRouting.cs`）。
+  既定の `PC device only` では Unity 自体の出力は無音なので、この行は「Sound output」を他の選択肢にしたときと、
+  ここで以前に Windows 側の設定をしたとき（戻せるように）だけ出ます。Unity には
+  自分の出力デバイスを選ぶ API がないので、Windows の「アプリごとの出力デバイス」（設定 > サウンド > 音量ミキサーと
+  同じ設定）を Unity Editor に対して切り替えます。
+  - この設定は Windows 側に残ります: Unity を閉じても残り、同じバージョンの Editor で開く他のプロジェクトにも効きます。
+    戻すときは「Windows default (automatic)」を選びます。
+  - 実際に音が出ているデバイスはすぐ上の「Unity output device」です。選んだデバイスと違うままのときは警告と
+    「Restart Unity's audio output」ボタン（Play 中。短い無音、マイクも再起動）が出ます。ヘッドセット接続中は
+    ヘッドセットのランタイムが出力先を決めることがあり、その場合は Meta Quest Link アプリの設定「Audio output in VR」で
+    変えます（未確認: このパネルの選択が Link 接続中にも効くかどうか）。
+  - 記録: 選んだとき `audio_output_device` イベント、再起動したとき `audio_output_restart` イベント。
+    メニュー **Debug/Log Audio Output Devices** で、デバイス一覧・このアプリの選択・実際の出力先をログに出せます。
+  - 確認済み（2026-11-12、Windows 11 build 26200）: デバイス一覧と現在の選択の読み取り、設定呼び出しが受け付けられること。
+    実際に切り替えて音が移ることは未確認です。
+- 人間の声の条件（Human + human voice）は 2026-11-12 から **マイク入力をそのままヘッドホンに出します**
+  （`Scripts/Audio/MicPassthrough.cs`。解析も合成も通しません）。鳥の声と同じく、聞こえるのは声を追従している間
+  （歌う場面の応答中など）だけで、手本が鳴っている間は閉じています。
+  - 遅れ: マイクの書き込み位置から `AvianVoiceSettings.micPassthroughLatencyMs`（既定 30 ms）だけ後ろを再生します。
+    これにマイクと出力機器（Quest Link など）の遅れが加わります。マイクと出力は別のクロックなので、距離を毎フレーム測り、
+    再生速度を最大 0.3 %（5 セント）だけ動かして保ちます。再生位置がマイクを追い越した / 大きく遅れたときだけ位置を
+    飛ばします（resync。音が一瞬途切れます。繰り返すなら `micPassthroughLatencyMs` を上げる）。
+  - 音量: `AvianVoiceSettings.micPassthroughGain`（既定 1 = マイクのまま）。マイクの入力レベルで決まるので、鳥の声の条件と
+    聞こえる大きさを揃えるにはここで合わせます（まだ実測していません）。`output.wav` では `mic.wav` より 3 dB 低く
+    入ります（Unity がモノラル音源を左右に振り分けるときの減衰。他の音源も同じ）。
+  - 記録: `voice_feedback` イベントの `human_feedback`（`microphone` / `synth`）、`mic_passthrough` イベント
+    （`phase` = `start` / `open` / `close` / `resync_passed` / `resync_behind`、`target_ms`、`lag_ms`、`gain`、`resyncs`）、
+    聞こえている間は 1 秒ごとに `mic_passthrough_trace`（その 1 秒の遅れの `lag_min_ms` / `lag_max_ms` / `lag_mean_ms`、
+    `lag_smoothed_ms`、`rate_trim` = 再生速度の補正量）。`output.wav` には被験者が聞いた自分の声がそのまま入ります。
+    パネルの Status 欄「Own voice to headphones」に現在の遅れと resync の回数が出ます。
+  - 実測（2026-11-12、エディタ、ヘッドセットなし、約 19 fps、マイク ECM-W3R、`StudyData/20261112_164954_P000`）:
+    `output.wav` にマイクの音がそのまま入っていること（相関 0.9〜0.998）、遅れが平均 30〜35 ms に保たれることを確認。
+    出力側が約 13 秒ごとに 16〜20 ms 止まり（DSP 時刻が実時間から遅れる。素通し以外の音も同じ）、そのたびに遅れが
+    約 46 ms に増え、10 秒ほどで目標へ戻ります。resync は 0 回。ヘッドセットを着けた状態の耳までの遅れは未測定です。
+    `mic.wav` と `output.wav` の位置合わせだけで遅れを測ると、この出力の停止のぶんだけ見かけの値がずれます
+    （`t_utc` に対する `mic_sample` / `out_frame` / `t_dsp` の進みを見ると区別できます）。
+  - 音がスピーカーで鳴っていて、それをマイクが拾うと、ハウリングします。この条件では「Output device (PC)」を
+    スピーカーではなくヘッドホンにしてください。
+  - 以前の合成母音に戻すには `AvianVoiceSettings.asset` の `Human Voice From Microphone` をオフにします。
+    手本を人間の声にした場合（`Teacher Voice = FollowAvatar`）の手本は、どちらの設定でも `HumanVoiceSynth` の合成母音です。
+    `Debug/Test Voice Response`（合成音を解析器に流し込む測定）は、マイク入力を通さないので、この条件の応答は測れません。
+- `HumanVoiceSynth` の音量は鳥の手本と同じ約 -11 dBFS に合わせてあります（2026-11-05 に `output.wav` で実測。
+  変えるときは `HumanVoiceSynth.volume`）。
 - `events.jsonl` の全イベントに `voice_feedback` / `condition` / `human_avatar`、`trials.csv` と `samples.csv` に同じ列、
   条件を変えたときに `condition_end` / `condition_start` と `voice_feedback` イベント（`condition_label` = パネルの表記、
   例 `Human:neutral+human`）が入ります。2026-11-12 より前の記録では `condition` はこのパネル表記でした。
 
+### 呼吸の場面の長さ（2026-11-13 に 1 分へ変更）
+
+呼吸の場面は、吸う 6 秒・吐く 6 秒を 5 周 = 60 秒で、終わると自動で歌う場面に進みます（どの条件でも同じ）。それまでは
+4 周 = 48 秒でした。長さは `AvianVoiceSettings` の Teacher Breath にある `Pattern B Cycles`（周数）×
+（`Pattern B Inhale Seconds` + `Pattern B Exhale Seconds`）で決まります。実測（samples.csv の `breath_depth`）: 呼吸 60.2 秒、
+場面に入ってから歌う場面に切り替わるまで 61.9 秒（呼吸が始まるまで約 0.9 秒、終わりの合図 0.6 秒を含む）。
+
 ### 呼吸の場面（人間アバター、2026-11-07、2026-11-12 に拡大）
 
 鳥と同じ呼吸の信号（教師の鳥の吸う / 吐くパターン）で、人間アバターの胸も膨らみます（`HumanBreathEmbodiment`、
-人間アバターに自動で付きます）。首と肩がつながる胸の骨を、最大吸気で前後 22 %・左右 10 %・縦 3 % 拡大し、肩の骨を 22 mm
-上げます。首と肩には逆の拡大を掛けるので、頭・腕の大きさは変わりません（中性の体で胸の厚み 21.2 → 25.2 cm、幅 32.2 → 34.5 cm、
+人間アバターに自動で付きます）。首と肩がつながる胸の骨を、最大吸気で前後 22 %・左右 10 %・縦 3 % 拡大し、肩を
+上げます（下の「肩の動き」）。首と肩には逆の拡大を掛けるので、頭・腕の大きさは変わりません（中性の体で胸の厚み 21.2 → 25.2 cm、幅 32.2 → 34.5 cm、
 肩 31 mm、頭の移動 16 mm、手 34 mm）。2026-11-12 までは前後 6 %・左右 3 % で、鏡は正面から見るため、ほとんど見えませんでした。
 動くのは呼吸の場面（`breath_sync`）だけで、場面の切り替えで 0.6 s かけて出入りします。量はコンポーネントの
 `Depth Inhale` / `Width Inhale` / `Shoulder Rise` で変えられます。確認用: **Debug/Load Task 2 Breathing**、
 **Debug/Measure Human Breathing**、**Debug/Log Human Breathing Now**、**Debug/Hold Human Breathing: Full Inhale / Exhale / Off**
 （吸った状態・吐いた状態で止めて見比べる）。
 
+肩の動き（2026-11-13 に変更）: それまでは鎖骨の骨全体を 22 mm 上にずらすだけで、呼吸していることが伝わりにくかったため、
+鎖骨を内側の端を軸に上へ回し、肩先（腕の付け根）を最大吸気で 35 mm 持ち上げるようにしました（`Shoulder Rise`、0〜80 mm）。
+上腕の向きはそのまま保つので、腕は外に開かず肩と一緒に上がります。胸の拡大分と合わせて、肩先は約 41 mm 上がり
+（頭に対して +35 mm、中性の体。変更前は骨の位置で 31 mm）、手も同じだけ（約 43 mm）上がります。
+確認用: **Debug/Render Human Breathing (exhale and full inhale)** は Play なし・ヘッドセットなしで、全ての人間の体を
+吐いた状態 / 吸いきった状態で正面と横から描画し（`Temp/HumanBreathingTest/breathing.png`）、実測値をログに出します。
+**Debug/Log Human Breathing Now** は、その時点の肩先の高さ（胸の骨からの mm）も出します。
+
+鳥アバターの呼吸の大きさ（2026-11-13）: 人間アバターに比べて大げさに見えたため、鳥の呼吸の動き（胸・腹の拡大と、呼吸に合わせた
+翼の開き・羽ばたき・持ち上げ）を `AvianVoiceSettings` の **Breath Motion Scale**（Teacher Breath、既定 0.65）で一律に弱めています
+（胸の骨 +40 % → +26 %、腹 +28 % → +18 %、翼の開き 14° → 約 9°）。1 にすると元の大きさです。自分の鳥と教師の鳥の両方に
+掛かり、歌うときの姿勢には掛かりません。
+
 ### 人間アバター条件の表示（2026-11-12）
 
 - 人間アバターの間、自分の鳥はすべてのレンダラーを毎フレーム確認して隠します。以前は、人間アバターのまま体（中性 / 男性 /
   女性）を切り替えると、次に歌う場面へ入ったときに自分の鳥が人間の体に重なって表示されていました。教師の鳥は全条件で表示します。
-- 場面の説明文は人間アバターのとき鳥の表現を使いません（`AvianUiCopy.HumanAvatar`）: 出会う場面「鏡の中にいるのが、あなたです。」、
-  呼吸の場面「鏡の中の自分の胸を見て、一緒に呼吸してください。」、休む場面「この体でいるのは、どんな感じでしたか。」。
-  歌う場面は教師の鳥が歌うので同じ文です。
+- 被験者に見える案内カードの文言は**全条件で同一**です（`AvianUiCopy.GuideText`、`SceneGuide`）。場面のタイトル（英語のみ）の下に、
+  指示を日本語・英語の順で常に併記します（言語切り替えには依りません）。
+
+  | 場面 | タイトル | 指示 |
+  |------|----------|------|
+  | 練習 | Practice | なし（タイトルのみ。歌唱中の表示も出しません） |
+  | 1 | Meet Scene | 鏡の中の自分を見てください。 / Look at yourself in the mirror. |
+  | 2 | Breathing Scene | 鏡の中の自分に合わせて呼吸してください。 / Breathe together with yourself in the mirror. |
+  | 3 | Singing Scene | 先生と同じ音程で歌ってください。 / Sing the same pitch as the teacher. |
+  | 4 | Rest Scene | 少し休みましょう。 / Take a short rest. |
+
+  歌う場面の試行中は、指示の代わりに「この音を聴いてください。 / Listen to this note.」「今度はこの音を歌ってください。 /
+  Now sing this note.」「次の音を待ってください。 / Wait for the next note.」「お疲れさまでした。そのまま休んでください。 /
+  All done. Rest now.」が同じく併記で出ます。音名（B3 など）と周波数は被験者には出しません（下の「案内カードの位置と音名の非表示」）。
+- 場面選択メニュー（「Choose a scene」のカードと、閉じたときのチップ）は被験者の視界に出しません（`SceneWishMenu` の **Show Menu**、
+  既定オフ。M キーや XR のメニューボタンでも開きません）。場面の切り替えは実験者パネルか 1〜4 / 0 / N キーで行います。
 - 音程が合ったときに教師の鳥が光る機能は、歌う場面と練習ではオフです（`SingingTrialTask` の **Pitch Match Glow**。
   `singing_task_enabled` イベントに `pitch_match_glow` が入ります）。被験者は音程の合い具合を目では分かりません。
+
+### 案内カードの位置と音名の非表示（2026-11-12）
+
+**案内カードは鏡の上部に固定**（`SceneGuide`、寸法は `AvianHudLayout.GuideMirror*`）
+
+- これまで案内カードはカメラの子（頭に追従する表示）で、頭を動かすと一緒に動くため酔いやすいという指摘がありました。
+  鏡を表示する場面（練習・会う・呼吸・歌う・休む）では、カードをシーン内の鏡の上部に固定します。頭や体を動かしても
+  カードは動きません。場面が変わったときと鏡自体が動いたときだけ置き直します。
+- 位置は鏡の中央、被験者が立つ側を向き、目の方へ少し傾けます（最大 30°）。基準は頭の位置ではなく、その場面の XR リグ原点
+  （床）+ 目の高さ 1.55 m（`GuideNominalEyeHeight`）なので、被験者やヘッドセットの置き場所に依らず毎回同じ位置です。
+- 高さは「鏡の枠の上端から 8 cm 上」が基本ですが、目の高さから見た仰角が 20°（`GuideMirrorMaxElevationDegrees`）を超える
+  場合は、仰角 20° の高さで**ガラスの 5 cm 手前**に置きます。`Avian_Lab_Embodiment` の鏡は枠が幅 3.25 m × 高さ 4.13 m
+  （ガラス 2.31 × 3.08 m）、立ち位置は鏡の 1.46 m 手前で、枠の上では仰角が約 60° になり読めないため、後者になります
+  （カード中心は床から 2.06 m、ガラス上端の 0.96 m 下。鏡に映る木の上の方に重なり、鳥や人間アバターの像には重なりません）。
+  小さい鏡なら枠の上に出ます。仰角を変えるときは `GuideMirrorMaxElevationDegrees` を変えます。
+- 大きさは立ち位置から鏡までの距離に比例させます（`GuideMirrorScalePerMeter`）。このシーンではカード 0.87 × 0.18 m、
+  見かけの大きさは約 34° × 7°、本文の文字は約 1.3°（頭に追従していたときは約 1.1°）です。
+- カードは UI レイヤー（11）で、鏡の反射カメラはこのレイヤーを描かないので、鏡の中にカードは映りません。
+- 鏡を出さない場面（飛ぶ・仲間を呼ぶ。実験の流れの外）だけは従来どおりカメラに付きます。実験の場面で鏡が 1 秒待っても
+  見つからないときも同じ扱いになり、Console に警告（`SceneGuide: no visible mirror ...`）が出ます。
+- 頭に追従する表示で残っているものは、いずれも実験では出ません: 場面選択メニュー（Show Menu オフ）、デバッグ HUD
+  （`AvianVoiceSettings` の Show Hud Panels オフ。オンにすると自分の声の Hz が出ます）、アバター切り替えのヒント
+  （`AvatarEmbodimentController` の Show Switch Hint オフ）、もう一度のチップ（実験外の歌う / 仲間を呼ぶ場面のみ）。
+
+**音名と周波数は被験者に出さない**
+
+- 歌う場面の案内は「この音を聴いてください。 / Listen to this note.」「今度はこの音を歌ってください。 / Now sing this note.」
+  です（以前は「B3を聴いてください。」のように音名入り）。音名の文字が注意を引くためです。練習の場面はもともとタイトルのみです。
+  実験外の「仲間を呼ぶ」「歌う（旧）」の案内も同じ関数（`AvianUiCopy.ShowSingingCue`）なので音名は出ません。
+- デバッグ HUD の進行表示（TaskModeHUD、実験ではオフ）も音名ではなく「Trial n / 30」にしました。
+- 記録と実験者側は変えていません。`trials.csv` の `note` / `target_hz`、`events.jsonl` の `trial_start`（`note`）、
+  切り出し音声のファイル名（`trial_001_a1_B3.wav`）、実験者パネルのボタン表示、Study Monitor には音名と Hz がそのまま出ます。
+
+**確認用メニュー**（Avian Voice > Embodiment > Debug、Play 中）
+
+- **Log Scene Guide**: カードの配置（`mirror_top_over_glass` / `mirror_above_frame` / `on_camera`）、ワールド座標、大きさ、
+  表示中の文言、カメラ位置を Console に出します。表示中のすべてのテキストから音名・Hz を探し、`textsWithNoteOrHz` に数を出します。
+- **Scene Guide - Move Viewer Test**: ヘッドセットなしで XR リグを左 0.5 m・後ろ 0.3 m、右 25°・上 12° に動かし（もう一度で戻す）、
+  カードのワールド座標を出します。固定されていれば座標は変わりません。
+- **Capture Game View**: `StudyData/screenshots/` に Game ビューを保存します。
+
+2026-11-12 の確認（ヘッドセットなし、エディタの Play）: 5 場面すべてと鳥 / 人間の両条件でカードは同じ座標
+`(34.794, -10.639, 65.925)`、リグを動かしても座標は不変、試行中の文言に音名なし（`textsWithNoteOrHz=0`）、
+`trials.csv` の `note` は `B3` のまま。**ヘッドセットでの見え方（読みやすさ、仰角 20° の見上げやすさ、立体視での奥行き感）は未確認です。**
 
 ### 歌う場面の試行（3 ピッチ × 10 回）
 
 1. 場面 3「歌う」に切り替える。被験者には「次の音を待ってください」と出ます。
 2. パネルの **「▶ Start trial n / 30 — teacher bird sings B3」** を押す（または Game ビューで Space）。
-   教師の鳥が目標の音を約 0.9 秒歌い、0.3 秒おいて「今度は B3 を歌ってください」に変わります。
+   教師の鳥が目標の音を約 0.9 秒歌い（案内は「この音を聴いてください」）、0.3 秒おいて「今度はこの音を歌ってください」に変わります。
+   音名はパネルにだけ出て、被験者には出ません。
 3. 被験者が歌う。声の始まり（60 ms 以上有声）と終わり（250 ms 以上無声）を検出して記録します
-   （複数回発声してもすべて残ります）。応答中は条件に応じて自分の声が鳥の声 / 人間の声として聞こえます（または何も出ません）。
+   （複数回発声してもすべて残ります）。応答中は条件に応じて自分の声が鳥の声として / そのまま（人間の声の条件）聞こえます（または何も出ません）。
 4. 実験者が **次のボタン（「▶ Next trial n+1」/ Space）を押した瞬間に試行が終わり、次の試行が始まります**。
    待ち時間はなく、教師の鳥が歌っている最中でも押せます（その場合は試行が短く記録されるだけです）。
    つまり `trials.csv` の 1 行は「ボタンを押してから次に押すまで」の区間です（`t_start_*` 〜 `t_end_*`、
@@ -157,12 +310,20 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 | `output.wav` | 被験者が聞いた音（AudioListener のミックス、モノラル 16 bit）。教師の音がここに入ります |
 | `conditions.csv` | 条件の区間ごとに 1 行（時系列順）: 条件、人間アバター、開始 / 終了時刻、`mic.wav` / `output.wav` 上の範囲（`mic_sample_start`〜`mic_sample_end`）、その区間の試行数・サンプル数。同じ条件に戻ると新しい行になります |
 | `conditions/<条件>/` | **条件ごとのフォルダ**（`bird_bird-voice` / `bird_own-voice` / `human_human-voice` / `human_own-voice`、使った条件だけ作られます）。中身はその条件の間に書かれた行だけの `events.jsonl` / `trials.csv` / `samples.csv`（セッション直下の同名ファイルの行のコピー）と、下の試行 WAV |
-| `conditions/<条件>/segments/trial_NNN_aN_<音名>[_<人間アバター>].wav` | 試行開始〜終了のマイク音声の切り出し。試行番号は条件ごとに 1 から始まり、同じ条件をやり直した場合も上書きせず `_2`、`_3` が付きます。`trials.csv` の `segment_file` はセッションフォルダからの相対パスです |
+| `conditions/<条件>/segments/trial_NNN_aN_<音名>[_<人間アバター>][_run<N>].wav` | 試行開始〜終了のマイク音声の切り出し。試行番号は条件ごとに 1 から始まります。同じ条件をやり直した分には `_run2`、`_run3` が付き、上書きはしません。`trials.csv` の `segment_file` はセッションフォルダからの相対パスです |
 
 セッション直下のファイルが**時系列の全体**、`conditions/` がそれを**4 条件に分けたもの**です（2026-11-12 から。それ以前は
 `segments/` がセッション直下にあり、2 つ目の条件の試行 1〜n が 1 つ目の条件の同じ番号の WAV を上書きしていました。
 音声は `mic.wav` に残っています）。連続音声（`mic.wav` / `output.wav`）は複製せず、条件ごとの範囲は `conditions.csv` で
 分かります。
+
+**条件の途中でやり直すとき（`run`）**: どうしようもないミスで 30 回を取り直すときは、Play も条件もそのままで、パネルの
+**Restart from trial 1 (reset)** を押して試行 1 から取り直します。それまでの行と WAV は消えずに残り、取り直した分には
+`run` = 2（さらにやり直せば 3 …）が付きます（`trials.csv` / `samples.csv` / 全イベントの `run` 列、WAV 名の `_run2`、
+`events.jsonl` の `trial_run_start`）。`run` は条件ごとに数え、その条件で試行番号が 1 に戻ったら増えます（あとで同じ条件に
+戻ってやり直した場合も同じ）。1 回だけのやり直し（Repeat the last trial）は `attempt` が増えるだけで `run` は変わりません。
+**解析では各条件の `run` が最大の行だけを使います。** Study Monitor のカードは最新の run を表示し、前の run は下に薄く
+「run 1 · 12 WAVs · started over」と分けて出します。
 
 **Study Monitor**（`Tools/StudyMonitor`、Play で自動的に別ウィンドウが開きます。メニュー Avian Voice / Study Monitor）の
 上段に 4 条件のカードがあり、試行 WAV が 1 本保存されるたびにその条件のカードにタイル（そのファイルの波形）が増えます。
@@ -186,12 +347,13 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
   **「Unity output device」** に Unity のオーディオセッションが実際に乗っているデバイスとそのミュート状態が出ます
   （2026-11-05 に PC から音が出なかった 2 つ目の原因: Unity は Oculus 仮想デバイスに出ていて、それが Windows 側でミュート）。
   ミュートなら「Unmute Unity's output device」ボタンで解除できます（ヘッドセット側に聞かせるにはこれが必要です）。
-- **PC monitor output**（`PcAudioMonitor`、AudioListener に自動で付きます）: Unity の出力をそのまま PC のスピーカー
-  （Oculus / Virtual でない最初の waveOut デバイス）にも流します。既定の **Auto** は「Unity の実際の出力先（上の Unity output
+- **Sound output**（2026-11-12 より前は PC monitor output。`PcAudioMonitor`、AudioListener に自動で付きます）: Unity の出力を
+  そのまま PC のデバイス（指定がなければ Oculus / Virtual でない最初の waveOut デバイス）に流します。既定は
+  2026-11-12 から **PC device only**（PC のデバイスだけ。上の「音の出口」を参照）。以前の既定 **Auto** は「Unity の実際の出力先（上の Unity output
   device、見つからなければ Windows の既定出力）がヘッドセット（Oculus Virtual Audio Device など）のときだけ」ミラーするので、
   Link でヘッドセットに音を出しつつ実験者も PC で聞けます。Unity が PC スピーカーに出ているときは二重になるのでミラーしません
-  （判定はミラー自身の出力ストリームを除外し、Active なセッションを優先します）。**Always** で常時、**Off** で停止。「Device (part of the name)」で
-  デバイスを指定できます。遅延は 0.1 秒程度です。
+  （判定はミラー自身の出力ストリームを除外し、Active なセッションを優先します）。**Always** で常時、**Off** で停止。「Output device (PC)」で
+  デバイスを一覧から選べます（2026-11-12 より前は名前の一部を入力する「Device (part of the name)」）。遅延は 0.1 秒程度です。
 - Link でヘッドセット側に聞かせるには、Windows のサウンド設定で既定の出力を「Headphones (Oculus Virtual Audio Device)」に
   するか、Meta Quest Link アプリの設定でリンク時にオーディオを切り替えるようにしてください（PC モニター出力が Auto で
   PC スピーカーにも出ます）。
@@ -244,7 +406,11 @@ Rocketbox 男性 +0.099 / +0.086、女性 +0.090 / +0.086（目のボーン Bip0
 設定は出力先の `GENERATED.md` に残ります。作り直したら **Render Avatar Hand States**（下記）で指を曲げたときの見た目を確認してください。
 
 歌う場面では、鳥アバターでも人間アバターでも **教師の鳥（`FriendParrot`）が被験者の右隣に出て**歌います（人間アバターのときは
-鳥の自分は隠れ、人間の体と教師の鳥が見えます）。実験者パネルの Condition のボタンで切り替えます（V キーは鳥 ⇄ 人間）。
+鳥の自分は隠れ、人間の体と教師の鳥が見えます）。教師の鳥の場所は 1 回の Play を通して同じです（2026-11-14）: 最初に出たとき
+（Play 開始時の練習の場面）に、シーンに置かれた自分の鳥の右 0.72 m = (35.571, -12.188, 63.770)、鏡向きに決まり、歌う場面でも
+どの条件でも同じ場所に出ます。それまでは場面が始まるたびに「その時点の自分の鳥」の横に置き直していたため、被験者の頭の位置
+（鳥アバター）や、人間に切り替えた時点の位置（人間アバター）によって、練習と違う場所に出ることがありました。場所は Play 開始時に
+ログ（`Teacher bird spot for this session`）に出て、記録の `singing_task_enabled` イベントにも `teacher_position` として残ります。実験者パネルの Condition のボタンで切り替えます（V キーは鳥 ⇄ 人間）。
 
 **IOBT と人間アバターの崩れ対策**（`AvianHumanoidRetargeter`、2026-11-05）: Meta XR Core SDK の
 `OVRUnityHumanoidSkeletonRetargeter` は既定で ほぼ全関節の **位置** を被験者の関節位置で上書きし（体格が違うと体が伸び縮みして
@@ -357,7 +523,8 @@ Rocketbox 男性 +0.099 / +0.086、女性 +0.090 / +0.086（目のボーン Bip0
 | `Scripts/Embodiment/Avatar/FirstPersonHeadHider.cs` | 一人称カメラだけ頭部（頭ボーン以下の三角形 / 頭・髪のマテリアル）を非表示（鏡・池の反射には映る）。鳥と人間の両方 |
 | `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、**条件（アバター × 声のフィードバック）** の設定と記録 |
 | `Scripts/Study/SingingTrialTask.cs` | 試行形式の歌う場面（教師の 1 音 → 応答、発声検出、30 回で休む場面へ） |
-| `Scripts/Audio/HumanVoiceSynth.cs` | 人間の声のフィードバック: 被験者の音程・音量に追従して歌う母音「あ」（フォルマント合成）。`BirdVoiceMapper.SetFeedback` で鳥の声 / 人間の声 / なしを切替。2026-11-12: 息の成分を聞こえる量に（倍音対雑音比 約 26 dB）、F1・F2 を直列の共振器にして基音を自然な強さに、歌う音量で声質（声門の開き・明るさ・息の量）が変わるようにしました（`Effort Amount` = 0 で声質の連動なし）。音量は以前と各音高で ±1 dB 以内、5 kHz 以上は以前と同じです |
+| `Scripts/Audio/MicPassthrough.cs` | 人間の声の条件のフィードバック（2026-11-12 から）: マイク入力を変換せずにヘッドホンへ出す。マイクのリングバッファを一定の遅れで再生し、遅れを測って保つ |
+| `Scripts/Audio/HumanVoiceSynth.cs` | 合成の人間の声（2026-11-12 からは人間の声の手本と、`Human Voice From Microphone` オフのときだけ）: 被験者の音程・音量に追従して歌う母音「あ」（フォルマント合成）。`BirdVoiceMapper.SetFeedback` で鳥の声 / 人間の声 / なしを切替。2026-11-12: 息の成分を聞こえる量に（倍音対雑音比 約 26 dB）、F1・F2 を直列の共振器にして基音を自然な強さに、歌う音量で声質（声門の開き・明るさ・息の量）が変わるようにしました（`Effort Amount` = 0 で声質の連動なし）。音量は以前と各音高で ±1 dB 以内、5 kHz 以上は以前と同じです |
 | `Editor/HumanVoiceRenderTest.cs` | 人間の声を Play なしで WAV に書き出す（メニュー **Debug/Render Human Voice Test Files (WAV)** → `StudyData/diagnostics/human_voice_<時刻>/`）。聴き比べ用（弱・中・強、クレッシェンド、音高違い）と、揺らぎを切った測定用（`measure/`） |
 | `Scripts/Study/StudyRecorder.cs` | `events.jsonl` / `trials.csv` / `mic.wav` / `output.wav` / 試行切り出しの書き出し |
 | `Scripts/Study/PcAudioMonitor.cs` | Unity 出力の PC スピーカーへのミラー（winmm）、Windows 既定出力のミュート検出 |
@@ -436,7 +603,7 @@ SDK's per-bone direction match, which bent rigs whose pelvis / neck / collarbone
 data the SDK turned MakeHuman's collarbones 35 deg, the Armature's pelvis 59 deg). The rest pose handed to the SDK is
 the Avatar's stored T-pose (`HumanoidTPose`), not muscle zero (arms 40 deg down and forward, elbows and knees bent).
 Check with Debug / Body Retarget Self-Test (with images). The study has four conditions, avatar (bird / human) x
-voice feedback (the participant's own voice heard as bird chirps / as a sung human vowel, or not at all), chosen from the
+voice feedback (the participant's own voice heard as a bird voice / as it is from the microphone, or not at all), chosen from the
 experimenter panel; the participant's own head (bird or human) is hidden from the headset camera but visible in the
 mirror. Toggle bird / human with **V** (keyboard).
 

@@ -16,8 +16,10 @@ namespace AvianVoice.Embodiment
             Quaternion rightRest,
             float depth,
             bool inhaling,
-            float time)
+            float time,
+            float amount = 1f)
         {
+            // amount scales the angles only (opening, flutter, lift); the depth thresholds stay where they are.
             var energy = Mathf.Clamp01(depth);
             var spread = 0f;
             var flap = 0f;
@@ -36,8 +38,8 @@ namespace AvianVoice.Embodiment
 
             var lift = energy >= 0.28f ? 5f * energy : 0f;
             var frame = ResolveBirdFrame(leftWing, rightWing);
-            ApplyOne(leftWing, leftRest, lift, spread + flap, true, frame);
-            ApplyOne(rightWing, rightRest, lift, spread + flap, false, frame);
+            ApplyOne(leftWing, leftRest, lift * amount, (spread + flap) * amount, true, frame);
+            ApplyOne(rightWing, rightRest, lift * amount, (spread + flap) * amount, false, frame);
         }
 
         /// <summary>

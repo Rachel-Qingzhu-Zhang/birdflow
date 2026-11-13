@@ -227,6 +227,9 @@ namespace AvianVoice.Study
     /// </list>
     /// The session-level files are the whole session in time order; the condition folders are the same rows split up.
     /// Which human body was shown is not a folder: every row carries it (<c>human_avatar</c>, <c>avatar_model</c>).
+    /// So does the run: when the trials of a condition are started over (a mistake, Reset in the experimenter panel),
+    /// nothing is deleted; the new trials get <c>run</c> 2, 3 ... and "_runN" in their WAV names, and analysis keeps
+    /// the highest run of each condition.
     /// Every event carries the microphone sample index, so <c>mic.wav</c> can be sliced exactly offline.
     /// </summary>
     [DefaultExecutionOrder(-100)]
@@ -292,6 +295,9 @@ namespace AvianVoice.Study
         public string ConditionFolder => span != null ? span.files.folder : "";
         public int ConditionTrialRows => span != null ? span.files.trialRows : 0;
         public long ConditionSampleRows => span != null ? span.files.sampleRows : 0;
+
+        /// <summary>Run of the singing trials in the condition being recorded now (see <see cref="BeginTrialRun"/>), 0 when none.</summary>
+        public int ConditionRun => span != null ? span.files.run : 0;
         public bool WriteTrialSegments => writeTrialSegments;
         public bool MicrophoneRecording => micWav != null && micWav.IsOpen;
         public bool OutputRecording => outWav != null && outWav.IsOpen;
@@ -547,7 +553,8 @@ namespace AvianVoice.Study
                 .Add("avatar_model", of != null ? of.avatarModel : CurrentAvatarModel)
                 .Add("voice_feedback", of != null ? of.voiceFeedback : CurrentVoiceFeedback)
                 .Add("condition", of != null ? of.condition : "")
-                .Add("human_avatar", of != null ? of.humanAvatar : HumanAvatarOf(CurrentAvatar));
+                .Add("human_avatar", of != null ? of.humanAvatar : HumanAvatarOf(CurrentAvatar))
+                .Add("run", of != null ? of.files.run : 0);
             fill?.Invoke(j);
             var line = j.ToString();
             events.WriteLine(line);
@@ -565,7 +572,7 @@ namespace AvianVoice.Study
         public const string ConditionCsvHeader =
             "span,condition,folder,avatar,human_avatar,avatar_model,voice_feedback,"
             + "t_start_utc,t_start_unity,mic_sample_start,out_frame_start,"
-            + "t_end_utc,t_end_unity,mic_sample_end,out_frame_end,duration_s,events,trial_rows,sample_rows";
+            + "t_end_utc,t_end_unity,mic_sample_end,out_frame_end,duration_s,events,trial_rows,sample_rows,run";
 
         /// <summary>The files of one condition folder (opened the first time the condition is used in a session).</summary>
         sealed class ConditionFiles
@@ -576,6 +583,8 @@ namespace AvianVoice.Study
             public StreamWriter samples;
             public int trialRows;
             public long sampleRows;
+            public int run = 1;       // which pass through the singing trials (BeginTrialRun)
+            public int lastTrial;     // number of the last trial started in this run
         }
 
         /// <summary>One uninterrupted stretch of one condition with one avatar model: a row of conditions.csv.</summary>
@@ -621,6 +630,33 @@ namespace AvianVoice.Study
 
             var colon = avatar.IndexOf(':');
             return colon >= 0 ? avatar.Substring(colon + 1) : "";
+        }
+
+        /// <summary>
+        /// Which run of the singing trials a trial that starts now belongs to, in its condition: 1 for the first pass,
+        /// one more each time the trial numbers start over in that condition (the experimenter's Reset after a
+        /// mistake, or the condition done again later in the session). A repeated trial (attempt 2, 3 ...) stays in
+        /// its run. Nothing of an earlier run is deleted; analysis keeps the highest run of each condition.
+        /// </summary>
+        public int BeginTrialRun(int trial, int attempt)
+        {
+            if (!SessionOpen)
+                return 1;
+
+            SyncCondition();
+            if (span == null)
+                return 1;
+
+            var files = span.files;
+            if (attempt <= 1 && trial <= files.lastTrial)
+            {
+                var previous = files.lastTrial;
+                files.run++;
+                WriteEvent("trial_run_start", j => j.Add("previous_run_last_trial", previous), span);
+            }
+
+            files.lastTrial = trial;
+            return files.run;
         }
 
         /// <summary>
@@ -684,7 +720,7 @@ namespace AvianVoice.Study
               .Append(end.utc).Append(',').Append(end.unity.ToString("0.######", c)).Append(',')
               .Append(Math.Max(0, end.micSample)).Append(',').Append(Math.Max(0, end.outFrame)).Append(',')
               .Append((end.unity - s.start.unity).ToString("0.###", c)).Append(',')
-              .Append(s.events).Append(',').Append(s.trialRows).Append(',').Append(s.sampleRows);
+              .Append(s.events).Append(',').Append(s.trialRows).Append(',').Append(s.sampleRows).Append(',').Append(s.files.run);
             conditionIndex.WriteLine(sb.ToString());
         }
 
@@ -710,7 +746,7 @@ namespace AvianVoice.Study
         }
 
         public const string SampleCsvHeader =
-            "t_utc,t_unity,t_dsp,mic_sample,out_frame,task,avatar,voice_feedback,condition,human_avatar,voice_mode,"
+            "t_utc,t_unity,t_dsp,mic_sample,out_frame,task,avatar,voice_feedback,condition,human_avatar,run,voice_mode,"
             + "pitch_hz,pitch_confidence,voiced,loudness,latency_ms,breath_depth,breath_phase,inhaling,"
             + "score_task,score,breath_sync_score,breath_pattern";
 
@@ -736,6 +772,7 @@ namespace AvianVoice.Study
               .Append(CsvField(CurrentTaskId)).Append(',').Append(CsvField(CurrentAvatar)).Append(',').Append(CsvField(CurrentVoiceFeedback)).Append(',')
               .Append(span != null ? span.condition : "").Append(',')
               .Append(CsvField(span != null ? span.humanAvatar : HumanAvatarOf(CurrentAvatar))).Append(',')
+              .Append(span != null ? span.files.run : 0).Append(',')
               .Append(CsvField(voiceMode)).Append(',')
               .Append(SampleNumber(voice.pitchHz, "0.###")).Append(',').Append(SampleNumber(voice.pitchConfidence, "0.###")).Append(',')
               .Append(SampleNumber(voice.voiced, "0.###")).Append(',').Append(SampleNumber(voice.loudness, "0.######")).Append(',')
@@ -1015,7 +1052,7 @@ namespace AvianVoice.Study
                 .Add("output_sample_rate", config.sampleRate)
                 .Add("dsp_buffer_size", config.dspBufferSize)
                 .Add("files", "events.jsonl, trials.csv, samples.csv (voice pitch / loudness and breath depth, one row per sample), mic.wav (participant microphone, mono 16-bit), output.wav (listener mix, mono 16-bit): the whole session in time order. conditions.csv: one row per stretch of one condition with its range in mic.wav / output.wav. conditions/<condition>/: events.jsonl, trials.csv, samples.csv (the rows of that condition, copies of the session-level rows) and segments/trial_*.wav (microphone per trial)")
-                .Add("conditions", "avatar x voice feedback: bird_bird-voice, bird_own-voice, human_human-voice, human_own-voice. The human body (neutral / male / female) is not a folder: see human_avatar and avatar_model on every row")
+                .Add("conditions", "avatar x voice feedback: bird_bird-voice, bird_own-voice, human_human-voice, human_own-voice. The human body (neutral / male / female) is not a folder: see human_avatar and avatar_model on every row. run: 1 for the first pass through the singing trials of a condition, 2, 3 ... when they were started over; keep the highest run of each condition")
                 .Add("time_bases", "t_utc/t_local: wall clock ISO-8601; t_unity: Time.realtimeSinceStartup (s); t_dsp: AudioSettings.dspTime (s); mic_sample: sample index into mic.wav; out_frame: frame index into output.wav");
             File.WriteAllText(Path.Combine(SessionDirectory, "session.json"), j.ToString(), new UTF8Encoding(false));
         }
@@ -1039,7 +1076,7 @@ namespace AvianVoice.Study
                    + " mic=" + (MicrophoneRecording ? MicSecondsWritten.ToString("0.0") + "s@" + micRate + "Hz (" + MicDeviceName + ")" : "none")
                    + " output=" + (OutputRecording ? OutputSecondsWritten.ToString("0.0") + "s@" + outRate + "Hz" : "none")
                    + " trials=" + TrialRowsWritten + " samples=" + SampleRowsWritten
-                   + " condition=" + (span != null ? span.files.folder + (span.humanAvatar.Length > 0 ? " human_avatar=" + span.humanAvatar : "") : "none");
+                   + " condition=" + (span != null ? span.files.folder + " run=" + span.files.run + (span.humanAvatar.Length > 0 ? " human_avatar=" + span.humanAvatar : "") : "none");
         }
     }
 }

@@ -5,25 +5,6 @@ namespace AvianVoice.UI
     /// </summary>
     public static class AvianUiCopy
     {
-        /// <summary>
-        /// True while the participant's avatar is the human body (set by AvatarEmbodimentController). The meeting,
-        /// breathing and rest scenes then speak of the participant instead of the bird ("this is you", "your chest",
-        /// "this body").
-        /// </summary>
-        public static bool HumanAvatar { get; private set; }
-
-        /// <summary>Raised when <see cref="HumanAvatar"/> changes, so that a line on screen can be rewritten.</summary>
-        public static event System.Action AvatarChanged;
-
-        public static void SetHumanAvatar(bool human)
-        {
-            if (HumanAvatar == human)
-                return;
-
-            HumanAvatar = human;
-            AvatarChanged?.Invoke();
-        }
-
         public static string MenuTitle => AvianUiLanguage.Pick("Choose a scene", "場面を選ぶ");
 
         public static string MenuChip => AvianUiLanguage.Pick("I want …", "場面 …");
@@ -38,9 +19,8 @@ namespace AvianVoice.UI
                 + "練習です。鳥が歌った音を、同じように歌ってください。実験者が説明します。練習する"
                 + "鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。"
                 + "鳥の胸を見て、一緒に呼吸してください。"
-                + "鏡の中の自分の胸を見て、一緒に呼吸してください。"
-                + "鏡の中にいるのが、あなたです。"
-                + "この体でいるのは、どんな感じでしたか。"
+                + "鏡の中の自分を見てください。鏡の中の自分に合わせて呼吸してください。"
+                + "先生と同じ音程で歌ってください。少し休みましょう。"
                 + "鳥は自分で滑空します。大きく、または高く歌うと上昇し、黙ると下降します。"
                 + "鳥が一つの音を歌います。鳴き終わったら、同じ音を歌ってください。次の音も同じです。"
                 + "鳥が一つの音を歌います。同じ音を歌うと仲間が飛んできます。音ごとに鳥が増えます。"
@@ -51,43 +31,93 @@ namespace AvianVoice.UI
                 + "次の音を待ってください。お疲れさまでした。そのまま休んでください。";
         }
 
-        public static string Instruction(string taskId)
+        /// <summary>
+        /// Title on the guide card. The same in every condition (bird / human avatar, converted / own voice) and
+        /// in English only. "" for the scenes outside the study flow, which keep their one-line prompt.
+        /// </summary>
+        public static string Title(string taskId)
         {
             return taskId switch
             {
-                "practice" => AvianUiLanguage.Pick(
-                    "Practice. The bird sings a note; sing it back. The experimenter will explain.",
-                    "練習です。鳥が歌った音を、同じように歌ってください。実験者が説明します。"),
-                "meet" => HumanAvatar
-                    ? AvianUiLanguage.Pick(
-                        "This is you in the mirror. Look at yourself — no need to breathe yet.",
-                        "鏡の中にいるのが、あなたです。しばらく見ていてください。まだ呼吸しなくて大丈夫です。")
-                    : AvianUiLanguage.Pick(
-                        "This is your bird self in the mirror. Look at it — no need to breathe yet.",
-                        "鏡の中にいるのが、あなたの鳥です。しばらく見ていてください。まだ呼吸しなくて大丈夫です。"),
-                "breath_sync" => HumanAvatar
-                    ? AvianUiLanguage.Pick(
-                        "Watch your chest in the mirror and breathe with it.",
-                        "鏡の中の自分の胸を見て、一緒に呼吸してください。")
-                    : AvianUiLanguage.Pick(
-                        "Watch the bird's chest and breathe with it.",
-                        "鳥の胸を見て、一緒に呼吸してください。"),
+                "practice" => "Practice",
+                "meet" => "Meet Scene",
+                "breath_sync" => "Breathing Scene",
+                "singing" => "Singing Scene",
+                "reflection" => "Rest Scene",
+                _ => ""
+            };
+        }
+
+        /// <summary>Instruction of a study scene in English. The same in every condition; none in the practice scene.</summary>
+        public static string InstructionEnglish(string taskId)
+        {
+            return taskId switch
+            {
+                "meet" => "Look at yourself in the mirror.",
+                "breath_sync" => "Breathe together with yourself in the mirror.",
+                "singing" => "Sing the same pitch as the teacher.",
+                "reflection" => "Take a short rest.",
+                _ => ""
+            };
+        }
+
+        /// <summary>Instruction of a study scene in Japanese. The same in every condition; none in the practice scene.</summary>
+        public static string InstructionJapanese(string taskId)
+        {
+            return taskId switch
+            {
+                "meet" => "鏡の中の自分を見てください。",
+                "breath_sync" => "鏡の中の自分に合わせて呼吸してください。",
+                "singing" => "先生と同じ音程で歌ってください。",
+                "reflection" => "少し休みましょう。",
+                _ => ""
+            };
+        }
+
+        /// <summary>
+        /// Text of the guide card (SceneGuide). Study scenes: the title, then the instruction in Japanese and under it
+        /// in English, both always shown. While a singing cue is up (<paramref name="phaseEnglish"/> /
+        /// <paramref name="phaseJapanese"/>, e.g. "Now sing this note.") it takes the place of the instruction. The practice
+        /// scene shows its title only. Other scenes: the cue or their prompt in the UI language, as before.
+        /// </summary>
+        public static string GuideText(string taskId, string phaseEnglish, string phaseJapanese)
+        {
+            var title = Title(taskId);
+            if (string.IsNullOrEmpty(title))
+            {
+                var phase = AvianUiLanguage.Pick(phaseEnglish, phaseJapanese);
+                return string.IsNullOrEmpty(phase) ? Instruction(taskId) : phase;
+            }
+
+            var heading = "<size=120%><b>" + title + "</b></size>";
+            if (taskId == "practice")
+                return heading;
+
+            var hasPhase = !string.IsNullOrEmpty(phaseEnglish) || !string.IsNullOrEmpty(phaseJapanese);
+            var japanese = hasPhase ? (string.IsNullOrEmpty(phaseJapanese) ? phaseEnglish : phaseJapanese) : InstructionJapanese(taskId);
+            var english = hasPhase ? (string.IsNullOrEmpty(phaseEnglish) ? phaseJapanese : phaseEnglish) : InstructionEnglish(taskId);
+            return japanese == english
+                ? heading + "\n" + english
+                : heading + "\n" + japanese + "\n" + english;
+        }
+
+        /// <summary>
+        /// One-line instruction in the UI language (the debug HUD, and the guide card of the scenes outside the study
+        /// flow). For the study scenes it is the same sentence as on the guide card.
+        /// </summary>
+        public static string Instruction(string taskId)
+        {
+            if (!string.IsNullOrEmpty(Title(taskId)))
+                return AvianUiLanguage.Pick(InstructionEnglish(taskId), InstructionJapanese(taskId));
+
+            return taskId switch
+            {
                 "flying" => AvianUiLanguage.Pick(
                     "The bird glides on its own. Sing louder or higher to climb, stay quiet to glide down.",
                     "鳥は自分で滑空します。大きく、または高く歌うと上昇し、黙ると下降します。"),
-                "singing" => AvianUiLanguage.Pick(
-                    "The bird sings one note. When it stops, sing that same note. Then it sings the next one.",
-                    "鳥が一つの音を歌います。鳴き終わったら、同じ音を歌ってください。次の音も同じです。"),
                 "call_friends" => AvianUiLanguage.Pick(
                     "The bird sings one note. Sing it back and one friend flies in.",
                     "鳥が一つの音を歌います。同じ音を歌うと、仲間が一羽飛んできます。"),
-                "reflection" => HumanAvatar
-                    ? AvianUiLanguage.Pick(
-                        "Rest by the water and look over your scores. How did it feel to be in this body?",
-                        "水辺で休み、ここまでの感覚を見てください。この体でいるのは、どんな感じでしたか。")
-                    : AvianUiLanguage.Pick(
-                        "Rest by the water and look over your scores. How did it feel to become a bird?",
-                        "水辺で休み、ここまでの感覚を見てください。鳥になるのは、どんな感じでしたか。"),
                 _ => ""
             };
         }
@@ -107,19 +137,24 @@ namespace AvianVoice.UI
             };
         }
 
+        /// <summary>
+        /// Cue on the guide card while a note is taught or sung. The participant is never shown the name of the note
+        /// (B3, D4 ...) or its frequency: the text drew the attention away from the mirror (2026-11-12). The note is
+        /// still recorded (trials.csv, events.jsonl) and shown to the experimenter (panel, Study Monitor).
+        /// <paramref name="note"/> is accepted for the callers that have it, and not displayed.
+        /// </summary>
         public static void ShowSingingCue(string kind, string note)
         {
-            var name = string.IsNullOrEmpty(note) ? "" : note;
             switch (kind)
             {
                 case "listen":
-                    SceneGuide.SetPhase($"Listen to {name}.", $"{name}を聴いてください。");
+                    SceneGuide.SetPhase("Listen to this note.", "この音を聴いてください。");
                     break;
                 case "sing":
-                    SceneGuide.SetPhase($"Now sing {name}.", $"今度は{name}を歌ってください。");
+                    SceneGuide.SetPhase("Now sing this note.", "今度はこの音を歌ってください。");
                     break;
                 case "call":
-                    SceneGuide.SetPhase($"Sing {name} to call a friend.", $"{name}を歌って仲間を呼んでください。");
+                    SceneGuide.SetPhase("Sing this note to call a friend.", "この音を歌って仲間を呼んでください。");
                     break;
                 case "coming":
                     SceneGuide.SetPhase("A friend is coming.", "仲間が向かっています。");

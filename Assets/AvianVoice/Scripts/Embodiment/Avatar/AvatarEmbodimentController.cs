@@ -384,7 +384,6 @@ namespace AvianVoice.Embodiment.Avatars
             }
 
             RefreshHint();
-            AvianUiCopy.SetHumanAvatar(!bird);
             AvatarChanged?.Invoke(kind);
             if (logStatus)
                 Debug.Log("[AvianVoice] Avatar: " + CurrentLabel);

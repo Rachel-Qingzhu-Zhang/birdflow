@@ -30,6 +30,24 @@ namespace AvianVoice.UI
                 text.fontSharedMaterial = font.material;
         }
 
+        /// <summary>
+        /// For a text that shows Japanese and English together whatever the UI language (the guide card): the
+        /// Japanese face, which also has the Latin letters. With Liberation Sans the Japanese line is empty boxes.
+        /// </summary>
+        public static void ApplyBilingual(TMP_Text text)
+        {
+            if (text == null)
+                return;
+
+            var font = Japanese();
+            if (font == null)
+                return;
+
+            text.font = font;
+            if (font.material != null)
+                text.fontSharedMaterial = font.material;
+        }
+
         static TMP_FontAsset Latin()
         {
             if (latin != null)

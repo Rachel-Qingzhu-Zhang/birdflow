@@ -11,6 +11,7 @@ namespace AvianVoice.Embodiment
     {
         const float DefaultChestInhaleScale = 0.40f;
         const float DefaultBellyInhaleScale = 0.28f;
+        const float DefaultBreathMotionScale = 0.65f;
 
         public static float ChestInhaleScale
         {
@@ -27,6 +28,19 @@ namespace AvianVoice.Embodiment
             {
                 var settings = AvianVoiceSettings.FindLoaded();
                 return settings != null ? Mathf.Max(0f, settings.bellyInhaleScale) : DefaultBellyInhaleScale;
+            }
+        }
+
+        /// <summary>
+        /// Share of the breathing motion that is shown on the bird (chest, belly and breath wings), 0..1.
+        /// Applies to the breath only, not to the singing (performance) poses.
+        /// </summary>
+        public static float BreathMotionScale
+        {
+            get
+            {
+                var settings = AvianVoiceSettings.FindLoaded();
+                return settings != null ? Mathf.Clamp01(settings.breathMotionScale) : DefaultBreathMotionScale;
             }
         }
 

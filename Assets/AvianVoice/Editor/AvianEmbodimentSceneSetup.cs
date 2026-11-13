@@ -141,6 +141,9 @@ namespace AvianVoice.Editor
                    + " pos=" + bird.position.ToString("F2") + " layer=" + bird.gameObject.layer;
         }
 
+        [MenuItem("Avian Voice/Embodiment/Debug/PC Audio Monitor - PC Device Only (Play Mode)")]
+        public static void PcAudioMonitorPcOnly() => SetPcAudioMonitorMode(AvianVoice.Study.PcAudioMonitor.MonitorMode.PcOnly);
+
         [MenuItem("Avian Voice/Embodiment/Debug/PC Audio Monitor - Always (Play Mode)")]
         public static void PcAudioMonitorAlways() => SetPcAudioMonitorMode(AvianVoice.Study.PcAudioMonitor.MonitorMode.Always);
 
@@ -474,6 +477,40 @@ namespace AvianVoice.Editor
             return true;
         }
 
+        /// <summary>
+        /// The Windows playback devices, the one chosen for this application (Experimenter Panel "Output device") and
+        /// the one its sound is actually on. Reads only; works outside Play mode.
+        /// </summary>
+        [MenuItem("Avian Voice/Embodiment/Debug/Log Audio Output Devices")]
+        public static void LogAudioOutputDevices()
+        {
+            var sb = new System.Text.StringBuilder("[AvianVoice] Audio output devices:");
+            var devices = AvianVoice.Study.AudioOutputRouting.Devices();
+            var known = AvianVoice.Study.AudioOutputRouting.TryGetOverride(out var chosenId);
+            var readError = AvianVoice.Study.AudioOutputRouting.LastError;
+            var chosenName = "";
+            foreach (var device in devices)
+            {
+                var chosen = known && device.Key == chosenId;
+                if (chosen)
+                    chosenName = device.Value;
+                sb.Append("\n  ").Append(chosen ? "* " : "  ").Append(device.Value).Append("   ").Append(device.Key);
+            }
+
+            sb.Append("\n  chosen for this application: ");
+            if (!known)
+                sb.Append("cannot be read (").Append(readError).Append(")");
+            else if (string.IsNullOrEmpty(chosenId))
+                sb.Append("none (follows the Windows default)");
+            else
+                sb.Append(chosenName.Length > 0 ? chosenName : "not connected: " + chosenId);
+
+            AvianVoice.Study.PcAudioMonitor.RefreshDefaultOutput();
+            sb.Append("\n  Windows default: '").Append(AvianVoice.Study.PcAudioMonitor.DefaultOutputName).Append("'")
+              .Append("   this application's sound is on: '").Append(AvianVoice.Study.PcAudioMonitor.UnityOutputName).Append("'");
+            Debug.Log(sb.ToString());
+        }
+
         [MenuItem("Avian Voice/Embodiment/Debug/Log Audio State (Play Mode)")]
         public static void LogAudioState()
         {
@@ -490,6 +527,9 @@ namespace AvianVoice.Editor
             var manager = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Tasks.TaskManager>();
             sb.Append(" task=").Append(manager != null ? manager.CurrentTaskId : "none");
             sb.Append(" masterRms=").Append(MeasureListenerRms().ToString("0.0000"));
+            // What Unity's own output device gets (0 while the PC device is the only output).
+            AudioListener.GetOutputData(RmsBuffer, 0);
+            sb.Append(" unityOutRms=").Append(Rms(RmsBuffer).ToString("0.0000"));
             AvianVoice.Study.PcAudioMonitor.RefreshDefaultOutput();
             var monitor = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.PcAudioMonitor>();
             sb.Append(" | ").Append(monitor != null ? monitor.Describe() : "defaultOutput='" + AvianVoice.Study.PcAudioMonitor.DefaultOutputName + "' muted=" + AvianVoice.Study.PcAudioMonitor.DefaultOutputMuted);
@@ -516,6 +556,12 @@ namespace AvianVoice.Editor
         /// <summary>RMS of the mixed output that reaches the AudioListener (0 = silence).</summary>
         public static float MeasureListenerRms()
         {
+            // While the PC device is the only output, Unity's own output is silenced after the mix: read the
+            // level of the mix itself.
+            var monitor = AvianVoice.Study.PcAudioMonitor.Instance;
+            if (monitor != null && monitor.SilencingUnityOutput)
+                return monitor.MixRms;
+
             AudioListener.GetOutputData(RmsBuffer, 0);
             return Rms(RmsBuffer);
         }

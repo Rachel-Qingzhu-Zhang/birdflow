@@ -115,7 +115,7 @@
     <h3>Scene 2 — Learn the breath</h3>
     <p class="io"><b>Input</b>　Your own breathing. When the chest rises, breathe in. When it falls, breathe out. The microphone stays silent.</p>
     <p class="io"><b>Task</b>　Follow the slow rhythm until it finishes, then the visit moves on by itself.</p>
-    <p>Menu line: “I want to learn its breath.” / 「鳥の呼吸を覚える」. Still at the mirror. The parrot’s chest and wings move on their own. There is only the slow pattern: about <strong>6 seconds in, 6 seconds out</strong>. Default length is <strong>4 cycles</strong> (about 48 seconds), from <code>patternBCycles</code> on <code>AvianVoiceSettings</code>.</p>
+    <p>Menu line: “I want to learn its breath.” / 「鳥の呼吸を覚える」. Still at the mirror. The parrot’s chest and wings move on their own. There is only the slow pattern: about <strong>6 seconds in, 6 seconds out</strong>. Default length is <strong>5 cycles</strong> (60 seconds), from <code>patternBCycles</code> on <code>AvianVoiceSettings</code>.</p>
     <table>
       <tr><th>When</th><th>What you see</th><th>Audio</th></tr>
       <tr><td>On enter</td><td>“Watch the bird's chest and breathe with it.” / 「鳥の胸を見て、一緒に呼吸してください。」</td><td>None</td></tr>
@@ -168,7 +168,7 @@
       <tr><td>E4, 330 Hz</td><td>about 63%</td><td>About 0.8 m/s if just audible, about 1.8 m/s if very loud</td></tr>
       <tr><td>600 Hz</td><td>100%</td><td>Up to 2.2 m/s</td></tr>
     </table>
-    <p>E, Q, the arrow keys, and a held R/F skip this curve and move at the full 2.2 m/s. The stick does the same when it is pushed past about a quarter of its travel. Each chirp you hear is still the short synth (about 0.08 s) at eight times your pitch, inside 1600–5500 Hz. There is no separate “engine” sound and no replay chip: this scene has no note to copy.</p>
+    <p>E, Q, the arrow keys, and a held R/F skip this curve and move at the full 2.2 m/s. The stick does the same when it is pushed past about a quarter of its travel. Each chirp you hear is still the short synth (about 0.08 s) at eight times your pitch, inside 640–5500 Hz. There is no separate “engine” sound and no replay chip: this scene has no note to copy.</p>
   </section>
 
   <section class="scene" id="en-s5">
@@ -226,7 +226,7 @@
   <p>One prompt card. During singing and calling it changes with the moment (listen, your turn, a friend is coming, done). Otherwise it shows the scene sentence. <strong>I want …</strong> lists the six scenes in the current order. The Replay chip appears only in scene 3 and scene 5. Score bars and the Transform / Assistive switch stay hidden while <code>showHudPanels</code> is off.</p>
 
   <h2 id="en-sound">How the voice and the four notes work</h2>
-  <p>There is one birdsong voice. Human Hz is multiplied by <code>synthPitchRatio</code> (<strong>8</strong>), then kept between <strong>1600 and 5500 Hz</strong>. A guide note and your answer use that same mapping, so the pitch you hear is the pitch you are asked to match. You match it in your own octave. The guide holds for <strong>0.70 s</strong>. Your own syllables are short chirps of about <strong>0.08 s</strong>, at least <strong>45 ms</strong> apart, so one word is not two notes.</p>
+  <p>There is one birdsong voice. Human Hz is multiplied by <code>synthPitchRatio</code> (<strong>8</strong>), then kept between <strong>640 and 5500 Hz</strong>. A guide note and your answer use that same mapping, so the pitch you hear is the pitch you are asked to match. You match it in your own octave. The guide holds for <strong>0.70 s</strong>. Your own syllables are short chirps of about <strong>0.08 s</strong>, at least <strong>45 ms</strong> apart, so one word is not two notes.</p>
   <p>The microphone is heard as that synth only while you are flying, and during “your turn” in scenes 3 and 5. Meet, breath, rest, and the listen beats stay silent.</p>
   <p>Recorded beds are not part of the visit anymore. <code>birds_forest.wav</code>, <code>birds_reward.wav</code>, and the long <code>bird_melody.wav</code> are still in <code>Resources/BirdExperience/</code>, but the six scenes do not play them. A finished note is marked by the next note, or by a bird flying in, not by a sting.</p>
   <p><strong>T</strong> still toggles Assistive when you need it for debugging: you hear your own voice, shifted, instead of the bird synth. The visit starts in Transform, which is the synth above.</p>
@@ -298,7 +298,7 @@
     <h3>場面 2　呼吸を学ぶ</h3>
     <p class="io"><b>入力</b>　自分の呼吸。胸が膨らむときに吸い、落ちるときに吐く。マイクは無音のままです。</p>
     <p class="io"><b>課題</b>　遅いリズムを最後まで合わせる。終わると次の場面へ自動で進みます。</p>
-    <p>メニューは “I want to learn its breath.” / 「鳥の呼吸を覚える」。まだ鏡の前です。胸と翼は自分で動きます。リズムは遅いものだけです。<strong>吸う約 6 秒、吐く約 6 秒</strong>。既定は <strong>4 周</strong>（およそ 48 秒）で、<code>AvianVoiceSettings</code> の <code>patternBCycles</code> です。</p>
+    <p>メニューは “I want to learn its breath.” / 「鳥の呼吸を覚える」。まだ鏡の前です。胸と翼は自分で動きます。リズムは遅いものだけです。<strong>吸う約 6 秒、吐く約 6 秒</strong>。既定は <strong>5 周</strong>（60 秒）で、<code>AvianVoiceSettings</code> の <code>patternBCycles</code> です。</p>
     <table>
       <tr><th>いつ</th><th>見えるもの</th><th>音</th></tr>
       <tr><td>入ったとき</td><td>「鳥の胸を見て、一緒に呼吸してください。」</td><td>なし</td></tr>
@@ -351,7 +351,7 @@
       <tr><td>E4、330 Hz</td><td>およそ 63%</td><td>ぎりぎり聞こえるとおよそ 0.8 m/s、とても大きいとおよそ 1.8 m/s</td></tr>
       <tr><td>600 Hz</td><td>100%</td><td>最大 毎秒 2.2 m</td></tr>
     </table>
-    <p>E、Q、矢印、押し続けた R / F はこの曲線を使わず、毎秒 2.2 m で動きます。スティックも、およそ 4 分の 1 以上倒すと同じです。聞こえる一声は、人の音高の 8 倍（1600〜5500 Hz）の短い合成（約 0.08 秒）です。聞き直す音はありません。</p>
+    <p>E、Q、矢印、押し続けた R / F はこの曲線を使わず、毎秒 2.2 m で動きます。スティックも、およそ 4 分の 1 以上倒すと同じです。聞こえる一声は、人の音高の 8 倍（640〜5500 Hz）の短い合成（約 0.08 秒）です。聞き直す音はありません。</p>
   </section>
 
   <section class="scene" id="ja-s5">
@@ -409,7 +409,7 @@
   <p>案内は一枚です。歌うときと呼ぶときは、聴く・あなたの番・仲間が向かう・終わり、で文が変わります。それ以外は場面の一文です。<strong>I want …</strong> は今の順で六つ並びます。Replay は場面 3 と 5 だけです。点数バーと Transform / Assistive は <code>showHudPanels</code> がオフのあいだ出ません。</p>
 
   <h2 id="ja-sound">声と四つの音</h2>
-  <p>鳥の声は一つです。人の Hz に <code>synthPitchRatio</code>（<strong>8</strong>）を掛け、<strong>1600〜5500 Hz</strong> に収めます。ガイドと返事は同じ変換なので、聞こえた音高が、合わせる音高です。自分の声域のオクターブで合えば通ります。ガイドは <strong>0.70 秒</strong>。自分の一音はおよそ <strong>0.08 秒</strong> で、間隔は少なくとも <strong>45 ミリ秒</strong>です。</p>
+  <p>鳥の声は一つです。人の Hz に <code>synthPitchRatio</code>（<strong>8</strong>）を掛け、<strong>640〜5500 Hz</strong> に収めます。ガイドと返事は同じ変換なので、聞こえた音高が、合わせる音高です。自分の声域のオクターブで合えば通ります。ガイドは <strong>0.70 秒</strong>。自分の一音はおよそ <strong>0.08 秒</strong> で、間隔は少なくとも <strong>45 ミリ秒</strong>です。</p>
   <p>この合成が鳴るのは、飛行中と、場面 3・5 の「自分の番」だけです。出会う、呼吸、休む、そして聴いているあいだは無音です。</p>
   <p>録音の環境音は、もう体験では使いません。<code>birds_forest.wav</code>、<code>birds_reward.wav</code>、長い <code>bird_melody.wav</code> は <code>Resources/BirdExperience/</code> に残っていますが、六つの場面は再生しません。音が通ったことは、次の音か、飛んでくる鳥で分かります。</p>
   <p>デバッグ用の <strong>T</strong> は Assistive です。鳥の合成ではなく、自分の声を移調して聞きます。体験の開始は Transform（上の合成）です。</p>
@@ -481,7 +481,7 @@
     <h3>场景 2 — 学呼吸</h3>
     <p class="io"><b>输入</b>　自己的呼吸。胸口升起时吸气，落下时呼气。麦克风保持无声。</p>
     <p class="io"><b>任务</b>　跟着慢节奏直到结束，然后自动进入下一场。</p>
-    <p>菜单句是 “I want to learn its breath.” / 「鳥の呼吸を覚える」。仍在镜子前。胸口和翅膀自己动。现在只有慢节奏：<strong>吸大约 6 秒，呼大约 6 秒</strong>。默认 <strong>4 个循环</strong>（大约 48 秒），数字来自 <code>AvianVoiceSettings</code> 的 <code>patternBCycles</code>。</p>
+    <p>菜单句是 “I want to learn its breath.” / 「鳥の呼吸を覚える」。仍在镜子前。胸口和翅膀自己动。现在只有慢节奏：<strong>吸大约 6 秒，呼大约 6 秒</strong>。默认 <strong>5 个循环</strong>（60 秒），数字来自 <code>AvianVoiceSettings</code> 的 <code>patternBCycles</code>。</p>
     <table>
       <tr><th>何时</th><th>看到什么</th><th>声音</th></tr>
       <tr><td>进入</td><td>「鳥の胸を見て、一緒に呼吸してください。」</td><td>无</td></tr>
@@ -534,7 +534,7 @@
       <tr><td>E4，330 Hz</td><td>大约 63%</td><td>刚能听见大约 0.8 米/秒，很响大约 1.8 米/秒</td></tr>
       <tr><td>600 Hz</td><td>100%</td><td>最快每秒 2.2 米</td></tr>
     </table>
-    <p>按住 E、Q、方向键，或按住 R / F，不走这条曲线，直接以每秒 2.2 米升降。摇杆推过大约四分之一行程也一样。听到的仍是人声音高乘 8（限制在 1600–5500 Hz）的短 chirp，大约 0.08 秒。这一段没有要跟的音，也没有 Replay 按钮。</p>
+    <p>按住 E、Q、方向键，或按住 R / F，不走这条曲线，直接以每秒 2.2 米升降。摇杆推过大约四分之一行程也一样。听到的仍是人声音高乘 8（限制在 640–5500 Hz）的短 chirp，大约 0.08 秒。这一段没有要跟的音，也没有 Replay 按钮。</p>
   </section>
 
   <section class="scene" id="zh-s5">
@@ -592,7 +592,7 @@
   <p>提示只有一张卡片。唱歌和呼朋时，它会跟着阶段变（听、轮到你、伙伴飞来、完成）。其他时候是这一场的那一句话。<strong>I want …</strong> 按现在的顺序列出六个场景。Replay 按钮只在场景 3 和 5 出现。分数条和 Transform / Assistive 开关在 <code>showHudPanels</code> 关闭时不显示。</p>
 
   <h2 id="zh-sound">声音和四个音怎么对应</h2>
-  <p>鸟鸣只有一种。人声赫兹乘 <code>synthPitchRatio</code>（<strong>8</strong>），再限制在 <strong>1600–5500 Hz</strong>。引导音和你的回答用同一套换算，所以听到的音高就是要跟上的音高。用自己顺口的八度唱同一个音名即可。引导音持续 <strong>0.70 秒</strong>。你自己的音节是大约 <strong>0.08 秒</strong> 的短 chirp，两次之间至少 <strong>45 毫秒</strong>，避免一个字被算成两个音。</p>
+  <p>鸟鸣只有一种。人声赫兹乘 <code>synthPitchRatio</code>（<strong>8</strong>），再限制在 <strong>640–5500 Hz</strong>。引导音和你的回答用同一套换算，所以听到的音高就是要跟上的音高。用自己顺口的八度唱同一个音名即可。引导音持续 <strong>0.70 秒</strong>。你自己的音节是大约 <strong>0.08 秒</strong> 的短 chirp，两次之间至少 <strong>45 毫秒</strong>，避免一个字被算成两个音。</p>
   <p>麦克风变成这种合成，只发生在飞行中，以及场景 3、5 的「轮到你」。见面、呼吸、休息，还有「听」的那一段，都是安静的。</p>
   <p>录音里的氛围和奖励不再播放。<code>birds_forest.wav</code>、<code>birds_reward.wav</code> 和整段 <code>bird_melody.wav</code> 还在 <code>Resources/BirdExperience/</code>，但六个场景都不会放它们。唱对了，反馈就是下一音，或者一只鸟飞过来。</p>
   <p>调试用的 <strong>T</strong> 仍可切到 Assistive：听到的是变调后的自己的声音，不是鸟的合成。体验开始时是 Transform，也就是上面的合成。</p>

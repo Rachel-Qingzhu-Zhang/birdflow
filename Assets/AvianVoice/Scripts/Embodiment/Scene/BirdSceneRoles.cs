@@ -51,10 +51,15 @@ namespace AvianVoice.Embodiment
         /// </summary>
         static bool friendRequested;
 
+        static bool friendSpotSet;
+        static Vector3 friendSpotPosition;
+        static Quaternion friendSpotRotation = Quaternion.identity;
+
         public static void ResetSession()
         {
             birdsConfigured = false;
             friendRequested = false;
+            friendSpotSet = false;
             Friend = null;
             Player = null;
         }
@@ -245,23 +250,56 @@ namespace AvianVoice.Embodiment
             Friend.GetComponent<WorldPlacedBird>()?.CommitWorldPose();
         }
 
+        /// <summary>
+        /// The teacher's spot for this session: where it was put the first time it was shown (the practice scene,
+        /// which Play starts in). False until then.
+        /// </summary>
+        public static bool TryGetFriendSpot(out Vector3 position, out Quaternion rotation)
+        {
+            position = friendSpotPosition;
+            rotation = friendSpotRotation;
+            return friendSpotSet;
+        }
+
+        /// <summary>
+        /// One spot per session. The first showing (the practice scene) puts the teacher 0.72 m to the right of the
+        /// player's bird, unless the scene already has it beside the bird; every later showing (the singing scene,
+        /// in every condition) puts it back on that same spot. Until 2026-11-14 each showing placed it again beside
+        /// the player's bird of that moment, which follows the participant's head with the bird avatar and stays
+        /// where it was left with the human avatar, so the teacher could turn up somewhere else than in practice.
+        /// </summary>
         static void PlaceFriendBesidePlayer()
         {
             if (Friend == null || Player == null)
                 return;
 
+            if (friendSpotSet)
+            {
+                Friend.SetPositionAndRotation(friendSpotPosition, friendSpotRotation);
+                Friend.GetComponent<WorldPlacedBird>()?.SaveWorldPose();
+                return;
+            }
+
             var flat = Friend.position - Player.position;
             flat.y = 0f;
-            if (flat.sqrMagnitude > 0.2f && flat.sqrMagnitude < 1.4f)
-                return;
+            var besidePlayer = flat.sqrMagnitude > 0.2f && flat.sqrMagnitude < 1.4f;
+            if (!besidePlayer)
+            {
+                var right = Player.right;
+                right.y = 0f;
+                if (right.sqrMagnitude < 0.01f)
+                    right = Vector3.right;
+                right.Normalize();
+                Friend.SetPositionAndRotation(Player.position + right * 0.72f, Player.rotation);
+                Friend.GetComponent<WorldPlacedBird>()?.SaveWorldPose();
+            }
 
-            var right = Player.right;
-            right.y = 0f;
-            if (right.sqrMagnitude < 0.01f)
-                right = Vector3.right;
-            right.Normalize();
-            Friend.SetPositionAndRotation(Player.position + right * 0.72f, Player.rotation);
-            Friend.GetComponent<WorldPlacedBird>()?.SaveWorldPose();
+            friendSpotPosition = Friend.position;
+            friendSpotRotation = Friend.rotation;
+            friendSpotSet = true;
+            Debug.Log("[AvianVoice] Teacher bird spot for this session: " + friendSpotPosition.ToString("F3") + " yaw "
+                      + friendSpotRotation.eulerAngles.y.ToString("F0") + " (" + (besidePlayer ? "kept from the scene" : "0.72 m right of the player's bird")
+                      + "; player's bird at " + Player.position.ToString("F3") + "). Later scenes use the same spot.");
         }
 
         public static void EnsurePlayerBirdVisible()

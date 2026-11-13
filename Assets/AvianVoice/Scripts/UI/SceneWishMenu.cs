@@ -13,6 +13,9 @@ namespace AvianVoice.UI
     /// <summary>
     /// Head-locked wish card for choosing a scene. Copy is invitational, not numbered.
     /// Independent of the debug HUD (showHudPanels). Toggle with M, XR menu, or the chip.
+    /// Not shown since 2026-11-12 (Show Menu off): the participant sees only the guide card, and the experimenter
+    /// changes scenes from the Experimenter Panel or the keys 1-4 / 0 / N. The component stays, because it creates
+    /// the guide card (SceneGuide) and tells it the viewer's camera; the card itself is fixed above the mirror.
     /// </summary>
     [DefaultExecutionOrder(200)]
     public class SceneWishMenu : MonoBehaviour
@@ -28,6 +31,11 @@ namespace AvianVoice.UI
         static readonly Color RowIdle = new(1f, 1f, 1f, 0.03f);
         static readonly Color RowHover = new(0.96f, 0.90f, 0.78f, 0.10f);
         static readonly Color RowActive = new(0.80f, 0.66f, 0.42f, 0.14f);
+
+        [Tooltip("Show the scene menu (the card, or its chip when closed) in the participant's view and let M / the XR menu button " +
+                 "open it. Off: neither is ever shown.")]
+        [SerializeField]
+        bool showMenu;
 
         [SerializeField]
         bool startOpen = true;
@@ -104,9 +112,9 @@ namespace AvianVoice.UI
         void KeepReachable()
         {
             if (chipRoot != null)
-                chipRoot.SetActive(!open);
+                chipRoot.SetActive(showMenu && !open);
             if (panelRoot != null)
-                panelRoot.SetActive(open);
+                panelRoot.SetActive(showMenu && open);
         }
 
         static Transform ResolveFollowTarget(Transform head)
@@ -147,7 +155,7 @@ namespace AvianVoice.UI
             }
 
             FollowViewerCamera();
-            if (AvianInput.WasWishMenuPressedThisFrame() || WasXrMenuPressed())
+            if (showMenu && (AvianInput.WasWishMenuPressedThisFrame() || WasXrMenuPressed()))
                 SetOpen(!open);
         }
 
@@ -171,11 +179,11 @@ namespace AvianVoice.UI
 
         public void SetOpen(bool value)
         {
-            open = value;
+            open = showMenu && value;
             if (panelRoot != null)
                 panelRoot.SetActive(open);
             if (chipRoot != null)
-                chipRoot.SetActive(!open);
+                chipRoot.SetActive(showMenu && !open);
             if (open)
                 RefreshActive();
         }

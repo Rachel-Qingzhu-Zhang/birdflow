@@ -284,6 +284,10 @@ namespace AvianVoice.Editor
             {
                 nextOutputCheck = EditorApplication.timeSinceStartup + 2.0;
                 PcAudioMonitor.RefreshDefaultOutput();
+                outputDevices = AudioOutputRouting.Devices();
+                outputOverrideKnown = AudioOutputRouting.TryGetOverride(out outputOverrideId);
+                outputReadError = outputOverrideKnown ? "" : AudioOutputRouting.LastError;
+                monitorDeviceNames = PcAudioMonitor.OutputDeviceFullNames();
             }
 
             var name = string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputName) ? "(unknown" + (string.IsNullOrEmpty(PcAudioMonitor.DefaultOutputError) ? "" : ": " + PcAudioMonitor.DefaultOutputError) + ")" : PcAudioMonitor.DefaultOutputName;
@@ -318,6 +322,8 @@ namespace AvianVoice.Editor
                 }
             }
 
+            DrawOutputDeviceChooser();
+
             if (EditorUtility.audioMasterMute)
             {
                 EditorGUILayout.HelpBox("\"Mute Audio\" is enabled in the Unity Game view.", MessageType.Warning);
@@ -328,28 +334,184 @@ namespace AvianVoice.Editor
             var monitor = PcAudioMonitor.Instance;
             if (monitor == null)
             {
-                var storedMode = PlayerPrefs.GetString(PcAudioMonitor.ModePrefKey, PcAudioMonitor.MonitorMode.Auto.ToString());
-                EditorGUILayout.LabelField("PC monitor output", "active in Play mode (mode: " + storedMode + ")");
+                var storedMode = PlayerPrefs.GetString(PcAudioMonitor.ModePrefKey, PcAudioMonitor.DefaultMode.ToString());
+                var storedDevice = PlayerPrefs.GetString(PcAudioMonitor.DevicePrefKey, "");
+                EditorGUILayout.LabelField("Sound output", "set in Play mode (mode: " + storedMode + ", PC device: " + (storedDevice.Length > 0 ? storedDevice : "automatic") + ")");
                 return;
             }
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                var newMode = (PcAudioMonitor.MonitorMode)EditorGUILayout.EnumPopup("PC monitor output", monitor.Mode);
-                if (newMode != monitor.Mode)
-                    monitor.Mode = newMode;
+                var modeIndex = System.Array.IndexOf(OutputModes, monitor.Mode);
+                var newIndex = EditorGUILayout.Popup("Sound output", Mathf.Max(0, modeIndex), OutputModeLabels);
+                if (newIndex != modeIndex)
+                    monitor.Mode = OutputModes[newIndex];
                 if (GUILayout.Button("Recheck", GUILayout.Width(60f)))
                     monitor.Refresh();
             }
 
             EditorGUILayout.LabelField(" ", monitor.Status + (monitor.DroppedChunks > 0 ? "  (dropped " + monitor.DroppedChunks + ")" : ""), EditorStyles.miniLabel);
-            if (monitor.IsMirroring)
-                EditorGUILayout.HelpBox("The PC copy plays later than the headset (more with Bluetooth headphones, ~0.2-0.3 s). "
-                                        + "If the person wearing the headset can also hear the PC output, every sound reaches them twice. "
-                                        + "Testing alone: set PC monitor output to Off.", MessageType.None);
-            var newDevice = EditorGUILayout.TextField("  Device (part of the name)", monitor.DeviceNameContains);
-            if (newDevice != monitor.DeviceNameContains)
-                monitor.DeviceNameContains = newDevice;
+            if (monitor.IsMirroring && !monitor.SilencingUnityOutput)
+                EditorGUILayout.HelpBox("The PC copy plays later than Unity's own output (more with Bluetooth headphones, ~0.2-0.3 s). "
+                                        + "Whoever hears both hears every sound twice. \"PC device only\" silences Unity's own output.", MessageType.None);
+            else if (monitor.SilencingUnityOutput)
+                EditorGUILayout.LabelField(" ", "The sound comes only from the PC device below. The headset and Unity's own output device stay silent.",
+                    EditorStyles.wordWrappedMiniLabel);
+
+            // How late the PC device plays after Unity mixes the sound.
+            var direct = monitor.LowLatencyOutput;
+            if (direct != null)
+            {
+                EditorGUILayout.LabelField("Output delay (PC)",
+                    "reserve " + direct.BufferedMs.ToString("0") + " ms (target " + direct.TargetMs.ToString("0") + ") + device " + direct.StreamLatencyMs.ToString("0")
+                    + " ms   gaps " + direct.Underruns + "   drops " + direct.Drops,
+                    direct.Underruns > 0 ? EditorStyles.boldLabel : EditorStyles.label);
+                if (direct.Underruns > 0)
+                    EditorGUILayout.LabelField(" ", "Gaps: the reserve ran out while Unity's audio stopped for a moment. If they keep coming, raise Reserve Ms on the "
+                                                    + "PcAudioMonitor component (AudioListener object).", EditorStyles.wordWrappedMiniLabel);
+            }
+            else if (monitor.IsMirroring)
+            {
+                EditorGUILayout.LabelField("Output delay (PC)", "about 0.1 s (waveOut)" + (monitor.LowLatencyError.Length > 0 ? ": low latency failed, " + monitor.LowLatencyError : ""));
+            }
+            // The mirror's device: a list instead of typing part of the name (the stored value is still matched
+            // as part of the name, so an earlier typed value keeps working and is shown as its own entry).
+            var filter = monitor.DeviceNameContains ?? "";
+            var monitorNames = new List<string> { "Auto (first device that is not a headset)" };
+            var monitorIndex = 0;
+            foreach (var deviceName in monitorDeviceNames)
+            {
+                monitorNames.Add(PopupLabel(deviceName));
+                if (monitorIndex == 0 && filter.Length > 0 && deviceName.IndexOf(filter, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    monitorIndex = monitorNames.Count - 1;
+            }
+
+            if (filter.Length > 0 && monitorIndex == 0)
+            {
+                monitorNames.Add(PopupLabel("\"" + filter + "\" (not connected)"));
+                monitorIndex = monitorNames.Count - 1;
+            }
+
+            var monitorChosen = EditorGUILayout.Popup("Output device (PC)", monitorIndex, monitorNames.ToArray());
+            if (monitorChosen != monitorIndex && monitorChosen <= monitorDeviceNames.Length)
+                monitor.DeviceNameContains = monitorChosen == 0 ? "" : monitorDeviceNames[monitorChosen - 1];
+        }
+
+        static readonly PcAudioMonitor.MonitorMode[] OutputModes =
+        {
+            PcAudioMonitor.MonitorMode.PcOnly, PcAudioMonitor.MonitorMode.Always, PcAudioMonitor.MonitorMode.Auto, PcAudioMonitor.MonitorMode.Off
+        };
+
+        static readonly string[] OutputModeLabels =
+        {
+            "PC device only (Unity's own output silent)",
+            "PC device + Unity's own output",
+            "Unity's own output, + PC device while that is the headset",
+            "Unity's own output only"
+        };
+
+        KeyValuePair<string, string>[] outputDevices = new KeyValuePair<string, string>[0];
+        string[] monitorDeviceNames = new string[0];
+        string outputOverrideId = "";
+        bool outputOverrideKnown;
+        string outputReadError = "";
+        double outputChosenAt = -100.0;
+
+        /// <summary>Popup entries treat "/" as a submenu separator; show it as a look-alike character instead.</summary>
+        static string PopupLabel(string name) => (name ?? "").Replace("/", "∕");
+
+        /// <summary>
+        /// Where this application's sound goes: the per-application output of Windows (AudioOutputRouting), next to
+        /// the device the sound is actually on. The counterpart of the microphone's "Input device".
+        /// </summary>
+        void DrawOutputDeviceChooser()
+        {
+            // With "PC device only" Unity's own output is silent, so its device matters only when a Windows
+            // setting was made here before: then it stays visible so that it can be set back.
+            var monitorNow = PcAudioMonitor.Instance;
+            var pcOnly = monitorNow != null
+                ? monitorNow.Mode == PcAudioMonitor.MonitorMode.PcOnly
+                : PlayerPrefs.GetString(PcAudioMonitor.ModePrefKey, PcAudioMonitor.DefaultMode.ToString()) == PcAudioMonitor.MonitorMode.PcOnly.ToString();
+            var hasOverride = outputOverrideKnown && !string.IsNullOrEmpty(outputOverrideId);
+            if (pcOnly && !hasOverride)
+                return;
+
+            var names = new string[outputDevices.Length + 1];
+            names[0] = "Windows default (automatic)";
+            var index = 0;
+            for (var i = 0; i < outputDevices.Length; i++)
+            {
+                names[i + 1] = PopupLabel(outputDevices[i].Value);
+                if (outputOverrideKnown && outputDevices[i].Key == outputOverrideId)
+                    index = i + 1;
+            }
+
+            var chosenName = index > 0 ? outputDevices[index - 1].Value : "";
+            if (outputOverrideKnown && !string.IsNullOrEmpty(outputOverrideId) && index == 0)
+                names[0] += "   [the chosen device is not connected]";
+
+            using (new EditorGUI.DisabledScope(!outputOverrideKnown))
+            {
+                var chosen = EditorGUILayout.Popup("Unity's own output device", index, names);
+                if (chosen != index)
+                {
+                    var id = chosen == 0 ? "" : outputDevices[chosen - 1].Key;
+                    var label = chosen == 0 ? "Windows default" : outputDevices[chosen - 1].Value;
+                    if (AudioOutputRouting.TrySetOverride(id))
+                    {
+                        outputOverrideId = id;
+                        outputChosenAt = EditorApplication.timeSinceStartup;
+                        nextOutputCheck = EditorApplication.timeSinceStartup + 1.0;
+                        Debug.Log("[AvianVoice] Output device set to '" + label + "' (Windows per-application output of the Unity Editor).");
+                        StudyRecorder.Instance?.LogEvent("audio_output_device", j => j.Add("device", label).Add("windows_default", chosen == 0));
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[AvianVoice] Could not set the output device to '" + label + "': " + AudioOutputRouting.LastError);
+                    }
+                }
+            }
+
+            if (!outputOverrideKnown)
+            {
+                EditorGUILayout.LabelField(" ", "Cannot choose the output here: " + outputReadError + ". Use Windows Settings > Sound > Volume mixer instead.",
+                    EditorStyles.wordWrappedMiniLabel);
+                return;
+            }
+
+            if (pcOnly)
+            {
+                EditorGUILayout.LabelField(" ",
+                    "Unity's own output is silent now (\"PC device only\"), but Windows still sends the Unity Editor to the device above " +
+                    "(set here earlier; it also applies to other projects). Choose \"Windows default\" to remove that Windows setting.",
+                    EditorStyles.wordWrappedMiniLabel);
+                return;
+            }
+
+            EditorGUILayout.LabelField(" ",
+                "Sets the output Windows uses for the Unity Editor (same as Settings > Sound > Volume mixer). It stays after closing and " +
+                "applies to every project on this editor version until it is set back to Windows default.",
+                EditorStyles.wordWrappedMiniLabel);
+
+            // Did the sound actually move? Unity's audio session shows the device in use (known in Play mode).
+            var actual = PcAudioMonitor.UnityOutputName;
+            var settled = EditorApplication.timeSinceStartup - outputChosenAt > 3.0;
+            if (chosenName.Length == 0 || string.IsNullOrEmpty(actual) || actual == chosenName || !settled)
+                return;
+
+            EditorGUILayout.HelpBox("The sound is still on \"" + actual + "\", not on the chosen \"" + chosenName + "\". " +
+                                    "Unity moves when it reopens its audio output. If it stays there while the headset is connected, the headset " +
+                                    "runtime decides the device: Meta Quest Link app > Settings > \"Audio output in VR\".", MessageType.Warning);
+            using (new EditorGUI.DisabledScope(!EditorApplication.isPlaying))
+            {
+                if (GUILayout.Button("Restart Unity's audio output (short silence; the microphone restarts)"))
+                {
+                    AudioSettings.Reset(AudioSettings.GetConfiguration());
+                    AvianSceneBootstrapHelper.EnsureHearing();
+                    outputChosenAt = EditorApplication.timeSinceStartup;
+                    StudyRecorder.Instance?.LogEvent("audio_output_restart", j => j.Add("device", chosenName));
+                }
+            }
         }
 
         /// <summary>The input device actually capturing (name, rate, live level) and a chooser (remembered across sessions).</summary>
@@ -367,6 +529,16 @@ namespace AvianVoice.Editor
             else
                 inUse = "NOT capturing" + (string.IsNullOrEmpty(mic.DeviceName) ? "" : " (" + mic.DeviceName + ")") + " — restarting…";
             EditorGUILayout.LabelField("Microphone in use", inUse, mic != null && !mic.IsCapturing ? EditorStyles.boldLabel : EditorStyles.label);
+
+            // Human-voice condition: the microphone itself is played to the headphones (MicPassthrough).
+            var passthrough = playing ? FindAnyObjectByType<MicPassthrough>() : null;
+            if (passthrough != null && passthrough.IsRunning)
+            {
+                EditorGUILayout.LabelField("Own voice to headphones",
+                    (passthrough.IsOpen ? "● audible" : "ready (silent)") + "   " + passthrough.SmoothedLagMs.ToString("0") + " ms behind the mic (target "
+                    + passthrough.TargetLagMs.ToString("0") + " ms)   resyncs " + passthrough.Resyncs,
+                    passthrough.Resyncs > 0 ? EditorStyles.boldLabel : EditorStyles.label);
+            }
 
             var preferred = MicrophoneCapture.PreferredDevice;
             var names = new string[devices.Length + 1];
@@ -689,7 +861,8 @@ namespace AvianVoice.Editor
                     using (new EditorGUI.DisabledScope(!trials.HasStarted))
                     {
                         if (GUILayout.Button("Restart from trial 1 (reset)")
-                            && EditorUtility.DisplayDialog("Reset trials", "Start again from trial 1. Data already recorded stays in the files.", "Reset", "Cancel"))
+                            && EditorUtility.DisplayDialog("Reset trials", "Start again from trial 1.\n\nNothing already recorded is deleted. The new trials are saved as the next run of this condition "
+                                                           + "(column \"run\" in trials.csv, \"_runN\" in the WAV names); analysis keeps the highest run.", "Reset", "Cancel"))
                             trials.ResetProtocol("experimenter_panel");
                     }
                 }
@@ -723,7 +896,7 @@ namespace AvianVoice.Editor
                 EditorGUILayout.LabelField("Sample rows", recorder.SampleRowsWritten.ToString(c) + "  (samples.csv: pitch, loudness, breath)");
                 EditorGUILayout.LabelField("Condition folder", string.IsNullOrEmpty(recorder.ConditionFolder)
                     ? "none yet"
-                    : recorder.ConditionFolder + "  (trials " + recorder.ConditionTrialRows.ToString(c) + ", samples " + recorder.ConditionSampleRows.ToString(c)
+                    : recorder.ConditionFolder + "  run " + recorder.ConditionRun.ToString(c) + "  (trials " + recorder.ConditionTrialRows.ToString(c) + ", samples " + recorder.ConditionSampleRows.ToString(c)
                       + (string.IsNullOrEmpty(recorder.CurrentHumanAvatar) ? "" : ", human avatar: " + recorder.CurrentHumanAvatar) + ")");
                 EditorGUILayout.LabelField("Folder", recorder.SessionDirectory, EditorStyles.wordWrappedMiniLabel);
                 if (GUILayout.Button("Open this session's folder"))
@@ -779,7 +952,7 @@ namespace AvianVoice.Editor
             }
 
             EditorGUILayout.LabelField(
-                "Converted voice = the participant's own voice heard as the avatar's voice (bird chirps / sung human vowel). " +
+                "Bird voice = the participant's own voice heard as a bird voice. Human voice = their own microphone heard as it is. " +
                 "Own voice only = nothing from the app. The teacher bird sings the guide note in every condition. " +
                 "Keyboard: V = bird ⇄ human (keeps the voice setting). \"missing\" = model not found in Resources.",
                 EditorStyles.wordWrappedMiniLabel);

@@ -96,9 +96,9 @@ namespace AvianVoice.Audio
         public static float MapHumanToBirdHz(float humanHz, AvianVoiceSettings s)
         {
             var ratio = s != null ? Mathf.Max(1f, s.synthPitchRatio) : 8f;
-            var min = s != null ? Mathf.Max(200f, s.synthBirdMinHz) : 1600f;
+            var min = s != null ? Mathf.Max(200f, s.synthBirdMinHz) : 640f;
             var max = s != null ? Mathf.Max(min + 1f, s.synthBirdMaxHz) : 5500f;
-            var hMin = s != null ? Mathf.Max(20f, s.synthHumanMinHz) : 90f;
+            var hMin = s != null ? Mathf.Max(20f, s.synthHumanMinHz) : 80f;
             var hMax = s != null ? Mathf.Max(hMin + 1f, s.synthHumanMaxHz) : 900f;
             var h = Mathf.Clamp(humanHz, hMin, hMax);
             return Mathf.Clamp(h * ratio, min, max);
@@ -118,7 +118,7 @@ namespace AvianVoice.Audio
         {
             if (humanPitchHz > 0f)
                 targetHz = MapHumanToBirdHz(humanPitchHz, settings);
-            SetLevelAndTrill(loudness);
+            SetLevelAndTrill(loudness, OwnVoiceVolume);
             followGate = true;
             EnsurePlaying();
         }
@@ -129,13 +129,18 @@ namespace AvianVoice.Audio
             followGate = false;
         }
 
-        public void PlayChirp(float humanPitchHz, float loudness, float holdSeconds = -1f)
+        /// <summary>
+        /// One chirp of fixed length. <paramref name="ownVoice"/>: the chirp is the participant's own voice (chirp
+        /// feedback mode) and is scaled by AvianVoiceSettings.synthOwnVoiceVolume like <see cref="Follow"/>; guide
+        /// notes play at the full level.
+        /// </summary>
+        public void PlayChirp(float humanPitchHz, float loudness, float holdSeconds = -1f, bool ownVoice = false)
         {
             if (humanPitchHz <= 0f)
                 return;
 
             targetHz = MapHumanToBirdHz(humanPitchHz, settings);
-            var loud = SetLevelAndTrill(loudness);
+            var loud = SetLevelAndTrill(loudness, ownVoice ? OwnVoiceVolume : 1f);
             var hold = holdSeconds > 0f
                 ? holdSeconds
                 : (settings != null ? Mathf.Max(0.05f, settings.synthChirpSeconds) : 0.14f);
@@ -151,10 +156,13 @@ namespace AvianVoice.Audio
             Interlocked.Exchange(ref chirpFramesLeft, 0);
         }
 
-        float SetLevelAndTrill(float loudness)
+        /// <summary>Level of the participant's own bird voice relative to the guide note (read live from the settings).</summary>
+        float OwnVoiceVolume => settings != null ? Mathf.Clamp01(settings.synthOwnVoiceVolume) : 1f;
+
+        float SetLevelAndTrill(float loudness, float levelScale)
         {
             var loud = Mathf.Clamp01(loudness);
-            targetLevel = Mathf.Lerp(0.5f, 1f, loud);
+            targetLevel = Mathf.Lerp(0.5f, 1f, loud) * levelScale;
             var minRate = settings != null ? settings.synthTrillRateMin : 18f;
             var maxRate = settings != null ? settings.synthTrillRateMax : 28f;
             trillRate = Mathf.Lerp(minRate, maxRate, loud);

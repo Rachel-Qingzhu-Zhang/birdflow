@@ -27,6 +27,12 @@ namespace AvianVoice.Study
         public long FramesSeen => Interlocked.Read(ref framesSeen);
         public int QueuedChunks => chunks.Count;
 
+        void Awake()
+        {
+            // Stay in front of the filter that silences Unity's own output, or output.wav would be silent.
+            ListenerOutputSilencer.KeepLast(gameObject, false);
+        }
+
         void OnAudioFilterRead(float[] data, int channelCount)
         {
             channels = channelCount;

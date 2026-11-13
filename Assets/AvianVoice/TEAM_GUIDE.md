@@ -214,7 +214,7 @@ Played in singing and in calling friends, from `bird_melody.wav`. It is a record
 
 ### How pitch is kept
 
-Human frequency times **8** (three octaves up), then held inside about 1600–5500 Hz. A hum at 220 Hz becomes about 1760 Hz; 440 Hz becomes about 3520 Hz. The interval between notes stays, so the melody shape is still there. The multiplier is `synthPitchRatio`.
+Human frequency times **8** (three octaves up), then held inside about 640–5500 Hz. A hum at 220 Hz becomes about 1760 Hz; 440 Hz becomes about 3520 Hz. The interval between notes stays, so the melody shape is still there. The multiplier is `synthPitchRatio`.
 
 ### Why the chirps are separate
 
@@ -459,7 +459,7 @@ Birdflow は、森の中でオウムになる没入体験です。カメラは�
 
 ### 音高の揃え方
 
-人の周波数を **8 倍**し（三オクターブ上）、およそ 1600〜5500 Hz に収めます。220 Hz は約 1760 Hz、440 Hz は約 3520 Hz。音程は残るので、メロディの形が分かります。倍率は `synthPitchRatio` です。
+人の周波数を **8 倍**し（三オクターブ上）、およそ 640〜5500 Hz に収めます。220 Hz は約 1760 Hz、440 Hz は約 3520 Hz。音程は残るので、メロディの形が分かります。倍率は `synthPitchRatio` です。
 
 ### 一声ずつになる理由
 
@@ -705,7 +705,7 @@ Birdflow 是一段在森林里变成鹦鹉的体验。镜头是鸟的眼睛。�
 
 ### 音高怎么保留
 
-人声频率乘 **8**（升高三个八度），再限制在大约 1600–5500 Hz。220 Hz 大约变成 1760 Hz，440 Hz 大约变成 3520 Hz。音与音之间的高低关系还在，所以旋律的形状还在。这个倍数是 `synthPitchRatio`。
+人声频率乘 **8**（升高三个八度），再限制在大约 640–5500 Hz。220 Hz 大约变成 1760 Hz，440 Hz 大约变成 3520 Hz。音与音之间的高低关系还在，所以旋律的形状还在。这个倍数是 `synthPitchRatio`。
 
 ### 为什么是一声一声的
 

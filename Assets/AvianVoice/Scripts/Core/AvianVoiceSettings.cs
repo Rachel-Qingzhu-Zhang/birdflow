@@ -26,6 +26,16 @@ namespace AvianVoice.Core
         [Tooltip("Raw mic RMS required before a frame counts as voiced. Above room noise and fan hum.")]
         public float voicedThreshold = 0.012f;
         public float loudnessGain = 8f;
+        [Tooltip("Voice feedback gate (the participant's own bird voice / synthesized human voice): it opens when the frame counts " +
+                 "as voiced (Voiced Threshold) and closes only when the loudness envelope falls below Voiced Threshold x this ratio. " +
+                 "1 = closes at the same level it opens (behaviour until 2026-11-13: a soft voice hovering at the threshold made " +
+                 "the bird voice cut out and restart inside one sung note). The voiced flag in the recordings is not affected.")]
+        [Range(0.1f, 1f)]
+        public float feedbackGateCloseRatio = 0.5f;
+        [Tooltip("The voice feedback gate also stays open this long after the envelope last was above the closing level, so a " +
+                 "dip of one or two analysis frames does not break the sound. Adds the same time to how soon the feedback stops.")]
+        [Range(0f, 0.3f)]
+        public float feedbackGateHoldSeconds = 0.03f;
 
         [Header("Pitch Tracking (YIN)")]
         [Tooltip("YIN absolute threshold. Lower = stricter periodicity, fewer octave errors.")]
@@ -86,9 +96,13 @@ namespace AvianVoice.Core
         public float synthChirpSeconds = 0.08f;
         [Tooltip("Unused for timing. Chirps follow voice onsets; this is only a fallback.")]
         public float synthChirpGapSeconds = 0.05f;
-        public float synthHumanMinHz = 90f;
+        [Tooltip("Human pitch range that the bird voice follows. The minimum matches the analyzer's minPitchHz, so the lowest " +
+                 "detected voice still moves the bird pitch.")]
+        public float synthHumanMinHz = 80f;
         public float synthHumanMaxHz = 900f;
-        public float synthBirdMinHz = 1600f;
+        [Tooltip("Bird pitch range. Keep the minimum at or below synthHumanMinHz * synthPitchRatio (80 * 8 = 640): a higher floor " +
+                 "(1600 until 2026-11-12) pins every voice under floor / ratio (200 Hz) to one bird pitch.")]
+        public float synthBirdMinHz = 640f;
         public float synthBirdMaxHz = 5500f;
         [Tooltip("Trill (frequency wobble) rate range in Hz. Louder voice = faster trill.")]
         public float synthTrillRateMin = 18f;
@@ -106,10 +120,31 @@ namespace AvianVoice.Core
         [Tooltip("Breathy band-limited noise level.")]
         [Range(0f, 1f)]
         public float synthNoise = 0.06f;
+        [Tooltip("Volume of the bird synth: the teacher's guide note and the participant's own bird voice.")]
         [Range(0f, 1f)]
         public float synthVolume = 0.65f;
+        [Tooltip("Volume of the participant's own bird voice relative to the teacher's guide note (1 = the same level as the " +
+                 "guide note at the loudest voice, the behaviour until 2026-11-13; 0.5 = 6 dB below it). The guide note is not " +
+                 "affected. Below 1 because the own voice sounded much louder than the teacher at the same level: in session " +
+                 "20261113_165018 it was sung an octave above the target, 4-5.5 kHz against 2-3 kHz for the teacher.")]
+        [Range(0f, 1f)]
+        public float synthOwnVoiceVolume = 0.5f;
         [Tooltip("Pitch glide time constant between voice frames (seconds).")]
         public float synthPitchSmoothSeconds = 0.04f;
+
+        [Header("Human Voice Feedback (human avatar)")]
+        [Tooltip("On (default since 2026-11-12): in the human-voice condition the participant hears their own microphone as it is " +
+                 "(MicPassthrough, no analysis and no synthesis). Off: the previous behaviour, a synthesized vowel that follows " +
+                 "pitch and loudness (HumanVoiceSynth). The teacher's human guide note is always the synthesized vowel.")]
+        public bool humanVoiceFromMicrophone = true;
+        [Tooltip("How far behind the microphone's write position the passthrough plays, in ms. This is the part of the " +
+                 "mouth-to-ear delay the app controls (the capture and output devices add their own). Lower = less delay; too " +
+                 "low and the play head passes the microphone (logged as a resync, heard as a glitch).")]
+        [Range(10f, 200f)]
+        public float micPassthroughLatencyMs = 30f;
+        [Tooltip("Gain of the microphone in the headphones (1 = as captured).")]
+        [Range(0f, 4f)]
+        public float micPassthroughGain = 1f;
 
         [Header("Body")]
         public float paramSmooth = 10f;
@@ -156,12 +191,18 @@ namespace AvianVoice.Core
         public float bellyInhaleScale = 0.28f;
         [Tooltip("1 = linear. >1 keeps the chest calm until late in the inhale.")]
         public float breathCurvePower = 1f;
+        [Tooltip("How much of the bird's breathing motion is shown (chest / belly growth and the wing opening and flutter " +
+                 "that follow the breath). 1 = full (chest +40 %, as until 2026-11-13, which looked exaggerated next to the " +
+                 "human avatar); 0.65 = gentler. Singing poses are not affected.")]
+        [Range(0f, 1f)]
+        public float breathMotionScale = 0.65f;
         [Tooltip("Breath cycles to watch in Meet before it completes.")]
         public int meetCycles = 3;
         [Tooltip("Breath cycles of Pattern A in Breath Sync before switching to Pattern B.")]
         public int patternACycles = 3;
-        [Tooltip("Slow breath cycles before Breath Sync moves to the next scene.")]
-        public int patternBCycles = 4;
+        [Tooltip("Slow breath cycles before Breath Sync moves to the next scene. The breathing scene lasts this many " +
+                 "cycles x (Pattern B inhale + exhale seconds): 5 x (6 + 6) = 60 s. It was 4 (48 s) until 2026-11-13.")]
+        public int patternBCycles = 5;
 
         [Header("Experiment")]
         public bool mirrorEnabled = true;
