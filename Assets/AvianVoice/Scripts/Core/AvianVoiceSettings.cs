@@ -132,8 +132,8 @@ namespace AvianVoice.Core
         [Tooltip("Pitch glide time constant between voice frames (seconds).")]
         public float synthPitchSmoothSeconds = 0.04f;
 
-        [Header("Human Voice Feedback (human avatar)")]
-        [Tooltip("On (default since 2026-11-12): in the human-voice condition the participant hears their own microphone as it is " +
+        [Header("Own Voice Feedback (conditions BH and HH)")]
+        [Tooltip("On (default since 2026-11-12): in the own-voice conditions (either avatar) the participant hears their own microphone as it is " +
                  "(MicPassthrough, no analysis and no synthesis). Off: the previous behaviour, a synthesized vowel that follows " +
                  "pitch and loudness (HumanVoiceSynth). The teacher's human guide note is always the synthesized vowel.")]
         public bool humanVoiceFromMicrophone = true;

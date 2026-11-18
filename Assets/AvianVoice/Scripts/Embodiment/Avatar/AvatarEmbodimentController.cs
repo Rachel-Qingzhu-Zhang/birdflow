@@ -786,6 +786,11 @@ namespace AvianVoice.Embodiment.Avatars
             foreach (var skinned in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 skinned.quality = SkinQuality.Bone4;
 
+            // The mouth that opens with the participant's voice. Prepared here, before the driver adds the
+            // first-person head hider: the hider splits the meshes when the body is first shown and has to find
+            // the inside of the mouth already separated, so it is hidden from the headset with the rest of the head.
+            root.AddComponent<HumanMouthEmbodiment>().Prepare();
+
             var driver = root.AddComponent<HumanFirstPersonDriver>();
             driver.Configure(this, Backend, hideHumanHeadInFirstPerson, option.eyeOffsetFromHeadBone);
             driver.enabled = false;

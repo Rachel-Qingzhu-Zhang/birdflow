@@ -85,20 +85,22 @@ namespace AvianVoice.Editor
             };
         }
 
-        [MenuItem("Avian Voice/Embodiment/Condition/Bird + bird voice (Play Mode)")]
-        public static void ConditionBirdVoice() => SetCondition(AvatarKind.Bird, true);
+        // The four conditions (avatar letter first): each voice with each avatar. "Own voice" is the participant's
+        // microphone played to the headphones as it is. Until 2026-11-14 two of the four played nothing.
+        [MenuItem("Avian Voice/Embodiment/Condition/BB - Bird avatar + bird voice (Play Mode)")]
+        public static void ConditionBirdBird() => SetCondition(AvatarKind.Bird, AvianVoice.Core.VoiceFeedback.Bird);
 
-        [MenuItem("Avian Voice/Embodiment/Condition/Bird + own voice only (Play Mode)")]
-        public static void ConditionBirdOwn() => SetCondition(AvatarKind.Bird, false);
+        [MenuItem("Avian Voice/Embodiment/Condition/BH - Bird avatar + own voice in headphones (Play Mode)")]
+        public static void ConditionBirdHuman() => SetCondition(AvatarKind.Bird, AvianVoice.Core.VoiceFeedback.Human);
 
-        [MenuItem("Avian Voice/Embodiment/Condition/Human + human voice (Play Mode)")]
-        public static void ConditionHumanVoice() => SetCondition(AvatarKind.Human, true);
+        [MenuItem("Avian Voice/Embodiment/Condition/HB - Human avatar + bird voice (Play Mode)")]
+        public static void ConditionHumanBird() => SetCondition(AvatarKind.Human, AvianVoice.Core.VoiceFeedback.Bird);
 
-        [MenuItem("Avian Voice/Embodiment/Condition/Human + own voice only (Play Mode)")]
-        public static void ConditionHumanOwn() => SetCondition(AvatarKind.Human, false);
+        [MenuItem("Avian Voice/Embodiment/Condition/HH - Human avatar + own voice in headphones (Play Mode)")]
+        public static void ConditionHumanHuman() => SetCondition(AvatarKind.Human, AvianVoice.Core.VoiceFeedback.Human);
 
-        /// <summary>Same as the Condition buttons of the experimenter panel (avatar x voice feedback).</summary>
-        static void SetCondition(AvatarKind kind, bool convertedVoice)
+        /// <summary>Same as the Condition buttons of the experimenter panel (avatar x voice heard).</summary>
+        static void SetCondition(AvatarKind kind, AvianVoice.Core.VoiceFeedback heardVoice)
         {
             var flow = UnityEngine.Object.FindAnyObjectByType<AvianVoice.Study.StudyFlowController>();
             if (flow == null)
@@ -107,7 +109,7 @@ namespace AvianVoice.Editor
                 return;
             }
 
-            flow.SetCondition(kind, convertedVoice);
+            flow.SetCondition(kind, heardVoice);
             Debug.Log("[AvianVoice] Condition set from the menu: " + flow.ConditionLabel);
         }
 

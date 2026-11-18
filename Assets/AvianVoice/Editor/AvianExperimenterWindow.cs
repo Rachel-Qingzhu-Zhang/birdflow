@@ -259,7 +259,13 @@ namespace AvianVoice.Editor
             EditorGUILayout.LabelField("Avatar", controller.Current == AvatarKind.Bird ? "Bird" : "Human (" + controller.HumanAvatarId + ")");
             var flowForStatus = FindAnyObjectByType<StudyFlowController>();
             if (flowForStatus != null)
-                EditorGUILayout.LabelField("Condition", flowForStatus.ConditionLabel + "   (the participant's voice is heard as: " + flowForStatus.EffectiveFeedbackName + ")");
+                EditorGUILayout.LabelField("Condition", (flowForStatus.ConditionCode.Length > 0 ? flowForStatus.ConditionCode + "   " : "") + flowForStatus.ConditionLabel
+                    + "   (the participant hears: " + flowForStatus.EffectiveFeedback switch
+                    {
+                        VoiceFeedback.Bird => "their voice as a bird voice",
+                        VoiceFeedback.Human => "their own voice from the microphone",
+                        _ => "nothing from the app"
+                    } + ")");
             EditorGUILayout.LabelField("Body tracking", tracking);
             EditorGUILayout.LabelField("Participant controllers", ParticipantInputPolicy.ControllersEnabled ? "enabled" : "disabled (hands, head and voice only)");
             DrawMicrophoneStatus(playing);
@@ -916,12 +922,12 @@ namespace AvianVoice.Editor
 
         void DrawConditionSection(bool playing, AvatarEmbodimentController controller, StudyFlowController flow)
         {
-            EditorGUILayout.LabelField("Condition (avatar × voice feedback)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Condition (avatar × voice heard in the headphones)", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(!playing || controller == null))
             {
                 var humanAvailable = controller != null && controller.HasHumanAvatar(controller.HumanAvatarId);
-                DrawConditionRow(controller, flow, AvatarKind.Bird, "Bird + bird voice", "Bird + own voice only", true);
-                DrawConditionRow(controller, flow, AvatarKind.Human, "Human + human voice", "Human + own voice only", humanAvailable);
+                DrawConditionRow(controller, flow, AvatarKind.Bird, "BB  Bird avatar + bird voice", "BH  Bird avatar + own voice", true);
+                DrawConditionRow(controller, flow, AvatarKind.Human, "HB  Human avatar + bird voice", "HH  Human avatar + own voice", humanAvailable);
 
                 // Selectable bodies only (plus the one in use, e.g. a kept-but-hidden body set as the start avatar).
                 var options = new List<AvatarEmbodimentController.HumanAvatarOption>();
@@ -952,29 +958,29 @@ namespace AvianVoice.Editor
             }
 
             EditorGUILayout.LabelField(
-                "Bird voice = the participant's own voice heard as a bird voice. Human voice = their own microphone heard as it is. " +
-                "Own voice only = nothing from the app. The teacher bird sings the guide note in every condition. " +
-                "Keyboard: V = bird ⇄ human (keeps the voice setting). \"missing\" = model not found in Resources.",
+                "Bird voice = the participant's own voice heard as a bird voice. Own voice = their own microphone heard in the headphones " +
+                "as it is. Either voice goes with either avatar; every condition plays a voice. The teacher bird sings the guide note in " +
+                "every condition. Keyboard: V = bird ⇄ human avatar (the voice stays). \"missing\" = model not found in Resources.",
                 EditorStyles.wordWrappedMiniLabel);
         }
 
         void DrawConditionRow(AvatarEmbodimentController controller, StudyFlowController flow, AvatarKind kind,
-            string labelConverted, string labelOwn, bool available)
+            string labelBirdVoice, string labelOwnVoice, bool available)
         {
             using (new EditorGUILayout.HorizontalScope())
             {
                 for (var i = 0; i < 2; i++)
                 {
-                    var converted = i == 0;
+                    var voice = i == 0 ? VoiceFeedback.Bird : VoiceFeedback.Human;
                     var active = controller != null && controller.Current == kind
-                                 && (flow == null ? converted : flow.VoiceFeedbackOn == converted);
-                    var label = (active ? "● " : "") + (converted ? labelConverted : labelOwn) + (available ? "" : "  (model missing)");
+                                 && (flow == null ? i == 0 : flow.Voice == voice);
+                    var label = (active ? "● " : "") + (i == 0 ? labelBirdVoice : labelOwnVoice) + (available ? "" : "  (model missing)");
                     using (new EditorGUI.DisabledScope(active || !available))
                     {
                         if (GUILayout.Button(label, GUILayout.Height(30f)))
                         {
                             if (flow != null)
-                                flow.SetCondition(kind, converted);
+                                flow.SetCondition(kind, voice);
                             else if (controller != null)
                                 controller.SetAvatar(kind);
                         }

@@ -220,8 +220,10 @@ namespace AvianVoice.Study
     /// <item><c>output.wav</c>: what the participant heard (mono downmix of the listener), same session span.</item>
     /// <item><c>conditions.csv</c>: one row per stretch of one condition (avatar x voice feedback) in time order, with
     /// the range it covers in mic.wav / output.wav.</item>
-    /// <item><c>conditions/&lt;condition&gt;/</c>: the same data sorted by condition (bird_bird-voice, bird_own-voice,
-    /// human_human-voice, human_own-voice): events.jsonl, trials.csv and samples.csv hold the rows written while that
+    /// <item><c>conditions/&lt;condition&gt;/</c>: the same data sorted by condition (bird_bird-voice = BB,
+    /// bird_human-voice = BH, human_bird-voice = HB, human_human-voice = HH; "human voice" is the participant's own
+    /// voice from the microphone; recordings before 2026-11-14 have bird_own-voice / human_own-voice, the two
+    /// conditions without sound, instead of BH / HB): events.jsonl, trials.csv and samples.csv hold the rows written while that
     /// condition was on (copies of the session-level rows), <c>segments/trial_NNN_*.wav</c> the microphone cut per
     /// trial, from trial start to trial end.</item>
     /// </list>
@@ -279,12 +281,17 @@ namespace AvianVoice.Study
         /// </summary>
         public string CurrentAvatarModel { get; set; } = "";
 
-        /// <summary>"bird" / "human" / "none": what the participant hears of their own voice (set by StudyFlowController).</summary>
+        /// <summary>
+        /// "bird" / "human" / "none": what the participant hears of their own voice in the headphones (set by
+        /// StudyFlowController). "human" = their own microphone as it is; "none" = nothing (not a study condition
+        /// since 2026-11-14).
+        /// </summary>
         public string CurrentVoiceFeedback { get; set; } = "";
 
         /// <summary>
-        /// The study condition that follows from avatar x voice feedback, also the name of its folder under
-        /// conditions/: "bird_bird-voice", "bird_own-voice", "human_human-voice", "human_own-voice" ("" until both are known).
+        /// The study condition that follows from avatar x voice, also the name of its folder under conditions/:
+        /// "bird_bird-voice" (BB), "bird_human-voice" (BH), "human_bird-voice" (HB), "human_human-voice" (HH)
+        /// ("" until both are known).
         /// </summary>
         public string CurrentCondition => ConditionId(CurrentAvatar, CurrentVoiceFeedback);
 
@@ -1052,7 +1059,7 @@ namespace AvianVoice.Study
                 .Add("output_sample_rate", config.sampleRate)
                 .Add("dsp_buffer_size", config.dspBufferSize)
                 .Add("files", "events.jsonl, trials.csv, samples.csv (voice pitch / loudness and breath depth, one row per sample), mic.wav (participant microphone, mono 16-bit), output.wav (listener mix, mono 16-bit): the whole session in time order. conditions.csv: one row per stretch of one condition with its range in mic.wav / output.wav. conditions/<condition>/: events.jsonl, trials.csv, samples.csv (the rows of that condition, copies of the session-level rows) and segments/trial_*.wav (microphone per trial)")
-                .Add("conditions", "avatar x voice feedback: bird_bird-voice, bird_own-voice, human_human-voice, human_own-voice. The human body (neutral / male / female) is not a folder: see human_avatar and avatar_model on every row. run: 1 for the first pass through the singing trials of a condition, 2, 3 ... when they were started over; keep the highest run of each condition")
+                .Add("conditions", "avatar x voice heard in the headphones: bird_bird-voice (BB), bird_human-voice (BH), human_bird-voice (HB), human_human-voice (HH); human voice = the participant's own voice from the microphone. The human body (neutral / male / female) is not a folder: see human_avatar and avatar_model on every row. run: 1 for the first pass through the singing trials of a condition, 2, 3 ... when they were started over; keep the highest run of each condition")
                 .Add("time_bases", "t_utc/t_local: wall clock ISO-8601; t_unity: Time.realtimeSinceStartup (s); t_dsp: AudioSettings.dspTime (s); mic_sample: sample index into mic.wav; out_frame: frame index into output.wav");
             File.WriteAllText(Path.Combine(SessionDirectory, "session.json"), j.ToString(), new UTF8Encoding(false));
         }

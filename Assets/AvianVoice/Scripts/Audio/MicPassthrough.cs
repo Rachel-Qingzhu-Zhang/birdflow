@@ -5,7 +5,8 @@ namespace AvianVoice.Audio
 {
     /// <summary>
     /// The participant's own microphone, heard as it is: no analysis, no synthesis. The feedback voice of the
-    /// human-avatar condition since 2026-11-12 (before: <see cref="HumanVoiceSynth"/>).
+    /// own-voice conditions (BH with the bird avatar, HH with the human avatar; VoiceFeedback.Human) since
+    /// 2026-11-12 (before: <see cref="HumanVoiceSynth"/>).
     /// An AudioSource plays the live microphone ring clip (<see cref="MicrophoneCapture.Clip"/>) a fixed distance
     /// behind the microphone's write position (AvianVoiceSettings.micPassthroughLatencyMs). The microphone and
     /// the output run on different clocks, so the distance is measured every frame and held by trimming the

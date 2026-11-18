@@ -1,3 +1,7 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using AvianVoice.Audio;
 using AvianVoice.Core;
 using AvianVoice.Embodiment.Avatars;
@@ -11,8 +15,10 @@ namespace AvianVoice.Study
     /// Study configuration for Avian_Lab_Embodiment: a four-scene flow (meet, breath, singing, rest),
     /// the trial-based singing task (3 pitches x 10) in place of the melody task, session recording
     /// (timestamps + microphone + listener output) through <see cref="StudyRecorder"/>, and the study
-    /// condition: avatar (bird / human) x voice feedback (the participant's own voice heard as the avatar's
-    /// voice, or only their natural voice) = 4 conditions.
+    /// condition: avatar (bird / human) x voice the participant hears of themselves in the headphones (bird
+    /// voice / their own voice from the microphone) = 4 conditions, each voice with each avatar: BB, BH, HB, HH
+    /// (avatar letter first). Until 2026-11-14 the voice followed the avatar and the second factor was
+    /// "converted / nothing from the app"; the two conditions without sound were a design mistake.
     /// Lives on the "Avian Embodiment" object next to <see cref="AvatarEmbodimentController"/>.
     /// </summary>
     [DefaultExecutionOrder(30995)]
@@ -61,16 +67,17 @@ namespace AvianVoice.Study
         bool pcAudioMonitor = true;
 
         [Header("Condition")]
-        [Tooltip("On: the participant hears their own voice through the headphones (as a bird voice with the bird avatar, their own " +
-                 "microphone as it is with the human avatar). " +
-                 "Off: only their natural voice. The avatar is the other factor (AvatarEmbodimentController / Experimenter Panel).")]
+        [Tooltip("The voice the participant hears of themselves in the headphones at the start: Bird = their voice as a bird voice, " +
+                 "Human = their own microphone as it is. It does not depend on the avatar (the other factor: AvatarEmbodimentController / " +
+                 "Experimenter Panel), so the four conditions are BB, BH, HB, HH. None = nothing from the app (not one of the four conditions).")]
         [SerializeField]
-        bool voiceFeedback = true;
+        VoiceFeedback voice = VoiceFeedback.Bird;
 
         AvatarEmbodimentController avatar;
         string lastAvatarLabel = "";
         BirdVoiceMapper mapper;
         VoiceFeedback lastFeedback = (VoiceFeedback)(-1);
+        string lastConditionLabel = "";
         float nextMapperSearch;
 
         public TaskManager TaskManager { get; private set; }
@@ -83,20 +90,29 @@ namespace AvianVoice.Study
         public string[] Flow => flow;
         public AvatarEmbodimentController Avatar => avatar;
 
-        /// <summary>Whether the participant hears their own voice converted (the second factor of the condition).</summary>
-        public bool VoiceFeedbackOn => voiceFeedback;
+        /// <summary>
+        /// The voice the participant hears of themselves (the second factor of the condition): bird voice, or their
+        /// own microphone as it is (Human). The same with either avatar.
+        /// </summary>
+        public VoiceFeedback Voice => voice;
 
-        /// <summary>The feedback voice that follows from avatar x voice feedback.</summary>
-        public VoiceFeedback EffectiveFeedback =>
-            !voiceFeedback ? VoiceFeedback.None
-            : avatar != null && avatar.Current == AvatarKind.Human ? VoiceFeedback.Human
-            : VoiceFeedback.Bird;
+        /// <summary>The feedback voice in effect (the voice factor; it no longer depends on the avatar).</summary>
+        public VoiceFeedback EffectiveFeedback => voice;
 
-        /// <summary>"bird" / "human" / "none" for logs.</summary>
+        /// <summary>"bird" / "human" / "none" for logs ("human" = the participant's own voice from the microphone).</summary>
         public string EffectiveFeedbackName => FeedbackName(EffectiveFeedback);
 
-        /// <summary>Condition label for logs and the panel, e.g. "Bird+bird", "Bird+own", "Human:neutral+human", "Human:neutral+own".</summary>
-        public string ConditionLabel => (avatar != null ? avatar.CurrentLabel : "?") + "+" + (voiceFeedback ? EffectiveFeedbackName : "own");
+        /// <summary>Condition label for logs and the panel, e.g. "Bird+bird", "Bird+human", "Human:neutral+bird", "Human:neutral+human".</summary>
+        public string ConditionLabel => (avatar != null ? avatar.CurrentLabel : "?") + "+" + (voice == VoiceFeedback.None ? "own" : EffectiveFeedbackName);
+
+        /// <summary>
+        /// Two-letter code of the condition, avatar first: "BB" bird avatar + bird voice, "BH" bird avatar + own voice
+        /// in the headphones, "HB" human avatar + bird voice, "HH" human avatar + own voice in the headphones.
+        /// "" when the avatar is unknown or nothing is played (None).
+        /// </summary>
+        public string ConditionCode => avatar == null || voice == VoiceFeedback.None
+            ? ""
+            : (avatar.Current == AvatarKind.Human ? "H" : "B") + (voice == VoiceFeedback.Human ? "H" : "B");
 
         public static string FeedbackName(VoiceFeedback feedback)
         {
@@ -108,18 +124,19 @@ namespace AvianVoice.Study
             };
         }
 
-        /// <summary>Set one of the four conditions: avatar (bird / human) and whether the own voice is converted.</summary>
-        public void SetCondition(AvatarKind kind, bool convertedVoice)
+        /// <summary>Set one of the four conditions: avatar (bird / human) and the voice heard (Bird, or Human = own microphone).</summary>
+        public void SetCondition(AvatarKind kind, VoiceFeedback heardVoice)
         {
-            voiceFeedback = convertedVoice;
+            voice = heardVoice;
             if (avatar != null && avatar.Current != kind)
                 avatar.SetAvatar(kind); // raises AvatarChanged -> ApplyVoiceFeedback
             ApplyVoiceFeedback();
         }
 
-        public void SetVoiceFeedback(bool convertedVoice)
+        /// <summary>Change the voice factor only (the avatar stays).</summary>
+        public void SetVoice(VoiceFeedback heardVoice)
         {
-            voiceFeedback = convertedVoice;
+            voice = heardVoice;
             ApplyVoiceFeedback();
         }
 
@@ -141,20 +158,29 @@ namespace AvianVoice.Study
                 }
             }
 
+            // The voice no longer changes with the avatar (BB -> HB keeps the bird voice), so the condition is
+            // announced on its own; the voice_feedback event stays for changes of the voice.
+            var label = ConditionLabel;
+            if (label != lastConditionLabel)
+            {
+                lastConditionLabel = label;
+                Debug.Log("[AvianVoice] Condition: " + (ConditionCode.Length > 0 ? ConditionCode + " " : "") + label);
+            }
+
             if (lastFeedback == effective)
                 return;
 
             lastFeedback = effective;
             Recorder?.LogEvent("voice_feedback", j => j
                 .Add("feedback", FeedbackName(effective))
-                .Add("converted", voiceFeedback)
+                .Add("converted", effective != VoiceFeedback.None)
                 .Add("condition_label", ConditionLabel)
+                .Add("condition_code", ConditionCode)
                 .Add("bird_feedback", mapper != null ? mapper.BirdFeedbackModeName : "")
                 .Add("bird_own_voice_volume", mapper != null ? mapper.BirdOwnVoiceVolume : -1f)
                 .Add("feedback_gate_close_ratio", mapper != null ? mapper.FeedbackGateCloseRatio : -1f)
                 .Add("feedback_gate_hold_s", mapper != null ? mapper.FeedbackGateHoldSeconds : -1f)
                 .Add("human_feedback", mapper != null ? mapper.HumanFeedbackModeName : ""));
-            Debug.Log("[AvianVoice] Condition: " + ConditionLabel);
         }
 
         public static string ResolveParticipantId(string fallback)
@@ -280,6 +306,7 @@ namespace AvianVoice.Study
                 Recorder.CurrentAvatar = lastAvatarLabel;
                 Recorder.CurrentAvatarModel = avatar.CurrentModel;
                 LogHumanAvatarCatalog();
+                LogHumanMouth();
             }
 
             lastFeedback = (VoiceFeedback)(-1); // log the condition into this session
@@ -295,7 +322,8 @@ namespace AvianVoice.Study
                     .Add("practice", Practice != null)
                     .Add("singing_trials", useSingingTrials)
                     .Add("total_trials", Trials != null ? Trials.TotalTrials : 0)
-                    .Add("condition_label", ConditionLabel));
+                    .Add("condition_label", ConditionLabel)
+                    .Add("condition_code", ConditionCode));
             }
 
             Debug.Log("[AvianVoice] Study flow: " + (TaskManager != null ? string.Join(" > ", TaskManager.TaskIds) : "-")
@@ -314,8 +342,53 @@ namespace AvianVoice.Study
             return null;
         }
 
+        /// <summary>
+        /// StudyData/live.json: what Unity is doing right now (participant ID, scene, practice, recording or not),
+        /// rewritten every second while Play runs. The Study Monitor shows it, so a Play that is still in the
+        /// practice (not recorded, no session folder yet) is not mistaken for the previous participant's session.
+        /// </summary>
+        public const string LiveStatusFileName = "live.json";
+
+        float nextLiveWrite;
+        bool liveWriteFailed;
+
+        void WriteLiveStatus(bool playing)
+        {
+            try
+            {
+                var root = StudyRecorder.RootDirectory;
+                Directory.CreateDirectory(root);
+                var recording = Recorder != null && Recorder.SessionOpen;
+                var j = new JsonLine()
+                    .Add("playing", playing)
+                    .Add("participant", ParticipantId ?? "")
+                    .Add("task", TaskManager != null ? TaskManager.CurrentTaskId ?? "" : "")
+                    .Add("in_practice", InPractice)
+                    .Add("recording", recording)
+                    .Add("recording_pending", RecordingPending)
+                    .Add("session", recording ? Recorder.SessionId : "")
+                    .Add("condition_code", ConditionCode)
+                    .Add("t_utc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
+                File.WriteAllText(Path.Combine(root, LiveStatusFileName), j.ToString(), new UTF8Encoding(false));
+            }
+            catch (Exception e)
+            {
+                if (!liveWriteFailed)
+                    Debug.LogWarning("[AvianVoice] Could not write " + LiveStatusFileName + " for the Study Monitor: " + e.Message);
+                liveWriteFailed = true;
+            }
+        }
+
+        void OnApplicationQuit() => WriteLiveStatus(false);
+
         void Update()
         {
+            if (Time.unscaledTime >= nextLiveWrite)
+            {
+                nextLiveWrite = Time.unscaledTime + 1f;
+                WriteLiveStatus(true);
+            }
+
             // The voice mapper may be created after Start; keep its feedback in line with the condition.
             if (mapper == null && Time.unscaledTime >= nextMapperSearch)
             {
@@ -341,8 +414,33 @@ namespace AvianVoice.Study
                 var option = avatar.CurrentHumanOption;
                 Recorder.LogEvent("avatar_changed", j => j.Add("kind", avatar.Current.ToString()).Add("human_id", avatar.HumanAvatarId)
                     .Add("human_label", option != null ? option.label : "").Add("human_model", option != null ? option.resourcePath : "")
-                    .Add("condition_label", ConditionLabel));
+                    .Add("condition_label", ConditionLabel)
+                    .Add("condition_code", ConditionCode));
+                LogHumanMouth();
             }
+        }
+
+        /// <summary>
+        /// How the human body's mouth follows the voice (HumanMouthEmbodiment): logged with the session and whenever
+        /// the body changes, because the jaw angle for the same lip opening differs per body.
+        /// </summary>
+        void LogHumanMouth()
+        {
+            var root = avatar != null ? avatar.HumanRoot : null;
+            var mouth = root != null ? root.GetComponent<HumanMouthEmbodiment>() : null;
+            if (Recorder == null || mouth == null)
+                return;
+
+            Recorder.LogEvent("human_mouth", j => j.Add("human_id", avatar.HumanAvatarId)
+                .Add("follows_voice", mouth.JawBone != null)
+                .Add("jaw_bone", mouth.JawBone != null ? mouth.JawBone.name : "")
+                .Add("lip_opening_m", mouth.LipOpeningMeters)
+                .Add("full_jaw_deg", mouth.FullJawDegrees)
+                .Add("soft_voice_share", mouth.SoftVoiceShare)
+                .Add("open_s", mouth.OpenSeconds)
+                .Add("close_s", mouth.CloseSeconds)
+                .Add("close_hold_s", mouth.CloseHoldSeconds)
+                .Add("interior_triangles_darkened", mouth.InteriorTriangleCount));
         }
 
         /// <summary>Which human bodies this session could use (id, panel label, model, offered in the panel).</summary>

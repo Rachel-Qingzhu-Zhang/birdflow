@@ -7,9 +7,11 @@ namespace AvianVoice.Core
     }
 
     /// <summary>
-    /// What the participant hears of their own voice through the headphones: a bird voice (bird avatar), their
-    /// own microphone as it is (human avatar; a synthesized vowel until 2026-11-12, see
-    /// AvianVoiceSettings.humanVoiceFromMicrophone), or nothing (only their natural voice).
+    /// What the participant hears of their own voice through the headphones: a bird voice (Bird), their own
+    /// microphone as it is (Human; a synthesized vowel until 2026-11-12, see
+    /// AvianVoiceSettings.humanVoiceFromMicrophone), or nothing (None). Since 2026-11-14 the voice does not depend
+    /// on the avatar: the study crosses Bird / Human with the bird / human avatar (BB, BH, HB, HH); None is not a
+    /// study condition any more.
     /// </summary>
     public enum VoiceFeedback
     {

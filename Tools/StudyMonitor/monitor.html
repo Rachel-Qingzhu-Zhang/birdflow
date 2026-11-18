@@ -119,6 +119,10 @@
   .cond .runhead { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--grid); }
   .wavs.old { margin-top: 4px; } .wavs.old .wav { opacity: 0.5; }
   @keyframes fresh { from { box-shadow: 0 0 0 3px var(--good); } to { box-shadow: 0 0 0 0 transparent; } }
+  .livebar { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; border: 2px solid var(--warning); background: var(--surface); font-size: 14px; }
+  .livebar[hidden] { display: none; }
+  .livebar .big { font-size: 18px; font-weight: 700; }
+  .livebar .d { color: var(--ink2); font-size: 12px; flex-basis: 100%; }
 </style>
 </head>
 <body>
@@ -134,6 +138,7 @@
   <button id="live" aria-pressed="true" title="Follow the newest data">Live</button>
 </div>
 <main>
+  <section id="liveBanner" class="livebar" hidden></section>
   <div class="boardhead"><h2>Trial WAVs by condition</h2>
     <small>one tile per WAV saved on disk, added as it is written · tile = the sound in that file (height: level, −60 to 0 dB) · click a tile to see it in the charts and, after the recording, hear it</small></div>
   <section id="board" class="board"></section>
@@ -183,12 +188,19 @@ const SEGMENT_TOLERANCE_S = 1.0;
 const DEFAULT_PARTICIPANT = 'P000';     // StudyFlowController's fallback when no ID was entered in the experimenter panel
 const QUIET_RMS_DB = -78;               // RMS over 5 s; the noise floor of a live microphone is above this, a muted / virtual device below
 const QUIET_PEAK_DB = -50;              // a trial WAV whose loudest sample stays below this holds no usable sound
-// The four study conditions (avatar x voice feedback) = the folders under conditions/ (StudyRecorder.ConditionId).
+// The four study conditions (avatar x voice heard in the headphones, avatar letter first) = the folders under
+// conditions/ (StudyRecorder.ConditionId). "human voice" = the participant's own voice from the microphone.
+// Recordings before 2026-11-14 have two conditions without sound instead of BH / HB: they get a card when a
+// session contains them (LEGACY_CONDITION_NAMES).
+const LEGACY_CONDITION_NAMES = {
+  'bird_own-voice': 'Bird avatar + no voice from the app (before 2026-11-14)',
+  'human_own-voice': 'Human avatar + no voice from the app (before 2026-11-14)',
+};
 const CONDITIONS = [
-  { id: 'bird_bird-voice', name: 'Bird + bird voice' },
-  { id: 'bird_own-voice', name: 'Bird + own voice only' },
-  { id: 'human_human-voice', name: 'Human + human voice' },
-  { id: 'human_own-voice', name: 'Human + own voice only' },
+  { id: 'bird_bird-voice', name: 'BB · Bird avatar + bird voice' },
+  { id: 'bird_human-voice', name: 'BH · Bird avatar + own voice in headphones' },
+  { id: 'human_bird-voice', name: 'HB · Human avatar + bird voice' },
+  { id: 'human_human-voice', name: 'HH · Human avatar + own voice in headphones' },
 ];
 const MARKERS = new Set(['condition_start', 'trial_run_start', 'session_start', 'session_end', 'task_changed', 'avatar_changed', 'voice_feedback', 'mic_restart', 'protocol_start', 'protocol_complete', 'protocol_reset', 'trial_repeat', 'auto_advance']);
 
@@ -386,13 +398,13 @@ function fmtWritten(ms) {
   if (s < 90) return 'written ' + s.toFixed(0) + ' s ago';
   return 'written ' + (d.toDateString() === new Date(S.serverMs).toDateString() ? '' : d.toLocaleDateString() + ' ') + fmtClock(ms);
 }
-/** Same rule as StudyRecorder.ConditionId: "Human:male" + "human" -> "human_human-voice"; "none" = own voice only. */
+/** Same rule as StudyRecorder.ConditionId: "Human:male" + "bird" -> "human_bird-voice"; "none" (nothing played, old recordings) -> "own". */
 function conditionId(avatar, fb) {
   if (!avatar || !fb) return '';
   return (String(avatar).split(':')[0] + '_' + (fb === 'none' ? 'own' : fb) + '-voice').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
 }
 const humanOf = avatar => /^human:/i.test(avatar || '') ? String(avatar).slice(String(avatar).indexOf(':') + 1) : '';
-const conditionName = id => (CONDITIONS.find(c => c.id === id) || { name: id || 'unknown condition' }).name;
+const conditionName = id => (CONDITIONS.find(c => c.id === id) || { name: LEGACY_CONDITION_NAMES[id] || id || 'unknown condition' }).name;
 function lowerBound(rows, t, key) { let lo = 0, hi = rows.length; while (lo < hi) { const m = (lo + hi) >> 1; if (key(rows[m]) < t) lo = m + 1; else hi = m; } return lo; }
 function median(a) { if (!a.length) return 0; const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; }
 
@@ -450,7 +462,7 @@ function rebuild() {
       else if (e.type === 'trial_run_start') label = 'started over: run ' + e.run;
       else if (e.type === 'condition_start') label = '▸ ' + conditionName(e.condition) + (e.human_avatar ? ' (' + e.human_avatar + ')' : '');
       else if (e.type === 'avatar_changed') label = 'avatar ' + (e.kind || '');
-      else if (e.type === 'voice_feedback') label = 'hears ' + (e.feedback || '') + (e.feedback === 'human' && e.human_feedback ? ' (' + e.human_feedback + ')' : '');
+      else if (e.type === 'voice_feedback') label = (e.condition_code ? e.condition_code + ' · ' : '') + 'hears ' + (e.feedback || '') + (e.feedback === 'human' && e.human_feedback ? ' (' + e.human_feedback + ')' : '');
       else if (e.type === 'session_start') label = 'start'; else if (e.type === 'session_end') label = 'end';
       S.markers.push({ t, label, type: e.type });
     }
@@ -476,7 +488,7 @@ async function poll() {
     const res = await fetch(`/api/state?v=2&page=${PAGE_ID}&session=${encodeURIComponent(S.sel)}&cur=${encodeURIComponent(S.sid || '')}&ev=${S.evNext}&trk=${t.next}&trkf=${encodeURIComponent(t.file)}${sampleQuery()}`);
     const st = await res.json();
     if (st.error) throw new Error(st.error);
-    S.connected = true; S.error = ''; S.serverMs = st.server_time_ms; S.root = st.root;
+    S.connected = true; S.error = ''; S.serverMs = st.server_time_ms; S.root = st.root; S.unity = st.live || null;
     // monitor.html was updated on disk: show the new page (not in the middle of listening to something).
     if (st.page_version) {
       if (!S.pageVersion) S.pageVersion = st.page_version;
@@ -725,6 +737,32 @@ function meter(lv, color) {
 let lastHtml = {};
 function setHtml(id, html) { if (lastHtml[id] !== html) { lastHtml[id] = html; $(id).innerHTML = html; } }
 
+// StudyFlowController task ids -> the names in the experimenter panel.
+const TASK_NAMES = { practice: 'Practice', meet: 'Meet the bird', breath_sync: 'Breathing', singing: 'Singing', flying: 'Flying', call_friends: 'Call friends', reflection: 'Rest' };
+
+/**
+ * What Unity is doing now (StudyData/live.json). The data below always comes from a session folder; while Play is
+ * still in the practice there is no folder for this participant yet, so without this line the page would keep
+ * showing the previous participant's session as if it were the current one.
+ */
+function renderUnityBanner() {
+  const el = $('liveBanner'), u = S.connected ? S.unity : null;
+  if (!u || (u.recording && u.session === S.sid)) { el.hidden = true; el.innerHTML = ''; return; }
+  const pid = esc(u.participant || '—'), task = esc(TASK_NAMES[u.task] || u.task || '—');
+  const shown = S.sid ? 'The data below is an earlier session: ' + esc(S.sid) + '.' : 'No session folder exists yet.';
+  let html;
+  if (u.recording)
+    html = `<span class="big">Unity is recording ${pid}</span><span>scene: ${task}${u.condition_code ? ' · ' + esc(u.condition_code) : ''}</span>` +
+      `<span class="d">This window shows another session (${esc(S.sid || '—')}). Choose “Latest (auto-follow)” to see ${esc(u.session)}.</span>`;
+  else if (u.recording_pending)
+    html = `<span class="big">${pid} · ${task}: not recorded yet</span>` +
+      `<span class="d">Unity is in Play. The practice is not recorded: the ${pid} session folder (mic.wav, trials.csv, …) is created when the flow moves on to the first study scene (Meet the bird). ${shown}</span>`;
+  else
+    html = `<span class="big">${pid} · ${task}: recording is off</span>` +
+      `<span class="d">Unity is in Play, but session recording is switched off on StudyFlowController (Record Session). ${shown}</span>`;
+  el.innerHTML = html; el.hidden = false;
+}
+
 function renderDom() {
   const issues = [];   // {level, text}
   const add = (level, text) => { if (level === 'warning' || level === 'critical') issues.push({ level, text }); };
@@ -745,6 +783,7 @@ function renderDom() {
   if (live) $('playLabel').textContent = 'off while recording (it could leak into the microphone)';
   else if ($('playLabel').textContent.startsWith('off while')) $('playLabel').textContent = '';
 
+  renderUnityBanner();
   if (!S.connected) {
     setBadge('critical', 'Monitor server not reachable'); $('bar').className = 'bar critical'; setHtml('board', '');
     setHtml('tiles', tile('Monitor', 'Offline', 'critical', 'study_monitor.py is not answering', esc(S.error)));
@@ -829,7 +868,7 @@ function renderDom() {
   {
     const last = S.events[S.events.length - 1] || {}, id = conditionId(last.avatar, last.voice_feedback), human = humanOf(last.avatar);
     tiles.push(tile('Condition', id ? conditionName(id) : '—', 'neutral', 'task: ' + (last.task || '—'),
-      (human ? 'human avatar: ' + esc(human) + ' · ' : '') + 'hears ' + esc(last.voice_feedback === 'none' ? 'own voice only' : (last.voice_feedback || '—') + ' voice') + (id ? ' · folder conditions/' + esc(id) : '')));
+      (human ? 'human avatar: ' + esc(human) + ' · ' : '') + 'hears ' + esc(last.voice_feedback === 'none' ? 'nothing from the app' : last.voice_feedback === 'human' ? 'own voice (microphone)' : (last.voice_feedback || '—') + ' voice') + (id ? ' · folder conditions/' + esc(id) : '')));
   }
 
   // Tracking

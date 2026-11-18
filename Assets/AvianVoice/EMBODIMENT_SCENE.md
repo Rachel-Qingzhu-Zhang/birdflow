@@ -7,7 +7,7 @@
 3. **アバター切替モード**: 鳥（`PlayerParrot`）⇄ 人間。人間は **中性 / 男性 / 女性 の 3 体から選択**（2026-11-12〜。
    中性 = MakeHuman の性別 0.5・胸が平らな体、男性 / 女性 = Microsoft Rocketbox）。それまでのロボット型マネキン
    （Unity Starter Assets の Armature）はプロジェクトに残してあり、設定 1 つで選択肢に戻せます（下記）。
-   **実験条件は アバター（鳥 / 人間）× 声のフィードバック（自分の声がアバターの声に変換されて聞こえる / 自分の声しか聞こえない）の 4 条件**。
+   **実験条件は アバター（鳥 / 人間）× ヘッドホンで聞く自分の声（鳥の声 / 自分の声そのもの）の 4 条件（BB / BH / HB / HH）**。
 4. **4 場面の実験フロー**: 鳥に会う → 呼吸 → 歌う → 休む（元の 6 場面のうち「飛ぶ」「仲間を呼ぶ」は使わない）。
    流れの外に **練習場面**（2026-11-07 追加）があり、Play はそこから始まります。記録は場面 1 に進んだ時点から（下記）。
 5. **歌う場面は試行形式**: 実験者がボタンを押す → 教師の鳥が 1 音歌う → 被験者が歌い返す → 実験者が次を押す。
@@ -38,7 +38,7 @@ XR リグの手メッシュ・関節・**コントローラーのモデル・つ
 - 場面 1〜4 のボタン / 前の場面・次の場面、その上に流れの外の **Practice** ボタン（キー 0）
 - Practice 欄: 練習場面で教師の音程を自由に選んで鳴らす（下記「練習場面」）
 - 歌う場面の試行: 「Start trial n」ボタン（被験者の Space / R と同じ）、進捗バー、やり直し（Repeat the last trial）、リセット
-- 条件: 鳥 + 鳥の声 / 鳥 + 自分の声のみ / 人間 + 人間の声 / 人間 + 自分の声のみ（4 つのボタン）
+- 条件: BB 鳥 + 鳥の声 / BH 鳥 + 自分の声 / HB 人間 + 鳥の声 / HH 人間 + 自分の声（4 つのボタン）
 - 被験者コントローラの有効/無効、手の表示、視界下の状態カードの表示
 - 現在の場面・アバター・体トラッキング状態の表示、**音声出力メーター**、記録の状態、詳細ログ出力
 
@@ -57,23 +57,36 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 `segments/` には入りません）。実装は `SingingTrialTask` の 2 つ目のインスタンス（`IsPractice`）と `TaskManager.SetFlow`
 の side task で、`Include Practice` をオフにすると練習場面なし（従来どおり Play 直後から記録）に戻ります。
 
-### 4 条件（アバター × 声のフィードバック）
+### 4 条件（アバター × ヘッドホンで聞く自分の声）
 
-パネルの **Condition** に 4 つのボタンがあります（`StudyFlowController.SetCondition`）。
+パネルの **Condition** に 4 つのボタンがあります（`StudyFlowController.SetCondition`）。**2026-11-14 から、声はアバターに
+依存しません**: 鳥の声 / 自分の声（マイクの素通し）のどちらも、鳥 / 人間のどちらのアバターとも組み合わせます。
+略号は「アバター・声」の順です。
 
-| ボタン | アバター | 被験者が聞く自分の声 | 記録（`voice_feedback` / `condition` = 条件フォルダ名） |
+| 略号 / ボタン | アバター | 被験者がヘッドホンで聞く自分の声 | 記録（`voice_feedback` / `condition` = 条件フォルダ名） |
 |--------|----------|----------------------|------------------------------------------|
-| Bird + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、声が出ている間ずっと音程に追従して鳴る） | `bird` / `bird_bird-voice` |
-| Bird + own voice only | 鳥 | なし（アプリは何も出さない。地声だけ） | `none` / `bird_own-voice` |
-| Human + human voice | 人間（中性 / 男性 / 女性、パネルの Human body で選ぶ） | 自分の声そのもの（`MicPassthrough`、マイク入力を変換せずにヘッドホンへ出す。2026-11-12 より前は `HumanVoiceSynth` の合成母音「あ」） | `human` / `human_human-voice` |
-| Human + own voice only | 人間（同上） | なし | `none` / `human_own-voice` |
+| **BB** Bird avatar + bird voice | 鳥 | 鳥の声（`BirdSongSynth`、声が出ている間ずっと音程に追従して鳴る） | `bird` / `bird_bird-voice` |
+| **BH** Bird avatar + own voice | 鳥 | 自分の声そのもの（`MicPassthrough`、マイク入力を変換せずにヘッドホンへ出す） | `human` / `bird_human-voice` |
+| **HB** Human avatar + bird voice | 人間（中性 / 男性 / 女性、パネルの Human body で選ぶ） | 鳥の声（BB と同じ） | `bird` / `human_bird-voice` |
+| **HH** Human avatar + own voice | 人間（同上） | 自分の声そのもの（BH と同じ。2026-11-12 より前は `HumanVoiceSynth` の合成母音「あ」） | `human` / `human_human-voice` |
+
+- 記録の `voice_feedback` の `human` は「自分の声（マイクの素通し）」の意味です。`voice_feedback` / `avatar_changed` /
+  `study_flow` イベントには略号の `condition_code`（`BB` / `BH` / `HB` / `HH`）も入ります。
+- **2026-11-14 より前の設計**では、声はアバターに従い（鳥なら鳥の声、人間なら自分の声）、もう一つの要因は「アプリが声を出す /
+  何も出さない」でした。何も出さない 2 条件（`Bird + own voice only` = `bird_own-voice`、`Human + own voice only` =
+  `human_own-voice`、`voice_feedback` = `none`）は設計ミスで、BH と HB に置き換えました。BB と HH は以前と同じです。
+  古い記録の `*_own-voice` は Study Monitor で「no voice from the app (before 2026-11-14)」と表示されます。
+- 確認（2026-11-14、`StudyData/20261114_115048_P001`、ヘッドセットなし。**動作確認用の記録で、被験者のデータでは
+  ありません**）: 4 条件のフォルダが上の名前でできること、HB と BB で合成音声を流し込むと鳥の声が鳴ること（`output.wav`
+  で -19 dBFS）、BH と HH で素通しが開くこと（`mic_passthrough` の `open` / `close`）。この記録ではマイク入力が無音
+  （-97 dBFS）だったので、BH で実際の声が聞こえることは未確認です（HH の素通しは 2026-11-12 に確認済みで、同じ経路です）。
 
 人間アバターの体（中性 / 男性 / 女性）は条件には含めず、**データごとのフラグ**で残します: すべてのイベント・`trials.csv`・
 `samples.csv` の `human_avatar` 列（`neutral` / `male` / `female`、鳥のときは空）と `avatar_model`、試行 WAV のファイル名の末尾
 （`..._male.wav`）。
 
 - 声のフィードバックは `BirdVoiceMapper.SetFeedback` で切り替わり、歌う場面の応答中だけでなく、どの場面でも同じ設定です。
-  V キーで鳥 ⇄ 人間を切り替えても「変換あり / なし」は保たれます（鳥なら鳥の声、人間なら人間の声になります）。
+  V キーで鳥 ⇄ 人間のアバターを切り替えても、声はそのままです（BB ⇄ HB、BH ⇄ HH）。
 - 教師の鳥の手本（guide note）は **どの条件でも鳥の声**です（`SingingTrialTask.teacherVoice = Bird`）。
   人間アバターのときに手本も人間の声にしたい場合は `Teacher Voice` を `FollowAvatar` にします（`events.jsonl` の
   `guide_start` に `teacher_voice` が残ります）。
@@ -140,7 +153,7 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
     メニュー **Debug/Log Audio Output Devices** で、デバイス一覧・このアプリの選択・実際の出力先をログに出せます。
   - 確認済み（2026-11-12、Windows 11 build 26200）: デバイス一覧と現在の選択の読み取り、設定呼び出しが受け付けられること。
     実際に切り替えて音が移ることは未確認です。
-- 人間の声の条件（Human + human voice）は 2026-11-12 から **マイク入力をそのままヘッドホンに出します**
+- 自分の声の条件（BH と HH。2026-11-14 より前は Human + human voice だけ）は 2026-11-12 から **マイク入力をそのままヘッドホンに出します**
   （`Scripts/Audio/MicPassthrough.cs`。解析も合成も通しません）。鳥の声と同じく、聞こえるのは声を追従している間
   （歌う場面の応答中など）だけで、手本が鳴っている間は閉じています。
   - 遅れ: マイクの書き込み位置から `AvianVoiceSettings.micPassthroughLatencyMs`（既定 30 ms）だけ後ろを再生します。
@@ -202,6 +215,33 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 翼の開き・羽ばたき・持ち上げ）を `AvianVoiceSettings` の **Breath Motion Scale**（Teacher Breath、既定 0.65）で一律に弱めています
 （胸の骨 +40 % → +26 %、腹 +28 % → +18 %、翼の開き 14° → 約 9°）。1 にすると元の大きさです。自分の鳥と教師の鳥の両方に
 掛かり、歌うときの姿勢には掛かりません。
+
+### 声に合わせて開く口（人間アバター、2026-11-14）
+
+鳥アバターのくちばしが被験者の声で開くのと同じように、人間アバターも被験者が声を出している間、口を開けます
+（`HumanMouthEmbodiment`、人間アバターの体を作るときに自動で付きます）。人間アバターの条件（HB / HH）のどの場面でも働き、
+ヘッドホンで聞く声（鳥の声 / 自分の声）には関係しません。鏡に映る顔で見えます（自分の頭はヘッドセットには映りません）。
+
+- 動かすもの: あごの骨（Humanoid の Jaw、無ければ頭の下の "jaw" という名前の骨）を、頭の左右の軸まわりに回します。
+  開き具合は角度ではなく **下唇の下がる量**（`Lip Opening`、既定 11 mm = 歌うときの口）で決め、体ごとのあごの関節の位置と
+  スキンのウェイトから角度を求めます（中性 16.4°、男性 5.9°、女性 6.4°。中性の体はあごの皮膚が頭の骨と半分ずつなので、
+  骨の角度は大きくなります）。あごの骨がスキンを動かさない体（ロボット型マネキン）では口は閉じたままです。
+- 開く条件: 声の解析が「発声中」（`voiced`）としている間だけ。フィードバックの声と同じ判定なので、息の音や周りの音では動きません。
+- 開く量: 一番小さい声でも `Soft Voice Share`（既定 45 %）まで開き、声の大きさ（`loudness` 0.1 → `Full Loudness` 0.7）で
+  残りを足します。実験の歌声は loudness 0.4〜1.0 なので、歌っている間はほぼ 7 割〜全開です。
+- 動き方: 開くとき 0.07 s、閉じるとき 0.14 s のなめらかな追従（`Open Seconds` / `Close Seconds`）。`Close Hold Seconds`
+  （0.06 s）より短い声の途切れでは閉じ始めないので、伸ばした音の途中で口がぱくぱくしません。
+- 口の中: 中性の体（テクスチャ無しのマネキン）は口の中も肌と同じ色なので、開けると唇の間が白っぽく見えます。体を作るときに
+  口の中の三角形（口を閉じた姿勢で、周り 14 方向のうち 12 方向以上がふさがっている面。その中で一番大きいひとかたまり = 954 個、
+  幅 75 mm）を別のサブメッシュに分け、顔のマテリアルを暗くした複製（明るさ 16 %、つや無し）を当てます（`Interior Shading` = Auto）。
+  歯と口の中が描かれている男性・女性の体（テクスチャあり）はそのままです。探すのに体 1 つにつき約 0.4 秒かかります（Play 開始時に 1 回）。
+- 記録: セッション開始時と体を切り替えたときに `events.jsonl` へ `human_mouth` イベント（`lip_opening_m`、`full_jaw_deg`、
+  `soft_voice_share`、`open_s`、`close_s`、`close_hold_s`、`jaw_bone`、`interior_triangles_darkened`）。口の開きは
+  `samples.csv` の `voiced` と `loudness` から上の式で決まるので、フレームごとの列は増やしていません。
+- 確認用: **Debug/Render Human Mouth (closed, soft voice, full voice)** は Play なし・ヘッドセットなしで、全ての人間の体を
+  閉じた口 / 小さい声 / 大きい声で正面・斜め・鏡の距離から描画します（`Temp/HumanMouthTest/mouth.png`）。Play 中は
+  **Debug/Log Human Mouth Now**（その時点の開き・声の状態）、**Debug/Hold Human Mouth: Full Voice / Closed / Off**、
+  マイク無しで試すには **Debug/Test Voice Pitch: steady 330 Hz 1.5 s** のあとすぐ Log Human Mouth Now。
 
 ### 人間アバター条件の表示（2026-11-12）
 
@@ -309,7 +349,7 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 | `mic.wav` | 被験者マイク（セッション全体、モノラル 16 bit） |
 | `output.wav` | 被験者が聞いた音（AudioListener のミックス、モノラル 16 bit）。教師の音がここに入ります |
 | `conditions.csv` | 条件の区間ごとに 1 行（時系列順）: 条件、人間アバター、開始 / 終了時刻、`mic.wav` / `output.wav` 上の範囲（`mic_sample_start`〜`mic_sample_end`）、その区間の試行数・サンプル数。同じ条件に戻ると新しい行になります |
-| `conditions/<条件>/` | **条件ごとのフォルダ**（`bird_bird-voice` / `bird_own-voice` / `human_human-voice` / `human_own-voice`、使った条件だけ作られます）。中身はその条件の間に書かれた行だけの `events.jsonl` / `trials.csv` / `samples.csv`（セッション直下の同名ファイルの行のコピー）と、下の試行 WAV |
+| `conditions/<条件>/` | **条件ごとのフォルダ**（`bird_bird-voice` / `bird_human-voice` / `human_bird-voice` / `human_human-voice`、使った条件だけ作られます。2026-11-14 より前の記録には `bird_own-voice` / `human_own-voice`）。中身はその条件の間に書かれた行だけの `events.jsonl` / `trials.csv` / `samples.csv`（セッション直下の同名ファイルの行のコピー）と、下の試行 WAV |
 | `conditions/<条件>/segments/trial_NNN_aN_<音名>[_<人間アバター>][_run<N>].wav` | 試行開始〜終了のマイク音声の切り出し。試行番号は条件ごとに 1 から始まります。同じ条件をやり直した分には `_run2`、`_run3` が付き、上書きはしません。`trials.csv` の `segment_file` はセッションフォルダからの相対パスです |
 
 セッション直下のファイルが**時系列の全体**、`conditions/` がそれを**4 条件に分けたもの**です（2026-11-12 から。それ以前は
@@ -328,6 +368,10 @@ Play の前に **Participant ID** をパネルで入力しておくと、記録�
 **Study Monitor**（`Tools/StudyMonitor`、Play で自動的に別ウィンドウが開きます。メニュー Avian Voice / Study Monitor）の
 上段に 4 条件のカードがあり、試行 WAV が 1 本保存されるたびにその条件のカードにタイル（そのファイルの波形）が増えます。
 無音・ほぼ無音・ファイルなし・声の検出なしのタイルには警告が付きます。
+モニタが表示するのはセッションフォルダのデータなので、練習場面のあいだ（まだ記録が始まっておらず、その参加者の
+フォルダがない）は直前のセッションが表示されたままになります。そのため Play 中は `StudyFlowController` が毎秒
+`StudyData/live.json`（参加者 ID・場面・練習中か・記録中か）を書き、モニタ上部に「P003 · Practice: not recorded yet」
+のように今の Unity の状態を出します（記録中のセッションを表示しているときは出ません）。
 
 すべてのタイムスタンプは、壁時計（UTC / ローカル、ISO 8601）、`Time.realtimeSinceStartup`、`AudioSettings.dspTime`、
 `mic.wav` のサンプル番号（`mic_sample`）、`output.wav` のフレーム番号（`out_frame`）を同時に持つので、音声ファイルを
@@ -521,6 +565,8 @@ Rocketbox 男性 +0.099 / +0.086、女性 +0.090 / +0.086（目のボーン Bip0
 | `Scripts/BodyTracking/HumanoidTPose.cs` | Avatar に保存された T ポーズをリグに適用（筋肉値 0 は T ポーズではない） |
 | `Scripts/Embodiment/Avatar/HumanFirstPersonDriver.cs` | 人間: ルートをトラッキング原点に置き目をカメラに合わせる。T ポーズの再適用、トラッキング無しのフォールバック姿勢、データ途切れ時のリターゲット一時停止 |
 | `Scripts/Embodiment/Avatar/FirstPersonHeadHider.cs` | 一人称カメラだけ頭部（頭ボーン以下の三角形 / 頭・髪のマテリアル）を非表示（鏡・池の反射には映る）。鳥と人間の両方 |
+| `Scripts/Embodiment/Avatar/HumanMouthEmbodiment.cs` | 人間: 被験者の声（発声中・大きさ）に合わせてあごの骨を回して口を開ける。口の中の三角形を見つけて暗いマテリアルのサブメッシュに分ける（頭を隠す処理より前に行う） |
+| `Editor/AvianMouthDebugMenu.cs` | 口の確認メニュー（Play なしの描画、Play 中の状態ログ・固定） |
 | `Scripts/Study/StudyFlowController.cs` | 4 場面フロー（`TaskManager.SetFlow`）、`SingingTrialTask` の割り当て、`StudyRecorder` の開始、**条件（アバター × 声のフィードバック）** の設定と記録 |
 | `Scripts/Study/SingingTrialTask.cs` | 試行形式の歌う場面（教師の 1 音 → 応答、発声検出、30 回で休む場面へ） |
 | `Scripts/Audio/MicPassthrough.cs` | 人間の声の条件のフィードバック（2026-11-12 から）: マイク入力を変換せずにヘッドホンへ出す。マイクのリングバッファを一定の遅れで再生し、遅れを測って保つ |
@@ -603,7 +649,7 @@ SDK's per-bone direction match, which bent rigs whose pelvis / neck / collarbone
 data the SDK turned MakeHuman's collarbones 35 deg, the Armature's pelvis 59 deg). The rest pose handed to the SDK is
 the Avatar's stored T-pose (`HumanoidTPose`), not muscle zero (arms 40 deg down and forward, elbows and knees bent).
 Check with Debug / Body Retarget Self-Test (with images). The study has four conditions, avatar (bird / human) x
-voice feedback (the participant's own voice heard as a bird voice / as it is from the microphone, or not at all), chosen from the
+the voice heard in the headphones (the participant's own voice as a bird voice / as it is from the microphone, either with either avatar: BB, BH, HB, HH), chosen from the
 experimenter panel; the participant's own head (bird or human) is hidden from the headset camera but visible in the
 mirror. Toggle bird / human with **V** (keyboard).
 

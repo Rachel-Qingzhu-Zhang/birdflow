@@ -234,8 +234,8 @@ namespace AvianVoice.Study
         float toleranceHz = 30f;
 
         [Header("Behaviour")]
-        [Tooltip("During the response the participant hears their own voice through the condition's feedback: a bird voice with the " +
-                 "bird avatar, their own microphone as it is with the human avatar, or nothing (StudyFlowController / Experimenter Panel).")]
+        [Tooltip("During the response the participant hears their own voice through the condition's feedback: a bird voice (BB, HB) " +
+                 "or their own microphone as it is (BH, HH), whichever the avatar (StudyFlowController / Experimenter Panel).")]
         [SerializeField]
         bool participantVoiceFeedback = true;
 

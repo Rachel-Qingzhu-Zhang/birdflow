@@ -47,7 +47,7 @@ namespace AvianVoice.Audio
         /// </summary>
         public string HumanFeedbackModeName => settings != null && !settings.humanVoiceFromMicrophone ? "synth" : "microphone";
 
-        /// <summary>The microphone passthrough of the human-voice condition (null until that condition was used).</summary>
+        /// <summary>The microphone passthrough of the own-voice conditions, BH and HH (null until one of them was used).</summary>
         public MicPassthrough Passthrough => passthrough;
 
         bool UseMicPassthrough => settings != null && settings.humanVoiceFromMicrophone;

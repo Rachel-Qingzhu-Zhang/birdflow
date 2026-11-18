@@ -198,6 +198,25 @@ def scan_conditions(folder):
     return out
 
 
+LIVE_STALE_S = 10                    # live.json is rewritten every second while Unity plays
+
+
+def read_live(root):
+    """StudyData/live.json (StudyFlowController): participant ID, scene, practice and recording state of the Play
+    running now. None when Unity is not playing (file missing, marked stopped, or not rewritten for a while)."""
+    path = os.path.join(root, "live.json")
+    try:
+        age = time.time() - os.path.getmtime(path)
+        with open(path, "r", encoding="utf-8") as f:
+            live = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(live, dict) or not live.get("playing") or age > LIVE_STALE_S:
+        return None
+    live["age_s"] = round(age, 1)
+    return live
+
+
 def file_entry(path):
     try:
         st = os.stat(path)
@@ -547,7 +566,7 @@ class Handler(BaseHTTPRequestHandler):
 
         sid, sessions = self._session_dir(q)
         out = {"server_time_ms": time.time() * 1000.0, "root": self.root, "sessions": sessions[:200], "session": sid,
-               "page_version": "%d" % os.path.getmtime(HERE / "monitor.html")}
+               "page_version": "%d" % os.path.getmtime(HERE / "monitor.html"), "live": read_live(self.root)}
         if sid is None:
             self._json(out)
             return
